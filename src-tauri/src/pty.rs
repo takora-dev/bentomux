@@ -806,6 +806,14 @@ mod tests {
     fn manager_with(stream: crate::pty_host::HostStream) -> PtyManager {
         let manager = PtyManager::new();
         manager.attach_transport(stream);
+        /* The host pushes its term list right after the hello, and the reader
+        thread fills the local map from it asynchronously (with a clear()
+        first). A `list` request cannot be answered before that push has been
+        read, so this is the ordering barrier connect_with_handshake() gets
+        for free from its handshake. Without it a test can reach get_term() or
+        write_term() before the push lands and read an empty map — which is
+        what made the reconnect test fail under full-suite load. */
+        let _ = manager.host_status();
         /* tests hand the transport over directly, so the manager is ready
         without the start() handshake */
         manager.open_gate();
@@ -968,17 +976,18 @@ mod tests {
     fn test_two_panes_survive_ten_reconnect_cycles() {
         let (host, first) = test_manager("reconnect-10x");
         let workspace = ws("reconnect-10x");
-        let shell_pref = if cfg!(windows) {
-            Some("cmd")
-        } else {
-            Some("pi")
-        };
+        /* The test only needs a pane that stays alive and echoes, so it takes
+        the detected default like every other test here. Naming "pi" made the
+        suite depend on whether that agent happened to be installed: on CI it
+        silently fell back to a shell, on a dev machine it spawned a real
+        agent, and neither run tested the same thing. */
+        let shell_pref: Option<&str> = None;
         let left = first
             .create_term(&workspace.id, &workspace.path, shell_pref)
-            .expect("left Pi spawn");
+            .expect("left shell spawn");
         let right = first
             .create_term(&workspace.id, &workspace.path, shell_pref)
-            .expect("right Pi spawn");
+            .expect("right shell spawn");
         let left_pid = first.get_term(&left).expect("left registered").pid;
         let right_pid = first.get_term(&right).expect("right registered").pid;
         let tree = crate::split_tree::split_leaf(
