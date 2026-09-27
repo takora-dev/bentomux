@@ -20,6 +20,7 @@ pub mod shell;
 pub mod split_tree;
 pub mod state;
 pub mod terminal;
+pub mod tray;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -126,6 +127,15 @@ pub fn run() {
                 }
             }
         }
+        /* system tray: the icon the app hides behind when its window is
+        closed, and the only way back (plus the Quit menu item). Built here
+        rather than in tauri.conf.json so the icon can reuse the bundled
+        app icon. TrayState records whether it came up, which the close
+        handler below consults before hiding. */
+        app.manage(tray::TrayState::default());
+        if let Err(e) = tray::init(&handle) {
+            eprintln!("[bentomux] tray icon failed to init: {e}");
+        }
         /* track the last-known maximize state on the main window so we only
         emit `win:maximized` on the actual OS transition (mirrors
         Electron's `win.on('maximize'/'unmaximize')` pattern in
@@ -145,11 +155,29 @@ pub fn run() {
                         let _ = app_for_event.emit("win:maximized", now);
                     }
                 }
-                tauri::WindowEvent::CloseRequested { .. } => {
-                    /* approval-overlay remains alive after main closes. Exit
-                    explicitly so Windows does not leave a headless app
-                    process holding the single-instance lock. */
-                    app_for_event.exit(0);
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    /* Closing the window does NOT quit: the app keeps
+                    running in the background with its tray icon, so
+                    agents, the approval bridge and the remote monitor
+                    stay alive. Quit for real goes through the tray's
+                    Quit item or app_quit(), both of which call
+                    app.exit(0) and land on the ExitRequested cleanup
+                    below.
+
+                    The hide is gated on the tray actually existing: with
+                    no icon there would be no way back, so a failed tray
+                    build leaves close meaning quit. */
+                    let tray_up = app_for_event
+                        .try_state::<tray::TrayState>()
+                        .map(|s| s.is_up())
+                        .unwrap_or(false);
+                    if tray_up {
+                        api.prevent_close();
+                        let _ = main_for_event.hide();
+                    } else {
+                        eprintln!("[bentomux] tray unavailable; closing the window quits the app");
+                        app_for_event.exit(0);
+                    }
                 }
                 _ => {}
             });
