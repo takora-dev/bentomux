@@ -312,6 +312,11 @@ function wireWindowControls(): void {
      the DOM either way and the commands are cross-platform. */
   $('#winMinBtn').addEventListener('click', () => { api.minimize(); });
   $('#winMaxBtn').addEventListener('click', () => { api.toggleMaximize(); });
+  /* X closes the window, but the backend turns that into a hide: the app
+     keeps running in the background with its tray icon (see src-tauri/
+     src/tray.rs), so agents, the approval bridge and the remote monitor stay
+     alive. Left-click the tray icon to bring the window back; Quit for real
+     is the tray menu's Quit item or Settings -> Quit. */
   $('#winCloseBtn').addEventListener('click', () => { api.close(); });
   wireWindowDrag();
 }
@@ -574,6 +579,29 @@ function logSmokeIfRequested(): void {
   }
 }
 
+/* The boot splash is static markup in index.html (see the inline style there),
+   so it is on screen from the first frame. Fade it out once the initial route
+   has rendered and remove it — idempotent because the boot error path may call
+   it too. Double rAF: the first frame applies the route, the second confirms
+   the browser actually painted it, so the fade never reveals a half-built
+   shell. */
+let bootSplashGone = false;
+function hideBootSplash(): void {
+  if (bootSplashGone) return;
+  bootSplashGone = true;
+  const splash = document.getElementById('bootSplash');
+  if (!splash) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      splash.classList.add('boot-splash--done');
+      /* remove after the fade; the timeout is the fallback for a splash that
+         never fires transitionend (reduced-motion, hidden window) */
+      splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+      window.setTimeout(() => splash.remove(), 400);
+    });
+  });
+}
+
 function wireUpdateBanner(): void {
   const banner = document.getElementById('updateBanner');
   if (!banner) return;
@@ -665,6 +693,7 @@ async function boot(): Promise<void> {
   initKeyboard();
 
   restoreInitialView(restored);
+  hideBootSplash();
   logSmokeIfRequested();
   console.info('[perf] renderer-boot-ms=' + Math.round(performance.now() - bootStart));
 
@@ -701,5 +730,8 @@ async function boot(): Promise<void> {
 }
 boot().catch(e => {
   console.error(e);
+  /* boot never reached first paint, so the splash is still up: take it down
+     or it would hide the only explanation the user gets */
+  hideBootSplash();
   document.body.innerText = 'Bentomux boot error: ' + (e instanceof Error ? e.message : String(e));
 });
