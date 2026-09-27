@@ -5,8 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bentomux</title>
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
+<style>
+  /* Boot splash. Inline and first in <head> on purpose: it must paint from
+     the very first frame, before the Vite bundle's CSS/JS load, so the shell
+     underneath never flashes half-built. main.ts removes it after the first
+     route is rendered.
+
+     Colors read the app's own tokens with hard-coded fallbacks: before
+     styles.css loads the fallback paints (OS-theme aware, via the media
+     query below); once it loads the variables win and the splash follows the
+     user's palette and theme with no extra code. */
+  #bootSplash{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
+    background:var(--bg,#F1F2F4);color:var(--ink,#1F2328);
+    font:13px/1.45 var(--sans,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif);
+    transition:opacity .28s ease}
+  #bootSplash .boot-card{display:flex;flex-direction:column;align-items:center;gap:14px}
+  #bootSplash .boot-mark{color:var(--accent,#2563EB)}
+  #bootSplash .boot-name{font-size:15px;font-weight:600;letter-spacing:.02em}
+  #bootSplash .boot-spinner{width:20px;height:20px;border-radius:50%;
+    border:2px solid var(--tint,rgba(31,35,40,.14));border-top-color:var(--accent,#2563EB);
+    animation:boot-spin .8s linear infinite}
+  #bootSplash.boot-splash--done{opacity:0;pointer-events:none}
+  #bootSplash .boot-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @keyframes boot-spin{to{transform:rotate(360deg)}}
+  /* OS dark guess: literal colors, NOT the variables. Once styles.css has
+     loaded --bg is already defined (as the light default), so a var() here
+     would resolve light and the fallback would never be reached. The
+     persisted theme cannot be known yet either way — it arrives with the
+     state that boot is still fetching. */
+  @media (prefers-color-scheme: dark){
+    #bootSplash{background:#17181B;color:#E8EAED}
+    #bootSplash .boot-mark{color:#4C8EF9}
+    #bootSplash .boot-spinner{border-color:rgba(232,234,237,.16);border-top-color:#4C8EF9}
+  }
+  /* the persisted theme wins the moment boot applies it, even when it
+     disagrees with the OS guess above; variables are trustworthy here, so
+     the splash follows the user's palette */
+  html.dark #bootSplash{background:var(--bg,#17181B);color:var(--ink,#E8EAED)}
+  html.dark #bootSplash .boot-mark{color:var(--accent,#4C8EF9)}
+  html.dark #bootSplash .boot-spinner{border-color:var(--tint,rgba(232,234,237,.16));border-top-color:var(--accent,#4C8EF9)}
+  @media (prefers-reduced-motion: reduce){#bootSplash .boot-spinner{animation:none}}
+</style>
 </head>
 <body>
+<div id="bootSplash" role="status" aria-live="polite">
+  <div class="boot-card">
+    <svg class="boot-mark" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect width="48" height="48" rx="10" fill="currentColor" opacity=".08"/><rect x="8" y="8" width="14" height="14" rx="2" fill="currentColor" opacity=".7"/><rect x="26" y="8" width="14" height="14" rx="2" fill="currentColor"/><rect x="8" y="26" width="14" height="14" rx="2" fill="currentColor"/><rect x="26" y="26" width="14" height="14" rx="2" fill="currentColor" opacity=".5"/></svg>
+    <div class="boot-name">Bentomux</div>
+    <div class="boot-spinner" aria-hidden="true"></div>
+    <span class="boot-sr">Loading…</span>
+  </div>
+</div>
 <div class="app">
   <div class="win" id="win">
     <header class="titlebar" id="titlebar">
