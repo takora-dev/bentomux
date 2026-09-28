@@ -48,8 +48,8 @@ export interface TabRec {
   title?: string;
 }
 
-export type PaletteName = 'default' | 'catppuccin' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night';
-export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night'];
+export type PaletteName = 'default' | 'catppuccin' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night' | 'pastel-pixel';
+export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night', 'pastel-pixel'];
 
 export interface Prefs {
   theme?: 'light' | 'dark' | 'system';
