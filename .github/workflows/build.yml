@@ -81,6 +81,14 @@ jobs:
         shell: bash
         run: npm run plugin:skill:check
 
+      # Tauri's nonce injection makes 'unsafe-inline' inert, which silently
+      # strips every runtime-injected style (xterm's per-terminal sheets, the
+      # palette swatches' style="" attributes) in packaged builds only. The
+      # failure is invisible without a pane open, so it is checked here.
+      - name: Check the CSP keeps inline styles alive
+        shell: bash
+        run: npm run check:csp-inline-styles
+
       - name: Check the POSIX installer
         if: runner.os == 'Linux'
         shell: bash

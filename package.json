@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test:backend": "node scripts/test-backend.mjs",
     "check:remote-page": "node scripts/check-remote-page.mjs",
+    "check:csp-inline-styles": "node scripts/check-csp-inline-styles.mjs",
     "test:release": "node scripts/release-manifest.mjs --selftest",
     "test:installer": "sh scripts/verify-installer.sh",
     "tauri": "tauri",
