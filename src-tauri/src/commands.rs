@@ -897,9 +897,16 @@ pub fn win_toggle_maximize(window: tauri::Window, app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-pub fn win_toggle_fullscreen(window: tauri::Window) {
+pub fn win_toggle_fullscreen(window: tauri::Window, app: tauri::AppHandle) {
     let now_full = !window.is_fullscreen().unwrap_or(false);
     let _ = window.set_fullscreen(now_full);
+    /* same double-emit guard as win_toggle_maximize: sync the shared
+    fullscreen-state guard, then emit so programmatic toggles (Cmd+Ctrl+F)
+    notify the renderer immediately. */
+    if let Some(state) = app.try_state::<crate::WindowFullState>() {
+        state.0.store(now_full, std::sync::atomic::Ordering::SeqCst);
+    }
+    let _ = app.emit("win:fullscreen", now_full);
 }
 
 #[tauri::command]

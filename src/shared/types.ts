@@ -450,6 +450,7 @@ export interface BentomuxApi {
   toggleFullscreen(): void;
   close(): void;
   onMaximized(cb: (max: boolean) => void): () => void;
+  onFullscreen(cb: (full: boolean) => void): () => void;
 
   /* persisted app state */
   getState(): Promise<AppState>;

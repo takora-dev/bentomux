@@ -307,6 +307,14 @@ function wireWindowControls(): void {
     ui.maximized = max;
     document.body.classList.toggle('maximized', max);
   });
+  /* html.fullscreen drives the macOS side-tools reflow: fullscreen hides the
+     traffic lights, so the sidebar header buttons stop hugging the right
+     edge. Sync once on boot too — a reload can land mid-fullscreen. */
+  const setFullscreenClass = (full: boolean): void => {
+    document.documentElement.classList.toggle('fullscreen', full);
+  };
+  api.onFullscreen(setFullscreenClass);
+  void getCurrentWindow().isFullscreen().then(setFullscreenClass);
   /* The three OS buttons only exist on Windows (the other platforms keep their
      native frame), but the handlers are harmless there: the elements are in
      the DOM either way and the commands are cross-platform. */

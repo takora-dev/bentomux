@@ -172,6 +172,10 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .side-tools{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:2px;padding:0 8px}.sidebar-resize{position:absolute;top:0;right:-3px;bottom:0;width:6px;cursor:col-resize;z-index:20}.sidebar-resize:hover{background:var(--accent-tint)}
 .macos .side-tools{height:38px;flex-basis:38px;align-items:center;justify-content:flex-end;padding:0 8px}
 .macos body.pane-hidden .titlebar .top-tools{padding-left:8px}
+/* macOS fullscreen hides the traffic lights: the side-tools no longer need to
+   hug the right edge, and the collapsed-rail traffic-light pad goes away. */
+.macos.fullscreen .side-tools{justify-content:flex-start}
+.macos.fullscreen body.pane-hidden .sidebar .side-tools{padding-top:12px}
 .sidebar-bottom{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:6px 10px 8px;border-top:1px solid var(--line);background:var(--bg);min-height:34px}
 .compact-sidebar-footer{display:none;flex:0 0 40px;align-items:center;border-top:1px solid var(--line);background:var(--bg)}
 .side-tools .tbtn{width:30px;height:28px}

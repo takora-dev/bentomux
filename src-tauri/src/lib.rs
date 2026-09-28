@@ -144,8 +144,11 @@ pub fn run() {
         if let Some(main) = app.get_webview_window("main") {
             let last_max = Arc::new(AtomicBool::new(main.is_maximized().unwrap_or(false)));
             app.manage(WindowMaxState(last_max.clone()));
+            let last_full = Arc::new(AtomicBool::new(main.is_fullscreen().unwrap_or(false)));
+            app.manage(WindowFullState(last_full.clone()));
             let app_for_event = handle.clone();
             let last_for_event = last_max.clone();
+            let last_full_for_event = last_full.clone();
             let main_for_event = main.clone();
             main.on_window_event(move |ev| match ev {
                 tauri::WindowEvent::Resized(_) => {
@@ -153,6 +156,16 @@ pub fn run() {
                     let prev = last_for_event.swap(now, Ordering::SeqCst);
                     if now != prev {
                         let _ = app_for_event.emit("win:maximized", now);
+                    }
+                    /* same transition guard for fullscreen: the renderer
+                    flips its `html.fullscreen` class on this event (macOS
+                    fullscreen hides the traffic lights, so the side-tools
+                    reflow). Covers both the app toggle and the native
+                    green-button / Ctrl+Cmd+F transitions. */
+                    let now_full = main_for_event.is_fullscreen().unwrap_or(false);
+                    let prev_full = last_full_for_event.swap(now_full, Ordering::SeqCst);
+                    if now_full != prev_full {
+                        let _ = app_for_event.emit("win:fullscreen", now_full);
                     }
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -293,3 +306,8 @@ pub fn run() {
 the OS toggle and emits the event so the renderer's `onMaximized` cb
 fires on programmatic toggles too (Electron parity). */
 pub struct WindowMaxState(pub Arc<AtomicBool>);
+
+/* shared fullscreen-state guard; `win_toggle_fullscreen` reads/swaps it after
+the OS toggle so the Resized handler does not double-emit the same
+transition (same pattern as WindowMaxState). */
+pub struct WindowFullState(pub Arc<AtomicBool>);

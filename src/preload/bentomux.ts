@@ -131,6 +131,7 @@ const api = {
   toggleFullscreen: () => { void invoke('win_toggle_fullscreen'); },
   close: () => { void invoke('win_close'); },
   onMaximized: (cb: (max: boolean) => void) => subscribe<boolean>('win:maximized', cb),
+  onFullscreen: (cb: (full: boolean) => void) => subscribe<boolean>('win:fullscreen', cb),
 
   /* persisted state */
   /* WebView2 can dispatch the first IPC call while its native startup is
