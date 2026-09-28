@@ -114,18 +114,24 @@ fn log_path() -> std::path::PathBuf {
 pub struct HostStream {
     pub reader: Box<dyn BufRead + Send>,
     pub writer: Box<dyn Write + Send>,
+    /* clone of the underlying socket kept as a shutdown handle: dropping a
+    client must sever the connection immediately (unblocking the reader
+    thread) instead of waiting for the daemon to notice EOF */
+    pub socket: TcpStream,
 }
 
 fn open_stream(addr: &Address) -> std::io::Result<HostStream> {
     let stream = TcpStream::connect(("127.0.0.1", addr.port))?;
     let _ = stream.set_nodelay(true);
     let mut writer = stream.try_clone()?;
+    let socket = stream.try_clone()?;
     /* the daemon ignores anything that does not open with the token */
     writeln!(writer, "{}", json!({ "t": "hello", "token": addr.token }))?;
     writer.flush()?;
     Ok(HostStream {
         reader: Box::new(BufReader::new(stream)),
         writer: Box::new(writer),
+        socket,
     })
 }
 

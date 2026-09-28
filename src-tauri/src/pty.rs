@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::net::{Shutdown, TcpStream};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::Emitter;
@@ -70,6 +71,31 @@ fn host_verdict(version: u64, term_count: usize, just_spawned: bool) -> HostVerd
     HostVerdict::Use
 }
 
+/* one live connection to the pty host: the stop flag is shared with its
+reader thread, and the raw socket is the shutdown handle. Keeping both lets
+disconnect() sever the connection deterministically instead of leaving a
+zombie reader registered with the daemon alongside its successor. */
+struct Transport {
+    stop: Arc<AtomicBool>,
+    socket: TcpStream,
+}
+
+/* End one transport's threads: drop the writer slot so later requests fail
+fast instead of waiting out a timeout — but only while the slot still belongs
+to THIS transport. A thread from a replaced connection must not take down its
+successor. */
+fn retire_transport(
+    transport: &Mutex<Option<Transport>>,
+    out: &Mutex<Option<mpsc::Sender<String>>>,
+    stop: &Arc<AtomicBool>,
+) {
+    let mut current = transport.lock().unwrap();
+    if current.as_ref().is_some_and(|t| Arc::ptr_eq(&t.stop, stop)) {
+        *current = None;
+        *out.lock().unwrap() = None;
+    }
+}
+
 pub struct PtyManager {
     terms: Arc<Mutex<HashMap<String, TermInfo>>>,
     /* the handle is set by start(), which runs inside Tauri's setup; the
@@ -82,6 +108,9 @@ pub struct PtyManager {
     /* request/response plumbing against the daemon */
     out: Arc<Mutex<Option<mpsc::Sender<String>>>>,
     pending: Arc<Mutex<HashMap<u64, mpsc::Sender<Value>>>>,
+    /* the live transport handle (stop flag + raw socket), installed by
+    attach_transport and severed by disconnect()/Drop */
+    transport: Arc<Mutex<Option<Transport>>>,
     seq: AtomicU64,
     /* the daemon handshake is done by start(), which can take seconds when
     the host has to be spawned. Commands arrive on WebView2's threads the
@@ -119,6 +148,15 @@ fn unb64(text: &str) -> Option<Vec<u8>> {
     base64::engine::general_purpose::STANDARD.decode(text).ok()
 }
 
+/* Dropping the manager severs its connection before anything else can
+attach: a reader thread that outlives its manager keeps the daemon-side
+registration and races the next transport's replay. */
+impl Drop for PtyManager {
+    fn drop(&mut self) {
+        self.disconnect();
+    }
+}
+
 impl PtyManager {
     /* Cheap and I/O-free on purpose: this runs on the Tauri Builder, before
     the window exists, so `pty` is managed before WebView2 can fire its
@@ -133,6 +171,7 @@ impl PtyManager {
             exit_tx,
             out: Arc::new(Mutex::new(None)),
             pending: Arc::new(Mutex::new(HashMap::new())),
+            transport: Arc::new(Mutex::new(None)),
             seq: AtomicU64::new(1),
             ready: Mutex::new(false),
             ready_cv: Condvar::new(),
@@ -239,18 +278,44 @@ impl PtyManager {
         self.exit_tx.subscribe()
     }
 
+    /* Sever the live transport: flag its reader thread, shutdown the socket
+    so both threads unblock, and drop the writer sender. Idempotent. */
+    fn disconnect(&self) {
+        if let Some(transport) = self.transport.lock().unwrap().take() {
+            transport.stop.store(true, Ordering::Release);
+            let _ = transport.socket.shutdown(Shutdown::Both);
+        }
+        *self.out.lock().unwrap() = None;
+    }
+
     fn attach_transport(&self, stream: HostStream) {
-        let HostStream { reader, mut writer } = stream;
+        /* a re-attach (daemon restart) must sever the previous connection
+        first: a surviving reader keeps its daemon-side registration alive
+        and can interleave terms/attach/output with the new transport */
+        self.disconnect();
+        let HostStream {
+            reader,
+            mut writer,
+            socket,
+        } = stream;
         let (out_tx, out_rx) = mpsc::channel::<String>();
+
+        let stop = Arc::new(AtomicBool::new(false));
+        *self.transport.lock().unwrap() = Some(Transport {
+            stop: stop.clone(),
+            socket,
+        });
 
         /* A write failure used to be swallowed here, and every later request
         then sat out the full timeout with nothing in the log. Drop the
         sender instead, so send() fails immediately and says why. */
         let out_slot = self.out.clone();
+        let transport_slot = self.transport.clone();
+        let writer_stop = stop.clone();
         std::thread::spawn(move || {
             while let Ok(line) = out_rx.recv() {
                 if writer.write_all(line.as_bytes()).is_err() || writer.flush().is_err() {
-                    *out_slot.lock().unwrap() = None;
+                    retire_transport(&transport_slot, &out_slot, &writer_stop);
                     break;
                 }
             }
@@ -266,6 +331,7 @@ impl PtyManager {
         lands before setup finishes is not dropped on the floor */
         let app = self.app.clone();
         let out_slot = self.out.clone();
+        let transport_slot = self.transport.clone();
         /* per-pane coalescing buffers, flushed on a 16 ms cadence by the
         flusher thread below. data_tx (remote dirty-set, tests) still
         gets every chunk immediately — only the WebView emit batches. */
@@ -298,10 +364,18 @@ impl PtyManager {
             let mut reader = reader;
             let mut line = String::new();
             loop {
+                if stop.load(Ordering::Acquire) {
+                    break;
+                }
                 line.clear();
                 match reader.read_line(&mut line) {
                     Ok(0) | Err(_) => break,
                     Ok(_) => {}
+                }
+                /* the connection was severed while we were blocked in
+                read_line: drop whatever came in behind it */
+                if stop.load(Ordering::Acquire) {
+                    break;
                 }
                 let Ok(msg) = serde_json::from_str::<Value>(line.trim()) else {
                     continue;
@@ -409,7 +483,7 @@ impl PtyManager {
             }
             /* the daemon is gone: fail fast from here on instead of waiting
             out a timeout on every request */
-            *out_slot.lock().unwrap() = None;
+            retire_transport(&transport_slot, &out_slot, &stop);
         });
     }
 
@@ -1004,7 +1078,10 @@ mod tests {
 
         let mut current = Some(first);
         for cycle in 0..10 {
-            drop(current.take());
+            if let Some(previous) = current.take() {
+                previous.disconnect();
+                drop(previous);
+            }
             let next = connect_test_manager(&host);
             let restored = next.restore_terms(&[workspace.clone()], &[tab.clone()]);
             assert_eq!(restored.len(), 1, "restore failed on cycle {cycle}");
