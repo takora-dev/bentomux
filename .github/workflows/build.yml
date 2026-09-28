@@ -23,7 +23,7 @@ jobs:
             artifact: '*.msi'
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -38,7 +38,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl wget file libssl-dev libxdo-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -174,7 +174,7 @@ jobs:
             --out "dist/updater-${RUNNER_OS}.json"
 
       - name: Upload packaged artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bentomux-${{ runner.os }}
           path: |
@@ -186,7 +186,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload checksum list
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bentomux-checksums-${{ runner.os }}
           path: dist/checksums-*.sha256
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload updater fragment
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bentomux-updater-${{ runner.os }}
           path: dist/updater-*.json
@@ -231,15 +231,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: bentomux-checksums-*
           merge-multiple: true
           path: dist/checksums
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: bentomux-updater-*
           merge-multiple: true

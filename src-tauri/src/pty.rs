@@ -316,18 +316,15 @@ impl PtyManager {
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .to_string();
-                /* Every reply carries the request id, whatever its type, so
-                settle once here instead of once per arm: an arm that
-                forgets silently strands its caller until REQUEST_TIMEOUT
-                (a snapshot reply used to do exactly that, which is why the
-                first watch frame took 15s and then fell back to a blank
-                render). Replies without `n` are the unsolicited hot tick
-                and settle() ignores them. */
-                settle(&pending, &msg);
+                /* Every reply carries the request id, whatever its type.
+                Settle after the message arm updates local state so the caller
+                cannot wake before `spawned` or `terms` is published. Replies
+                without `n` are unsolicited hot ticks and settle() ignores them. */
                 match kind.as_str() {
                     "data" => {
                         let Some(bytes) = msg.get("data").and_then(Value::as_str).and_then(unb64)
                         else {
+                            settle(&pending, &msg);
                             continue;
                         };
                         let chunk = String::from_utf8_lossy(&bytes).into_owned();
@@ -408,6 +405,7 @@ impl PtyManager {
                     }
                     _ => {}
                 }
+                settle(&pending, &msg);
             }
             /* the daemon is gone: fail fast from here on instead of waiting
             out a timeout on every request */
