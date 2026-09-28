@@ -6,6 +6,7 @@ import { resolve } from 'path';
 // `approval.html` is the always-on-top overlay window (agent PermissionRequests),
 // built as a second page just like the main one.
 export default defineConfig({
+  base: './',
   root: 'src',
   clearScreen: false,
   server: {
