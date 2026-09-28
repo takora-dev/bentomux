@@ -104,6 +104,16 @@
 }
 :root.dark.palette-eink{--bg:#000000;--surface:#000000;--ink:#ffffff;--ink-2:#ffffff;--ink-3:#ffffff;--line:#ffffff;--line-2:#ffffff;--tint:rgba(255,255,255,.08);--accent:#ffffff;--accent-ink:#ffffff;--accent-tint:rgba(255,255,255,.09);--danger:#ffffff;--content-bg:#000000}
 
+/* Tokyo Night Light (light) / Night (dark) */
+:root.palette-tokyo-night{
+  --silver:#a6a9bb;--bright-snow:#eceef2;--parchment:#e1e2e7;--alabaster-grey:#ccd0d9;
+  --bg:var(--parchment);--surface:var(--bright-snow);--ink:#34355a;--ink-2:#6172b3;--ink-3:#9699a3;
+  --content-bg:#eceef2;
+  --line:var(--alabaster-grey);--line-2:var(--silver);--tint:rgba(52,53,90,.12);
+  --accent:#2e7de9;--accent-ink:#2e7de9;--accent-tint:rgba(46,125,233,.14);--danger:#f52a6b;
+}
+:root.dark.palette-tokyo-night{--bg:#1a1b26;--surface:#16161e;--ink:#c0caf5;--ink-2:#a9b1d6;--ink-3:#565f89;--line:#292e42;--line-2:#3b4261;--tint:rgba(192,202,245,.06);--accent:#7aa2f7;--accent-ink:#bb9af7;--accent-tint:rgba(122,162,247,.16);--danger:#f7768e;--content-bg:#1a1b26}
+
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
@@ -1452,6 +1462,17 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.dark.palette-eink .diff-line .code .syn-num  { color:#ffffff }
 :root.dark.palette-eink .diff-line .code .syn-fn   { color:#ffffff }
 :root.dark.palette-eink .diff-line .code .syn-type { color:#ffffff }
+
+:root.palette-tokyo-night .diff-line .code .syn-kw   { color:#7c3aed }
+:root.palette-tokyo-night .diff-line .code .syn-str  { color:#59873d }
+:root.palette-tokyo-night .diff-line .code .syn-num  { color:#b15a00 }
+:root.palette-tokyo-night .diff-line .code .syn-fn   { color:#2e7de9 }
+:root.palette-tokyo-night .diff-line .code .syn-type { color:#00938e }
+:root.dark.palette-tokyo-night .diff-line .code .syn-kw   { color:#bb9af7 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-str  { color:#9ece6a }
+:root.dark.palette-tokyo-night .diff-line .code .syn-num  { color:#ff9e64 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-fn   { color:#7aa2f7 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-type { color:#7dcfff }
 
 /* ---------------- Changes pill (titlebar window action) ----------------
    Sits in the right cluster of the titlebar, just before the dark-mode

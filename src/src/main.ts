@@ -44,13 +44,13 @@ document.addEventListener('contextmenu', e => {
 const MIN_SIDEBAR_WIDTH = 248;
 const MAX_SIDEBAR_RATIO = 0.5;
 
-/* ---------------- render root ---------------- */
+import { PALETTES } from '../shared/types';
 
-const PALETTE_CLASSES = ['palette-catppuccin', 'palette-rose-pine', 'palette-gruvbox', 'palette-dracula', 'palette-nord', 'palette-classic', 'palette-eink'];
+/* ---------------- render root ---------------- */
 
 function applyPaletteClass(palette: string | undefined): void {
   const root = document.documentElement;
-  for (const c of PALETTE_CLASSES) root.classList.remove(c);
+  for (const p of PALETTES) root.classList.remove('palette-' + p);
   if (palette && palette !== 'default') root.classList.add('palette-' + palette);
 }
 

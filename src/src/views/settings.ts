@@ -45,6 +45,7 @@ const PALETTE_LABELS: Record<PaletteName, string> = {
   nord: 'Nord',
   classic: 'Classic',
   eink: 'E-Ink',
+  'tokyo-night': 'Tokyo Night',
 };
 
 /* three dots echo the palette's surface / accent / ink so users can
@@ -58,6 +59,7 @@ const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   nord: ['#eceff4', '#5e81ac', '#2e3440'],
   classic: ['#fff6e5', '#ffcd75', '#3b2a1f'],
   eink: ['#ffffff', '#000000', '#000000'],
+  'tokyo-night': ['#eceef2', '#2e7de9', '#34355a'],
 };
 
 function syncSeg(seg: HTMLElement, onIndex: number): void {
