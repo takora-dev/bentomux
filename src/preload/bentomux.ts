@@ -61,15 +61,28 @@ import type {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function subscribe<T>(event: string, cb: (payload: T) => void): () => void {
+function subscribe<T>(
+  event: string,
+  cb: (payload: T) => void,
+  ready?: () => void,
+): () => void {
   let unlisten: UnlistenFn | undefined;
+  let active = true;
   void listen<T>(event, e => cb(e.payload)).then(fn => {
+    if (!active) {
+      fn();
+      return;
+    }
     unlisten = fn;
+    ready?.();
   });
   return () => {
-    if (unlisten) unlisten();
+    active = false;
+    unlisten?.();
   };
 }
+
+let latestRuntimeStatuses: Record<string, RuntimeStatus> = {};
 
 async function invokeWithRetry<T>(command: string, attempts = 4): Promise<T> {
   let lastError: unknown;
@@ -197,7 +210,14 @@ const api = {
 
   /* runtime status */
   onRuntimeStatus: (cb: (statuses: Record<string, RuntimeStatus>) => void) =>
-    subscribe<Record<string, RuntimeStatus>>('rt:status', cb),
+    subscribe<Record<string, RuntimeStatus>>(
+      'rt:status',
+      statuses => {
+        latestRuntimeStatuses = statuses;
+        cb(statuses);
+      },
+      () => cb(latestRuntimeStatuses),
+    ),
 
   /* agent approvals (hook bridge) */
   onAgentApproval: (cb: (req: AgentApprovalRequest) => void) =>

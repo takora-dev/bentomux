@@ -435,9 +435,15 @@ const tabClosedSubs = new Set<(payload: unknown) => void>();
 /* the tab the host last reported as active, so a pane-focus change inside it
    can be reported against the same tab without the caller repeating it */
 let lastActiveTab: string | null = null;
+let lastActivePane: string | null = null;
 
 function onTabActivated(cb: (payload: unknown) => void): () => void {
   tabActivatedSubs.add(cb);
+  try {
+    cb({ tabId: lastActiveTab, paneId: lastActivePane });
+  } catch (e) {
+    console.error('[plugin-host] tab:activated listener threw', e);
+  }
   return () => { tabActivatedSubs.delete(cb); };
 }
 
@@ -457,6 +463,7 @@ function onTabClosed(cb: (payload: unknown) => void): () => void {
  */
 export function emitTabActivated(tabId: string | null, paneId: string | null = null): void {
   lastActiveTab = tabId;
+  lastActivePane = paneId;
   for (const cb of tabActivatedSubs) {
     try {
       cb({ tabId, paneId });
