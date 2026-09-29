@@ -17,13 +17,12 @@ async function walk(dir) {
 const files = await walk(root);
 /* Resources the app cannot work without. The plugin platform's resources are
    here for the same reason as the hook: a build that drops them ships a
-   Plugin Studio with no templates, no bundled example, and an authoring skill
-   that cannot be installed — all of which fail silently at runtime. */
+   Plugin Studio with no templates and an authoring skill that cannot be
+   installed — all of which fail silently at runtime. */
 const required = [
   'bentomux-hook.cjs',
   'remote-page.html',
   'plugin-schema.json',
-  join('plugin-bundled', 'session-notes', 'plugin.json'),
   join('plugin-templates', 'basic', 'plugin.json'),
   join('plugin-skill', 'bentomux-plugin-author', 'SKILL.md'),
   join('plugin-sdk', 'bentomux-plugin-sdk.d.ts'),

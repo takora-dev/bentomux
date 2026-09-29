@@ -61,11 +61,6 @@ renders it.
 `modal`, `tab`, `widget`, `service` — with their placeholders already
 filled in, so each one is a concrete plugin you can read and copy.
 
-`examples/session-notes/` is the bundled example plugin. It is the only
-example that combines several contribution points at once (a widget, a command,
-a modal, and plugin storage), which makes it the best model for anything
-non-trivial.
-
 ## Testing without the app
 
 `bentomux --plugin-validate` runs from a terminal and needs no window, which

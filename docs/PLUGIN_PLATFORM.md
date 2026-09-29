@@ -8,7 +8,7 @@ Governing spec for the "everything is a plugin" workstream. It supersedes the No
 
 ## 1. Scope
 
-**v1 delivers:** import and install from a folder or an HTTPS URL; enable, disable, update, roll back, uninstall; seven templates plus the Creator wizard; a static Validator with a CLI and an in-app surface; the `bentomux-plugin-author` Plugin Skill; one bundled example plugin; a `--safe-mode` escape hatch.
+**v1 delivers:** import and install from a folder or an HTTPS URL; enable, disable, update, roll back, uninstall; seven templates plus the Creator wizard; a static Validator with a CLI and an in-app surface; the `bentomux-plugin-author` Plugin Skill; a `--safe-mode` escape hatch.
 
 **v1 does not deliver:** backend (Rust) contributions from plugins, a hosted registry, process isolation, theme/palette contributions, right-panel panels, or plugin-declared keyboard shortcuts. See §14.
 
@@ -275,7 +275,7 @@ resources/plugin-skill/bentomux-plugin-author/
   references/ctx-api.md             # the §6 contract, generated
   references/contribution-points.md # the §7 table, generated
   references/validation.md          # the §11 checks, generated
-  examples/                         # copies of the templates + the bundled example
+  examples/                         # copies of the templates
 ```
 
 **The app never pretends to be the model.** Plugin Studio scaffolds, validates, and packages; the intelligence is the user's agent, working on the folder with its own tools. After scaffolding, Studio shows *"Now ask your agent: 'implement this plugin using the bentomux-plugin-author skill'"* with a copy button.
@@ -304,7 +304,7 @@ Seven templates, each a **valid plugin on disk** — this is what makes them use
 
 Templates live at `resources/plugin-templates/<name>/` and ship as bundle resources, following the existing `resources/manifests/` pattern. The Creator copies a folder and substitutes `{{id}}`, `{{name}}`, `{{version}}`, `{{author}}`.
 
-**One artifact, three jobs:** a template is the wizard's scaffold, the CI fixture (substitute → validate → assert), and the example the agent reads. The bundled example plugin `bentomux.session-notes` deliberately touches four contribution points at once — widget, command, modal, and `storage` — so it exercises the widest path and gives the agent a realistic multi-contribution example.
+**One artifact, three jobs:** a template is the wizard's scaffold, the CI fixture (substitute → validate → assert), and the example the agent reads.
 
 ---
 
@@ -322,8 +322,8 @@ Templates live at `resources/plugin-templates/<name>/` and ship as bundle resour
 
 ## 15. Verification
 
-**CI, mechanical:** the CLI Validator runs over all seven substituted templates and the bundled example; Rust unit tests cover validation (valid, bad id, unknown permission, missing entry, reserved prefix, path escape), registry operations (install/enable/update/rollback/uninstall with data retention), and the safe-mode boot counter; the skill-drift check from §12; the existing typecheck, build, `cargo check`, `npm run test:backend`, and `tauri build` still pass on all three platforms.
+**CI, mechanical:** the CLI Validator runs over all seven substituted templates; Rust unit tests cover validation (valid, bad id, unknown permission, missing entry, reserved prefix, path escape), registry operations (install/enable/update/rollback/uninstall with data retention), and the safe-mode boot counter; the skill-drift check from §12; the existing typecheck, build, `cargo check`, `npm run test:backend`, and `tauri build` still pass on all three platforms.
 
-**In-app, on demand:** a "Run self-check" action in Studio activates the bundled example, asserts its contributions registered, deactivates, and asserts the surface is clean.
+**In-app, on demand:** a "Run self-check" action in Studio activates any plugin, asserts its contributions registered, deactivates, and asserts the surface is clean.
 
 **Honest gap:** there is no automated end-to-end test of the *renderer's* activation cycle. This stack has no headless webview and the repo has no JavaScript test runner, so a true E2E would mean adding a browser automation dependency and a new CI stage. v1 does not; the activation cycle is covered by the in-app self-check plus a manual gate before release. If the frontend grows past thin registration logic, revisit this.

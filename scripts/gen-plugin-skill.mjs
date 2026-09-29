@@ -58,11 +58,6 @@ function rustStringArray(source, name) {
   return [...match[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
 }
 
-/* whether the bundled example exists yet — phase 8 ships it, and SKILL.md
-   must not point at an example that is not there */
-const BUNDLED_DIR = resolve('resources/plugin-bundled/session-notes');
-const hasBundled = existsSync(BUNDLED_DIR);
-
 /* ---------------- generated references ---------------- */
 
 function manifestReference(schema) {
@@ -397,11 +392,6 @@ renders it.
 \`examples/\` holds the seven templates — \`basic\`, \`sidebar\`, \`topbar\`,
 \`modal\`, \`tab\`, \`widget\`, \`service\` — with their placeholders already
 filled in, so each one is a concrete plugin you can read and copy.
-${hasBundled ? `
-\`examples/session-notes/\` is the bundled example plugin. It is the only
-example that combines several contribution points at once (a widget, a command,
-a modal, and plugin storage), which makes it the best model for anything
-non-trivial.` : ''}
 
 ## Testing without the app
 
@@ -449,12 +439,6 @@ for (const name of readdirSync(resolve('resources/plugin-templates'))) {
   for (const file of readdirSync(dir)) {
     if (file === 'bentomux-plugin-sdk.d.ts') continue;
     examples[`examples/templates/${name}/${file}`] = fill(readFileSync(join(dir, file), 'utf8'));
-  }
-}
-if (hasBundled) {
-  for (const file of readdirSync(BUNDLED_DIR)) {
-    if (file === 'bentomux-plugin-sdk.d.ts') continue;
-    examples[`examples/session-notes/${file}`] = readFileSync(join(BUNDLED_DIR, file), 'utf8');
   }
 }
 

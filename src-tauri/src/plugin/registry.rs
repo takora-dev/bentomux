@@ -370,6 +370,10 @@ pub fn sync_bundled(paths: &PluginPaths, records: &mut Vec<PluginRecord>) -> Vec
         return errors;
     };
 
+    /* ids the app still ships; anything bundled and absent from this list is
+       pruned below */
+    let mut shipped: Vec<String> = Vec::new();
+
     for entry in entries.flatten() {
         let dir = entry.path();
         if !dir.is_dir() {
@@ -385,6 +389,7 @@ pub fn sync_bundled(paths: &PluginPaths, records: &mut Vec<PluginRecord>) -> Vec
             )]));
             continue;
         };
+        shipped.push(manifest.id.clone());
 
         let digest = match hash_tree(&dir) {
             Ok(d) => d,
@@ -432,6 +437,31 @@ pub fn sync_bundled(paths: &PluginPaths, records: &mut Vec<PluginRecord>) -> Vec
                 Err(e) => errors.push(e),
             },
         }
+    }
+
+    /* A bundled plugin the app no longer ships must leave the registry too:
+       the copy unpacked on an earlier boot would otherwise keep running from
+       the user's plugin dir with nothing left to refresh it. Plugin data
+       stays — the same default an uninstall has. */
+    let mut idx = 0;
+    while idx < records.len() {
+        let id = records[idx].id.clone();
+        let unshipped = matches!(records[idx].source, PluginSource::Bundled)
+            && !shipped.contains(&id);
+        if !unshipped {
+            idx += 1;
+            continue;
+        }
+        let dir = paths.plugin_dir(&id);
+        if !dir.exists() || fs::remove_dir_all(&dir).is_ok() {
+            records.remove(idx);
+            continue;
+        }
+        errors.push(PluginError::Io(format!(
+            "could not remove unshipped bundled plugin `{}`",
+            id
+        )));
+        idx += 1;
     }
     errors
 }
@@ -777,6 +807,50 @@ mod tests {
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].version, "1.1.0");
         assert_eq!(records[0].previous_version.as_deref(), Some("1.0.0"));
+
+        fs::remove_dir_all(&root).ok();
+    }
+
+    /* A build that stops shipping a bundled plugin must also retire it: the
+       copy unpacked on the previous boot lives in the user's plugin dir, and
+       without this prune it keeps running forever. */
+    #[test]
+    fn bundled_sync_prunes_plugins_the_app_no_longer_ships() {
+        let (p, root) = paths("bundled-prune");
+        let bundled = root.join("bundled");
+        write_plugin(
+            &bundled.join("session-notes"),
+            "bentomux.session-notes",
+            "1.0.0",
+        );
+        write_plugin(&bundled.join("notes"), "bentomux.notes", "1.0.0");
+        let p = p.with_bundled(bundled.clone());
+
+        let mut records = Vec::new();
+        let errors = sync_bundled(&p, &mut records);
+        assert!(errors.is_empty(), "{:?}", errors);
+        assert_eq!(records.len(), 2);
+
+        /* a plugin the user installed is never touched by the prune */
+        records.push(PluginRecord::new(
+            "acme.t".into(),
+            "1.0.0".into(),
+            PluginSource::Folder {
+                path: String::new(),
+            },
+            "sha".into(),
+        ));
+
+        /* the next build stops shipping session-notes */
+        fs::remove_dir_all(bundled.join("session-notes")).unwrap();
+        let errors = sync_bundled(&p, &mut records);
+        assert!(errors.is_empty(), "{:?}", errors);
+
+        let ids: Vec<&str> = records.iter().map(|r| r.id.as_str()).collect();
+        assert!(!ids.contains(&"bentomux.session-notes"), "pruned");
+        assert!(ids.contains(&"bentomux.notes"), "still shipped");
+        assert!(ids.contains(&"acme.t"), "third-party kept");
+        assert!(!p.plugin_dir("bentomux.session-notes").exists());
 
         fs::remove_dir_all(&root).ok();
     }

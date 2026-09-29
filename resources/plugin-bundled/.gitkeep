@@ -1,5 +1,0 @@
-Filled by the plugin platform phases (see .zcode/plans/plan-plugin-platform.md).
-plugin-templates/   seven scaffold templates (phase 5)
-plugin-bundled/     bundled plugins shipped with the app (phase 8)
-plugin-skill/       the bentomux-plugin-author skill (phase 7)
-plugin-sdk/         TypeScript SDK types copied into scaffolds (phase 5)
