@@ -10,6 +10,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import '@xterm/xterm/css/xterm.css';
 import { h, $ } from '../dom';
 import { openContextMenu, type MenuEntry } from '../components/menu';
+import { emitPaneFocused } from '../main';
 import { leafIds, type PaneNode } from '../../shared/split-tree';
 import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
@@ -302,6 +303,9 @@ function markFocusedPane(host: HTMLElement, tabId: string): void {
   if (pane) {
     for (const el of document.querySelectorAll('.pane.focused')) el.classList.remove('focused');
     pane.classList.add('focused');
+    /* the class above is the only record of pane focus, and a plugin watching
+       `tab:activated` needs to know which pane is on screen */
+    emitPaneFocused(tabId);
   }
   /* keep the sidebar's per-pane item in step without a re-render */
   for (const el of document.querySelectorAll(FOCUS_TOGGLE_SELECTOR)) {

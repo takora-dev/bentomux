@@ -189,7 +189,10 @@ export function createContext(
     app: deps.appFacade(pluginId, permissions),
 
     events: {
-      on: (event, cb) => deps.hostEvent(event, cb),
+      /* the overloads on PluginEvents give each callback its own payload type;
+         the host hands every one of them `unknown` and rethrows the narrowing
+         at the boundary, so cast back to the declared listener shape here */
+      on: (event, cb) => deps.hostEvent(event, cb as (payload: unknown) => void),
     },
 
     ui: {

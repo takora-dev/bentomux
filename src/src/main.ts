@@ -417,6 +417,10 @@ function subscribeHostEvent(event: string, cb: (payload: unknown) => void): () =
 const tabActivatedSubs = new Set<(payload: unknown) => void>();
 const tabClosedSubs = new Set<(payload: unknown) => void>();
 
+/* the tab the host last reported as active, so a pane-focus change inside it
+   can be reported against the same tab without the caller repeating it */
+let lastActiveTab: string | null = null;
+
 function onTabActivated(cb: (payload: unknown) => void): () => void {
   tabActivatedSubs.add(cb);
   return () => { tabActivatedSubs.delete(cb); };
@@ -427,15 +431,35 @@ function onTabClosed(cb: (payload: unknown) => void): () => void {
   return () => { tabClosedSubs.delete(cb); };
 }
 
-/** Called by the tab strip when the active tab changes. */
-export function emitTabActivated(tabId: string | null): void {
+/**
+ * Called by the tab strip when the active tab changes.
+ *
+ * `paneId` is the focused pane inside it, or null when the shell does not know
+ * yet — on a tab switch the pane only reports itself once xterm takes focus, so
+ * `emitPaneFocused` follows a moment later. Pane focus otherwise lives only in
+ * the DOM (`.pane.focused`), and this is the only signal a plugin gets about
+ * what the user is actually looking at.
+ */
+export function emitTabActivated(tabId: string | null, paneId: string | null = null): void {
+  lastActiveTab = tabId;
   for (const cb of tabActivatedSubs) {
     try {
-      cb({ tabId });
+      cb({ tabId, paneId });
     } catch (e) {
       console.error('[plugin-host] tab:activated listener threw', e);
     }
   }
+}
+
+/**
+ * Called when focus moves to another pane inside the already-active tab.
+ *
+ * A tab switch reports the new tab with a null pane, because the pane only
+ * knows its own focus once xterm takes it. Rather than add a second event for
+ * one field, the same event carries the pane.
+ */
+export function emitPaneFocused(paneId: string | null): void {
+  emitTabActivated(lastActiveTab, paneId);
 }
 
 /** Called by the tab strip when a tab is removed. */
@@ -729,7 +753,14 @@ async function boot(): Promise<void> {
   onPluginsChanged(() => {
     wirePluginTopbar();
     renderSidebar();
-    if (ui.route.view === 'welcome') renderContentInner(ui.route);
+    /* the strip carries plugin tabs, so a plugin that was uninstalled or
+       disabled while its tab was open has to leave it too */
+    renderTabs();
+    /* the widget list is the welcome page, and an open plugin tab falls back
+       to its "no longer active" notice once the registry drops its renderer */
+    if (ui.route.view === 'welcome' || ui.route.view === 'plugin') {
+      renderContentInner(ui.route);
+    }
   });
 
   /* update check (after render so UI is not blocked) */

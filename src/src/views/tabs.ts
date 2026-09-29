@@ -163,7 +163,14 @@ export function activate(id: string): void {
      full content area is available for the shell; the panel can be
      re-opened from its titlebar pill regardless of route */
   if (t.route.view === 'terminal') { ui.gitPanelOpen = false; }
-  emitTabActivated(t.id);
+  /* report the pane this tab lands on, so a plugin knows what is on screen
+     before xterm takes focus. A split opens on its first leaf; a single-pane
+     tab is its own leaf. markFocusedPane refines this the moment the user
+     clicks a different pane. */
+  emitTabActivated(
+    t.id,
+    t.route.view === 'terminal' ? t.tree ? firstLeafId(t.tree) : t.route.tabId : null,
+  );
   render();
 }
 

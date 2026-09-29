@@ -200,8 +200,25 @@ export interface PluginUi {
 
 export type PluginHostEvent = 'workspace:changed' | 'tab:activated' | 'tab:closed';
 
+/**
+ * The payload each host event carries.
+ *
+ * `tab:activated` fires twice per tab switch: once with a null `paneId` when
+ * the strip moves, and again from the pane once xterm takes focus. Read the
+ * last one — a plugin that wants to know which pane the user is looking at
+ * cannot get it any other way, since pane focus otherwise lives only in the
+ * DOM.
+ */
+export interface PluginHostEventPayloads {
+  'workspace:changed': { workspaceId: string; branch: string | null };
+  'tab:activated': { tabId: string | null; paneId: string | null };
+  'tab:closed': { tabId: string };
+}
+
 export interface PluginEvents {
-  on(event: PluginHostEvent, cb: (payload: unknown) => void): Cleanup;
+  on(event: 'workspace:changed', cb: (payload: PluginHostEventPayloads['workspace:changed']) => void): Cleanup;
+  on(event: 'tab:activated', cb: (payload: PluginHostEventPayloads['tab:activated']) => void): Cleanup;
+  on(event: 'tab:closed', cb: (payload: PluginHostEventPayloads['tab:closed']) => void): Cleanup;
 }
 
 export interface PluginContext {

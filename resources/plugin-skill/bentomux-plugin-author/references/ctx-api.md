@@ -70,7 +70,9 @@ removal.
 
 ```ts
 export interface PluginEvents {
-  on(event: PluginHostEvent, cb: (payload: unknown) => void): Cleanup;
+  on(event: 'workspace:changed', cb: (payload: PluginHostEventPayloads['workspace:changed']) => void): Cleanup;
+  on(event: 'tab:activated', cb: (payload: PluginHostEventPayloads['tab:activated']) => void): Cleanup;
+  on(event: 'tab:closed', cb: (payload: PluginHostEventPayloads['tab:closed']) => void): Cleanup;
 }
 ```
 
