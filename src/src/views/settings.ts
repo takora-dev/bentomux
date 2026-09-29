@@ -41,7 +41,10 @@ function hint(text: string): HTMLElement {
 
 const PALETTE_LABELS: Record<PaletteName, string> = {
   default: 'Default',
-  catppuccin: 'Catppuccin',
+  catppuccin: 'Catppuccin Latte',
+  'catppuccin-frappe': 'Catppuccin Frappé',
+  'catppuccin-macchiato': 'Catppuccin Macchiato',
+  'catppuccin-mocha': 'Catppuccin Mocha',
   'rose-pine': 'Rosé Pine',
   gruvbox: 'Gruvbox',
   dracula: 'Dracula',
@@ -58,6 +61,9 @@ const PALETTE_LABELS: Record<PaletteName, string> = {
 const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   default: ['#F9FAFB', '#2563EB', '#1F2328'],
   catppuccin: ['#eff1f5', '#1e66f5', '#4c4f69'],
+  'catppuccin-frappe': ['#303446', '#8caaee', '#c6d0f5'],
+  'catppuccin-macchiato': ['#24273a', '#8aadf4', '#cad3f5'],
+  'catppuccin-mocha': ['#1e1e2e', '#89b4fa', '#cdd6f4'],
   'rose-pine': ['#faf4ed', '#286983', '#575279'],
   gruvbox: ['#fbf1c7', '#458588', '#3c3836'],
   dracula: ['#f8f8f2', '#bd93f9', '#282a36'],

@@ -34,7 +34,13 @@
   --line:var(--alabaster-grey);--line-2:var(--silver);--tint:rgba(140,143,161,.18);
   --accent:#1e66f5;--accent-ink:#1e66f5;--accent-tint:rgba(30,102,245,.16);--danger:#d20f39;
 }
+:root.palette-catppuccin-frappe{--silver:#c4c8d5;--bright-snow:#f0f1f6;--parchment:#e5e7ef;--alabaster-grey:#d0d3df;--bg:#e5e7ef;--surface:#f0f1f6;--ink:#454a60;--ink-2:#697087;--ink-3:#9499ad;--content-bg:#f7f8fb;--line:#d0d3df;--line-2:#c4c8d5;--tint:rgba(76,86,120,.10);--accent:#526da8;--accent-ink:#405987;--accent-tint:rgba(82,109,168,.14);--danger:#b34f65}
+:root.palette-catppuccin-macchiato{--silver:#c2c7d8;--bright-snow:#eff1f8;--parchment:#e3e6f1;--alabaster-grey:#cdd2e2;--bg:#e3e6f1;--surface:#eff1f8;--ink:#424a65;--ink-2:#65708e;--ink-3:#929bb2;--content-bg:#f6f7fb;--line:#cdd2e2;--line-2:#c2c7d8;--tint:rgba(74,91,137,.10);--accent:#4d6fb4;--accent-ink:#3b5996;--accent-tint:rgba(77,111,180,.14);--danger:#b64d62}
+:root.palette-catppuccin-mocha{--silver:#c9c5d9;--bright-snow:#f2eff8;--parchment:#e7e3f1;--alabaster-grey:#d2cde0;--bg:#e7e3f1;--surface:#f2eff8;--ink:#4d4765;--ink-2:#706985;--ink-3:#9b95ad;--content-bg:#f8f6fb;--line:#d2cde0;--line-2:#c9c5d9;--tint:rgba(93,78,137,.10);--accent:#6558a8;--accent-ink:#51458d;--accent-tint:rgba(101,88,168,.14);--danger:#b34d69}
 :root.dark.palette-catppuccin{--bg:#1e1e2e;--surface:#181825;--ink:#cdd6f4;--ink-2:#bac2de;--ink-3:#7f849c;--line:#313244;--line-2:#45475a;--tint:rgba(205,214,244,.06);--accent:#89b4fa;--accent-ink:#b4befe;--accent-tint:rgba(137,180,250,.16);--danger:#f38ba8;--content-bg:#11111b}
+:root.dark.palette-catppuccin-frappe{--bg:#303446;--surface:#292c3c;--ink:#c6d0f5;--ink-2:#b5bfe2;--ink-3:#838ba7;--line:#414559;--line-2:#51576d;--tint:rgba(198,208,245,.06);--accent:#8caaee;--accent-ink:#babbf1;--accent-tint:rgba(140,170,238,.16);--danger:#e78284;--content-bg:#232634}
+:root.dark.palette-catppuccin-macchiato{--bg:#24273a;--surface:#1e2030;--ink:#cad3f5;--ink-2:#b8c0e0;--ink-3:#8087a2;--line:#363a4f;--line-2:#494d64;--tint:rgba(202,211,245,.06);--accent:#8aadf4;--accent-ink:#b7bdf8;--accent-tint:rgba(138,173,244,.16);--danger:#ed8796;--content-bg:#181926}
+:root.dark.palette-catppuccin-mocha{--bg:#1e1e2e;--surface:#181825;--ink:#cdd6f4;--ink-2:#bac2de;--ink-3:#7f849c;--line:#313244;--line-2:#45475a;--tint:rgba(205,214,244,.06);--accent:#89b4fa;--accent-ink:#b4befe;--accent-tint:rgba(137,180,250,.16);--danger:#f38ba8;--content-bg:#11111b}
 
 /* Rosé Pine Dawn (light) / Main (dark) */
 :root.palette-rose-pine{
@@ -1429,16 +1435,46 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.dark .diff-line .code .syn-prop { color:var(--ink-2) }
 
 /* catppuccin: keyword=mauve, string=green, number=peach, function=blue, type=mauve */
-:root.palette-catppuccin .diff-line .code .syn-kw   { color:#8839ef }
-:root.palette-catppuccin .diff-line .code .syn-str  { color:#40a02b }
-:root.palette-catppuccin .diff-line .code .syn-num  { color:#fe640b }
-:root.palette-catppuccin .diff-line .code .syn-fn   { color:#1e66f5 }
-:root.palette-catppuccin .diff-line .code .syn-type { color:#8839ef }
-:root.dark.palette-catppuccin .diff-line .code .syn-kw   { color:#cba6f7 }
-:root.dark.palette-catppuccin .diff-line .code .syn-str  { color:#a6e3a1 }
-:root.dark.palette-catppuccin .diff-line .code .syn-num  { color:#fab387 }
-:root.dark.palette-catppuccin .diff-line .code .syn-fn   { color:#89b4fa }
-:root.dark.palette-catppuccin .diff-line .code .syn-type { color:#cba6f7 }
+:root.palette-catppuccin .diff-line .code .syn-kw,
+:root.palette-catppuccin-frappe .diff-line .code .syn-kw,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-kw,
+:root.palette-catppuccin-mocha .diff-line .code .syn-kw { color:#8839ef }
+:root.palette-catppuccin .diff-line .code .syn-str,
+:root.palette-catppuccin-frappe .diff-line .code .syn-str,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-str,
+:root.palette-catppuccin-mocha .diff-line .code .syn-str { color:#40a02b }
+:root.palette-catppuccin .diff-line .code .syn-num,
+:root.palette-catppuccin-frappe .diff-line .code .syn-num,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-num,
+:root.palette-catppuccin-mocha .diff-line .code .syn-num { color:#fe640b }
+:root.palette-catppuccin .diff-line .code .syn-fn,
+:root.palette-catppuccin-frappe .diff-line .code .syn-fn,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-fn,
+:root.palette-catppuccin-mocha .diff-line .code .syn-fn { color:#1e66f5 }
+:root.palette-catppuccin .diff-line .code .syn-type,
+:root.palette-catppuccin-frappe .diff-line .code .syn-type,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-type,
+:root.palette-catppuccin-mocha .diff-line .code .syn-type { color:#8839ef }
+:root.dark.palette-catppuccin .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-kw { color:#cba6f7 }
+:root.dark.palette-catppuccin .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-str { color:#a6e3a1 }
+:root.dark.palette-catppuccin .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-num { color:#fab387 }
+:root.dark.palette-catppuccin .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-fn { color:#89b4fa }
+:root.dark.palette-catppuccin .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-type { color:#cba6f7 }
 
 /* rose-pine: keyword=iris, string=foam (cyan), number=rose, function=foam, type=iris */
 :root.palette-rose-pine .diff-line .code .syn-kw   { color:#575279 }
