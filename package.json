@@ -13,6 +13,7 @@
     "prepare:cloudflared": "node scripts/prepare-cloudflared.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test:ts": "node --test src/shared/*.test.ts",
     "test:backend": "node scripts/test-backend.mjs",
     "check:remote-page": "node scripts/check-remote-page.mjs",
     "check:csp-inline-styles": "node scripts/check-csp-inline-styles.mjs",

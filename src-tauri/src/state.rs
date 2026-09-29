@@ -70,11 +70,22 @@ pub struct RemotePrefs {
     pub token: Option<String>,
 }
 
+/* three source colors for the user-defined palette; every other token is
+   derived from them in CSS */
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPalette {
+    pub bg: String,
+    pub ink: String,
+    pub accent: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
     pub theme: Option<String>,
     pub palette: Option<String>,
+    pub custom_palette: Option<CustomPalette>,
     /* terminal font family (CSS font stack) + size in px; absent = built-in default */
     pub font: Option<String>,
     pub font_size: Option<f64>,
@@ -112,6 +123,7 @@ impl Default for Prefs {
             explicit light/dark pick is persisted and wins from then on */
             theme: Some("system".to_string()),
             palette: Some("default".to_string()),
+            custom_palette: None,
             font: None,
             font_size: None,
             shell: None,
@@ -754,6 +766,44 @@ mod tests {
         .unwrap();
         let mgr = AppStateManager::new(path);
         assert_eq!(mgr.get_state().prefs.palette.as_deref(), Some("classic"));
+    }
+
+    /* custom palette colors survive a save/load round trip; an older file
+       without them loads with the field absent */
+    #[test]
+    fn test_custom_palette_roundtrip() {
+        let path = temp_path("custom-palette");
+        let mut mgr = AppStateManager::new(path.clone());
+        mgr.patch_state_sync(|s| {
+            s.prefs.palette = Some("custom".to_string());
+            s.prefs.custom_palette = Some(CustomPalette {
+                bg: "#11161d".to_string(),
+                ink: "rgb(230, 237, 243)".to_string(),
+                accent: "#58a6ff".to_string(),
+            });
+        });
+        let reloaded = AppStateManager::new(path.clone()).get_state();
+        assert_eq!(reloaded.prefs.palette.as_deref(), Some("custom"));
+        assert_eq!(
+            reloaded.prefs.custom_palette,
+            Some(CustomPalette {
+                bg: "#11161d".to_string(),
+                ink: "rgb(230, 237, 243)".to_string(),
+                accent: "#58a6ff".to_string(),
+            })
+        );
+
+        fs::write(
+            &path,
+            serde_json::json!({ "version": 5, "prefs": { "palette": "custom" } }).to_string(),
+        )
+        .unwrap();
+        assert!(AppStateManager::new(path.clone())
+            .get_state()
+            .prefs
+            .custom_palette
+            .is_none());
+        cleanup(&path);
     }
 
     #[test]

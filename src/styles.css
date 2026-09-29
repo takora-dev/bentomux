@@ -138,6 +138,27 @@
   --px-shadow:#1e2130;--px-tex:rgba(237,230,245,.03);
 }
 
+/* Custom — the user owns three colors (--c-bg / --c-ink / --c-accent, set
+   inline on the root from prefs) and every other token is derived from them
+   with color-mix, so light and dark share one set of colors. Diff/git
+   syntax colors stay on the default dark rules, which is the known ceiling
+   of a one-theme custom palette. */
+:root.palette-custom{
+  --content-bg:var(--c-bg);
+  --bg:color-mix(in srgb,var(--c-ink) 6%,var(--c-bg));
+  --surface:color-mix(in srgb,var(--c-ink) 3%,var(--c-bg));
+  --ink:var(--c-ink);
+  --ink-2:color-mix(in srgb,var(--c-ink) 72%,var(--c-bg));
+  --ink-3:color-mix(in srgb,var(--c-ink) 45%,var(--c-bg));
+  --line:color-mix(in srgb,var(--c-ink) 14%,var(--c-bg));
+  --line-2:color-mix(in srgb,var(--c-ink) 28%,var(--c-bg));
+  --tint:color-mix(in srgb,var(--c-ink) 8%,transparent);
+  --accent:var(--c-accent);
+  --accent-ink:color-mix(in srgb,var(--c-accent) 70%,var(--c-ink));
+  --accent-tint:color-mix(in srgb,var(--c-accent) 16%,transparent);
+  --danger:color-mix(in srgb,#dc2626 85%,var(--c-ink));
+}
+
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
@@ -921,6 +942,8 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .ctx-item:hover{background:var(--accent-tint);color:var(--accent-ink)}
 .ctx-item.disabled{opacity:.45;cursor:default}
 .ctx-icon{display:flex;flex:0 0 auto;color:var(--ink-3)}
+.ctx-swatch{display:inline-flex;gap:2px;flex:0 0 auto}
+.ctx-swatch>span{width:10px;height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.12)}
 .ctx-item:hover .ctx-icon{color:inherit}
 .ctx-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctx-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:11px;color:var(--ink-3)}
@@ -957,27 +980,32 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .key-chip:hover{color:var(--ink)}
 .key-chip.capturing{border-color:var(--accent);color:var(--accent-ink)}
 .key-chip.static{cursor:default;background:transparent}
-.palette-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
-  margin-top:2px;
-}
-.palette-card{
-  display:flex;flex-direction:column;align-items:flex-start;gap:8px;
-  padding:10px 11px;border:1px solid var(--line-2);border-radius:7px;
-  background:var(--surface);cursor:pointer;text-align:left;
-  position:relative;
+.palette-picker{display:flex;flex-direction:column;gap:8px}
+.palette-select{
+  display:flex;align-items:center;gap:9px;width:100%;height:32px;
+  padding:0 10px;border:1px solid var(--line-2);border-radius:6px;
+  background:var(--surface);cursor:pointer;
   transition:border-color .12s,background .12s;
 }
-.palette-card:hover{border-color:var(--line-2);background:var(--tint)}
-.palette-card.current{border-color:var(--accent);background:var(--accent-tint)}
-.palette-swatch{display:inline-flex;gap:3px;align-items:center}
+.palette-select:hover{border-color:var(--line);background:var(--tint)}
+.palette-caret{display:flex;margin-left:auto;transform:rotate(90deg);color:var(--ink-3)}
+.palette-caret svg{width:12px;height:12px}
+.palette-swatch{display:inline-flex;gap:3px;align-items:center;flex:0 0 auto}
 .palette-swatch>span{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.08)}
 .palette-name{font-size:12.5px;font-weight:550;color:var(--ink)}
-.palette-check{
-  position:absolute;top:8px;right:9px;font-size:12px;
-  color:var(--accent);display:none;align-items:center;justify-content:center;
+.palette-custom{display:flex;flex-direction:column;gap:6px}
+.palette-custom .settings-hint{margin-top:2px}
+.color-row{display:flex;align-items:center;gap:8px}
+.color-label{width:74px;flex:0 0 auto;font-size:12px;color:var(--ink-2)}
+.color-row .color-pick{
+  width:28px;height:28px;flex:0 0 auto;padding:2px;
+  border:1px solid var(--line-2);border-radius:6px;background:var(--surface);
+  cursor:pointer;
 }
-.palette-card.current .palette-check{display:inline-flex}
+.color-row .color-text{
+  flex:1 1 auto;min-width:0;height:28px;padding:0 8px;
+  font:11.5px var(--mono);text-transform:lowercase;
+}
 
 /* ---------------- Agents page + per-agent settings modal ---------------- */
 

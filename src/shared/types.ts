@@ -48,12 +48,26 @@ export interface TabRec {
   title?: string;
 }
 
-export type PaletteName = 'default' | 'catppuccin' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night' | 'pastel-pixel';
-export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night', 'pastel-pixel'];
+export type PaletteName = 'default' | 'catppuccin' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night' | 'pastel-pixel' | 'custom';
+export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night', 'pastel-pixel', 'custom'];
+
+/* Custom palette: three source colors. Every semantic token is derived from
+   them in CSS (`:root.palette-custom`), so one set of colors covers both
+   light and dark mode. Hex or `rgb(r,g,b)`, anything else is rejected so a
+   typo in the settings field can never blank out the app's own tokens. */
+export interface CustomPalette {
+  bg: string;
+  ink: string;
+  accent: string;
+}
+export const CUSTOM_KEYS: Array<keyof CustomPalette> = ['bg', 'ink', 'accent'];
+export const DEFAULT_CUSTOM_PALETTE: CustomPalette = { bg: '#11161d', ink: '#e6edf3', accent: '#58a6ff' };
 
 export interface Prefs {
   theme?: 'light' | 'dark' | 'system';
   palette?: PaletteName;
+  /* source colors for the 'custom' palette; absent = built-in default */
+  customPalette?: CustomPalette;
   /* terminal font family (CSS font stack) + size in px; absent = built-in default */
   font?: string;
   fontSize?: number;

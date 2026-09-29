@@ -44,14 +44,29 @@ document.addEventListener('contextmenu', e => {
 const MIN_SIDEBAR_WIDTH = 248;
 const MAX_SIDEBAR_RATIO = 0.5;
 
-import { PALETTES } from '../shared/types';
+import { CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, PALETTES } from '../shared/types';
 
 /* ---------------- render root ---------------- */
+
+const CUSTOM_VARS = { bg: '--c-bg', ink: '--c-ink', accent: '--c-accent' } as const;
 
 function applyPaletteClass(palette: string | undefined): void {
   const root = document.documentElement;
   for (const p of PALETTES) root.classList.remove('palette-' + p);
+  /* the custom palette is three source colors on the root; the stylesheet
+     derives every other token from them */
+  const custom = palette === 'custom' ? (db.prefs.customPalette || DEFAULT_CUSTOM_PALETTE) : null;
+  for (const k of CUSTOM_KEYS) {
+    if (custom) root.style.setProperty(CUSTOM_VARS[k], custom[k]);
+    else root.style.removeProperty(CUSTOM_VARS[k]);
+  }
   if (palette && palette !== 'default') root.classList.add('palette-' + palette);
+}
+
+/* settings calls this after editing a custom color, so the app repaints
+   without going through a full render() on every picker drag */
+export function applyPalette(): void {
+  applyPaletteClass(db.prefs.palette);
 }
 
 function applyFontPrefs(): void {

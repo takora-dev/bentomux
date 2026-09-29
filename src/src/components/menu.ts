@@ -9,6 +9,9 @@ export interface MenuItem {
   disabled?: boolean;
   /* icon SVG from icons.ts (a compile-time constant), drawn left of the label */
   icon?: string;
+  /* color swatch dots drawn left of the label instead of an icon (palette
+     picker); takes precedence over `icon` */
+  swatch?: string[];
   /* dim secondary text after the label, e.g. the folder a path lives in */
   hint?: string;
   /* tooltip text; defaults to `hint` when omitted */
@@ -119,6 +122,8 @@ function buildMenu(entries: MenuEntry[], isSub: boolean): HTMLElement {
       ...(tip ? { title: tip } : {}),
       ...(entry.submenu ? { 'aria-haspopup': 'true', 'aria-expanded': 'false' } : {}),
     },
+      entry.swatch ? h('span', { class: 'ctx-swatch' },
+        ...entry.swatch.map(c => h('span', { style: 'background:' + c }))) : null,
       entry.icon ? markup('span', { class: 'ctx-icon' }, entry.icon) : null,
       h('span', { class: 'ctx-label' }, entry.label),
       entry.hint ? h('span', { class: 'ctx-hint' }, entry.hint) : null,

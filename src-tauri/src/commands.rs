@@ -15,7 +15,8 @@ use crate::split_tree::{
     tree_has_key, tree_has_leaf, Dir, PaneNode,
 };
 use crate::state::{
-    AppState, AppStateManager, OverlaySize, Prefs, RemotePrefs, TabRec, WorkspaceRec,
+    AppState, AppStateManager, CustomPalette, OverlaySize, Prefs, RemotePrefs, TabRec,
+    WorkspaceRec,
 };
 use std::collections::HashMap;
 
@@ -141,6 +142,11 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     if let Some(v) = obj.get("remote") {
         if let Ok(r) = serde_json::from_value::<RemotePrefs>(v.clone()) {
             cur.remote = Some(r);
+        }
+    }
+    if let Some(v) = obj.get("customPalette") {
+        if let Ok(c) = serde_json::from_value::<CustomPalette>(v.clone()) {
+            cur.custom_palette = Some(c);
         }
     }
 }

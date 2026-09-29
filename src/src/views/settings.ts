@@ -5,12 +5,14 @@
 import { h, markup } from '../dom';
 import { currentModal, field, openModal } from '../components/modal';
 import { selectEl } from '../components/select';
+import { openContextMenu, closeContextMenu, contextMenuAnchoredTo } from '../components/menu';
 import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
-import { setThemeMode, setPalette, setTerminalFont, setTerminalFontSize } from '../main';
+import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize } from '../main';
 import { accelFor, formatAccel, type ActionId } from '../keyboard';
-import { PALETTES, type PaletteName, type AgentHooksStatus, type Prefs } from '../../shared/types';
+import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs } from '../../shared/types';
+import { isColor, toHex } from '../../shared/color';
 import {
   updateStatus, checkForUpdate, installUpdate, restartApp, onUpdateChange,
   type UpdatePhase,
@@ -48,6 +50,7 @@ const PALETTE_LABELS: Record<PaletteName, string> = {
   eink: 'E-Ink',
   'tokyo-night': 'Tokyo Night',
   'pastel-pixel': 'Pastel Pixel',
+  custom: 'Custom',
 };
 
 /* three dots echo the palette's surface / accent / ink so users can
@@ -63,7 +66,20 @@ const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   eink: ['#ffffff', '#000000', '#000000'],
   'tokyo-night': ['#eceef2', '#2e7de9', '#34355a'],
   'pastel-pixel': ['#fdf9f0', '#a088d8', '#5c4a3d'],
+  custom: ['#11161d', '#58a6ff', '#e6edf3'],
 };
+
+const CUSTOM_LABELS: Record<keyof CustomPalette, string> = { bg: 'Background', ink: 'Text', accent: 'Accent' };
+
+function customColors(): CustomPalette {
+  return db.prefs.customPalette || DEFAULT_CUSTOM_PALETTE;
+}
+
+function paletteSwatch(p: PaletteName): string[] {
+  if (p !== 'custom') return PALETTE_SWATCH[p];
+  const c = customColors();
+  return [c.bg, c.accent, c.ink];
+}
 
 function syncSeg(seg: HTMLElement, onIndex: number): void {
   Array.from(seg.children as HTMLCollectionOf<HTMLElement>).forEach((el, i) =>
@@ -87,27 +103,56 @@ function buildModeSeg(paint: () => void): HTMLElement {
   return seg;
 }
 
-function buildPaletteGrid(paint: () => void): HTMLElement {
+/* three colored dots, shared by the dropdown trigger and the menu rows */
+function swatchDots(colors: string[]): HTMLElement {
+  return h('span', { class: 'palette-swatch' },
+    ...colors.map(c => h('span', { style: 'background:' + c })));
+}
+
+function buildPaletteSelect(paint: () => void): HTMLElement {
   const current: PaletteName = (db.prefs.palette as PaletteName) || 'default';
-  const grid = h('div', { class: 'palette-grid' });
-  for (const p of PALETTES) {
-    const [bg, accent, ink] = PALETTE_SWATCH[p];
-    const isCurrent = p === current;
-    const card = h('button', {
-      class: 'palette-card' + (isCurrent ? ' current' : ''),
-      type: 'button',
-      'data-palette': p,
-      onclick: () => { setPalette(p); paint(); },
-    },
-      h('span', { class: 'palette-swatch' },
-        h('span', { style: 'background:' + bg }),
-        h('span', { style: 'background:' + accent }),
-        h('span', { style: 'background:' + ink })),
-      h('span', { class: 'palette-name' }, PALETTE_LABELS[p]),
-      h('span', { class: 'palette-check' }, '✓'));
-    grid.append(card);
+  const btn = h('button', { class: 'palette-select', type: 'button' },
+    swatchDots(paletteSwatch(current)),
+    h('span', { class: 'palette-name' }, PALETTE_LABELS[current]),
+    markup('span', { class: 'ic palette-caret' }, IC.chev));
+  btn.addEventListener('click', () => {
+    if (contextMenuAnchoredTo(btn)) { closeContextMenu(); return; }
+    const r = btn.getBoundingClientRect();
+    openContextMenu(r.left, r.bottom + 4, PALETTES.map(p => ({
+      label: PALETTE_LABELS[p],
+      swatch: paletteSwatch(p),
+      hint: p === current ? '✓' : undefined,
+      action: () => { setPalette(p); paint(); },
+    })), btn);
+  });
+  return h('div', { class: 'palette-picker' }, btn,
+    current === 'custom' ? buildCustomColors(paint) : null);
+}
+
+/* one row per source color: native picker on the left (bundar), hex/rgb
+   text field on the right. The text field is the source of truth — the
+   picker only ever writes valid hex into it. Neither repaints while the
+   user is typing or dragging, or the focused control would be destroyed
+   mid-gesture; the picker's own `change` (dialog closed) repaints. */
+function buildCustomColors(paint: () => void): HTMLElement {
+  const cur = { ...customColors() };
+  const wrap = h('div', { class: 'palette-custom' });
+  for (const k of CUSTOM_KEYS) {
+    const text = h('input', { class: 'color-text', value: cur[k], spellcheck: 'false', 'aria-label': CUSTOM_LABELS[k] + ' hex or rgb' }) as HTMLInputElement;
+    const pick = h('input', { type: 'color', class: 'color-pick', value: toHex(cur[k]) || '#000000', 'aria-label': CUSTOM_LABELS[k] + ' color picker' }) as HTMLInputElement;
+    const commit = (v: string): void => {
+      if (!isColor(v)) { text.value = cur[k]; return; }
+      cur[k] = v;
+      setPref('customPalette', { ...cur }, applyPalette);
+    };
+    text.addEventListener('change', () => commit(text.value.trim()));
+    pick.addEventListener('input', () => { text.value = pick.value; commit(pick.value); });
+    pick.addEventListener('change', () => paint());
+    wrap.append(h('div', { class: 'color-row' },
+      h('span', { class: 'color-label' }, CUSTOM_LABELS[k]), pick, text));
   }
-  return grid;
+  wrap.append(hint('One set of colors, used in both light and dark mode. Hex or rgb(r,g,b).'));
+  return wrap;
 }
 
 /* Curated terminal fonts with guaranteed Unicode box-drawing support.
@@ -151,7 +196,7 @@ function buildFontSizeSelect(): HTMLElement {
 function buildAppearanceSection(paint: () => void): HTMLElement {
   return h('div', { class: 'settings-section' },
     field('Theme', buildModeSeg(paint)),
-    field('Palette', buildPaletteGrid(paint)),
+    field('Palette', buildPaletteSelect(paint)),
     field('Terminal font', buildFontSelect()),
     field('Font size', buildFontSizeSelect()));
 }
