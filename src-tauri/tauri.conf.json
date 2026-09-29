@@ -72,7 +72,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' plugin: http://plugin.localhost; style-src 'self' 'unsafe-inline' plugin: http://plugin.localhost; img-src 'self' data: blob: plugin: http://plugin.localhost; font-src 'self' data: plugin: http://plugin.localhost; connect-src 'self' ipc: http://ipc.localhost plugin: http://plugin.localhost; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+      "csp": "default-src 'self'; script-src 'self' plugin: http://plugin.localhost; style-src 'self' 'unsafe-inline' plugin: http://plugin.localhost; img-src 'self' data: blob: plugin: http://plugin.localhost https://assets.petdex.dev; font-src 'self' data: plugin: http://plugin.localhost; connect-src 'self' ipc: http://ipc.localhost plugin: http://plugin.localhost https://petdex.dev; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       "devCsp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws://localhost:5173 http://localhost:5173 plugin: http://plugin.localhost ipc: http://ipc.localhost",
       "dangerousDisableAssetCspModification": ["style-src"]
     }
