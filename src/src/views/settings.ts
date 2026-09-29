@@ -17,6 +17,7 @@ import {
 } from '../updates';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { settingsSectionEntries } from '../plugin/registry';
+import { onPluginsChanged } from '../plugin/loader';
 import { contributionLabel } from '../plugin/icons';
 import { buildPluginsSection } from './pluginStudio';
 import api from '../../preload/bentomux';
@@ -428,33 +429,51 @@ function allSections(): SettingsSection[] {
 
 export function openSettingsModal(): void {
   if (currentModal) return; /* one modal at a time — keyboard handler also guards */
-  const sections = allSections();
+  let sections = allSections();
   let activeId = sections[0].id;
 
   const menuHost = h('div', { class: 'settings-menu' });
-  const menuItems: Array<{ btn: HTMLElement; id: string }> = [];
-  for (const s of sections) {
-    const btn = h('button', {
-      class: 'nav-item',
-      type: 'button',
-      onclick: () => { if (activeId !== s.id) { activeId = s.id; paint(); } },
-    }, ic(s.icon), h('span', {}, s.label));
-    menuItems.push({ btn, id: s.id });
-    menuHost.append(btn);
+  const contentHost = h('div', { class: 'settings-content' });
+  let menuItems: Array<{ btn: HTMLElement; id: string }> = [];
+
+  function buildMenu(): void {
+    menuHost.innerHTML = '';
+    menuItems = [];
+    for (const s of sections) {
+      const btn = h('button', {
+        class: 'nav-item',
+        type: 'button',
+        onclick: () => { if (activeId !== s.id) { activeId = s.id; paint(); } },
+      }, ic(s.icon), h('span', {}, s.label));
+      menuItems.push({ btn, id: s.id });
+      menuHost.append(btn);
+    }
   }
 
-  const contentHost = h('div', { class: 'settings-content' });
   function paint(): void {
     const section = sections.find(s => s.id === activeId) ?? sections[0];
     contentHost.innerHTML = '';
     contentHost.append(section.build(paint));
     for (const { btn, id } of menuItems) btn.classList.toggle('active', id === activeId);
   }
+
+  buildMenu();
   paint();
+
+  /* installing, enabling, or uninstalling a plugin changes the section list
+     while this modal is open — without this the removed plugin's menu entry
+     stayed clickable */
+  const off = onPluginsChanged(() => {
+    sections = allSections();
+    if (!sections.some(s => s.id === activeId)) activeId = sections[0].id;
+    buildMenu();
+    paint();
+  });
 
   const modal = openModal({
     title: 'Settings',
     body: h('div', { class: 'settings-modal' }, menuHost, contentHost),
+    onClose: off,
   });
   const dialog = modal.overlay.querySelector('.dialog');
   if (dialog) dialog.classList.add('settings-dialog');

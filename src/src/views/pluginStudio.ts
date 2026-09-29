@@ -20,6 +20,8 @@ import { openModal } from '../components/modal';
 import {
   pluginStatuses,
   reloadPlugin,
+  forgetPlugin,
+  setPluginEnabled,
   onPluginsChanged,
   type PluginStatus,
 } from '../plugin/loader';
@@ -422,8 +424,9 @@ function pluginRow(
     class: 'btn plugin-toggle',
     type: 'button',
     onclick: () => {
-      void api.pluginSetEnabled(plugin.id, !plugin.enabled)
-        .then(() => (plugin.enabled ? Promise.resolve(false) : reloadPlugin(plugin.id)))
+      /* the loader owns both halves — the backend flag and the live slot —
+         so a backend-only write left this button stuck */
+      void setPluginEnabled(plugin.id, !plugin.enabled)
         .then(() => rerender())
         .catch(e => showError('Could not change that plugin', readableError(e)));
     },
@@ -518,6 +521,9 @@ function uninstallFlow(
           onclick: () => {
             void api.pluginUninstall(plugin.id, removeData.checked)
               .then(() => {
+                /* the backend dropped the record; the host still holds the
+                   slot, and every contribution surface is driven by it */
+                forgetPlugin(plugin.id);
                 finish(true);
                 rerender();
               })

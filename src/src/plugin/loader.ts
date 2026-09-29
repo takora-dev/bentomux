@@ -165,7 +165,23 @@ export async function loadPlugin(record: PluginRecord, opts: LoadOptions = {}): 
       existing.record = record;
       existing.status = 'disabled';
       notify();
+      return;
     }
+    /* a disabled plugin still belongs in the list: a row that vanishes at
+       reboot would leave no way to turn it back on */
+    const disabled: LoadedPlugin = {
+      record,
+      manifest: { id: record.id, name: record.id, version: record.version, apiVersion: 1, entry: '' },
+      status: 'disabled',
+      generation: 0,
+    };
+    loaded.set(record.id, disabled);
+    try {
+      disabled.manifest = await fetchManifest(record.id);
+    } catch (e) {
+      console.warn(`[plugin-host] could not read the manifest of disabled plugin ${record.id}`, e);
+    }
+    notify();
     return;
   }
 
@@ -331,8 +347,7 @@ export function deactivatePlugin(pluginId: string): void {
 
 /* The host's half of teardown: unmounting plugin UI that lives inside the
    shell. Injected rather than imported so the loader does not depend on the
-   renderer's module graph. */
-let hostTeardown: ((pluginId: string) => void) | null = null;
+   renderer's module graph. */let hostTeardown: ((pluginId: string) => void) | null = null;
 
 export function onTeardown(fn: (pluginId: string) => void): void {
   hostTeardown = fn;
@@ -364,6 +379,47 @@ export async function reloadPlugin(pluginId: string): Promise<boolean> {
   }
 
   return activate(pluginId);
+}
+
+/**
+ * Drop a plugin the host must forget: its services, its registry half, its
+ * loaded slot.
+ *
+ * Uninstall calls this. `deactivatePlugin` alone is not enough — it leaves the
+ * slot in `loaded`, so the manifest that drives every surface stays reachable
+ * and the uninstalled plugin's buttons, rows and commands keep rendering until
+ * the next launch. That is what a user sees as "uninstall did nothing".
+ */
+export function forgetPlugin(pluginId: string): void {
+  abortServices(pluginId);
+  deactivatePlugin(pluginId);
+  loaded.delete(pluginId);
+  notify();
+}
+
+/**
+ * Flip `enabled` in the backend and make the host match it.
+ *
+ * The studio row reads its state off the loaded record, so a backend write
+ * alone leaves the button where it was — and disabling must also tear the
+ * plugin down, or "Disable" lets it keep running.
+ */
+export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  await api.pluginSetEnabled(pluginId, enabled);
+  const slot = loaded.get(pluginId);
+  if (!slot) return;
+  slot.record = { ...slot.record, enabled };
+  if (!enabled) {
+    abortServices(pluginId);
+    deactivatePlugin(pluginId);
+    slot.status = 'disabled';
+    notify();
+    return;
+  }
+  await reloadPlugin(pluginId);
+  /* services only start at boot otherwise, so an enabled-again plugin would
+     run without them until the next launch */
+  startServices();
 }
 
 /* ---------------- boot ---------------- */
@@ -416,6 +472,14 @@ function isBundled(record: PluginRecord): boolean {
 
 const serviceAborts = new Map<string, AbortController>();
 
+function abortServices(pluginId: string): void {
+  for (const [key, controller] of serviceAborts) {
+    if (!key.startsWith(`${pluginId}:`)) continue;
+    controller.abort();
+    serviceAborts.delete(key);
+  }
+}
+
 function startServices(): void {
   for (const entry of serviceEntries()) {
     const key = `${entry.pluginId}:${entry.contribution.id}`;
@@ -428,7 +492,9 @@ function startServices(): void {
       void Promise.resolve(entry.run(controller.signal)).catch(err => {
         console.error(`[plugin:${entry.pluginId}] service \`${entry.contribution.id}\` failed`, err);
         const slot = loaded.get(entry.pluginId);
-        if (slot) {
+        /* a disabled plugin's services are aborted on purpose — that
+           rejection must not mark it errored */
+        if (slot && slot.status !== 'disabled') {
           slot.status = 'errored';
           slot.error = `service failed: ${err instanceof Error ? err.message : String(err)}`;
           notify();

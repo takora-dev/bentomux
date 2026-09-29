@@ -602,7 +602,9 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .btn.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
 .btn.ghost{border-color:transparent;background:none;color:var(--ink-2)}
 .btn.ghost:hover{background:var(--tint);color:var(--ink)}
-.btn.danger{border-color:transparent;background:none;color:var(--danger)}
+/* danger keeps the plain `.btn` border so it sits flush with its neighbours;
+   only the label and hover tint differ */
+.btn.danger{background:none;color:var(--danger)}
 .btn.danger:hover{background:color-mix(in srgb,var(--danger) 8%,transparent)}
 .iconbtn{
   width:30px;height:30px;flex:0 0 auto;
