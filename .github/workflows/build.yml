@@ -181,7 +181,13 @@ jobs:
             --tag "$GITHUB_REF_NAME" \
             --out "dist/updater-${RUNNER_OS}.json"
 
+      # The artifact service fails with transient DNS errors (ENOTFOUND) that
+      # upload-artifact does not retry on its own, so each upload gets one
+      # guarded second attempt. Only the first attempt is allowed to fail
+      # silently; a failure on the retry fails the job.
       - name: Upload packaged artifact
+        id: upload_package
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: bentomux-${{ runner.os }}
@@ -193,12 +199,39 @@ jobs:
             ${{ env.BUNDLE_DIR }}/**/*-setup.exe
           if-no-files-found: error
 
+      - name: Upload packaged artifact (retry)
+        if: steps.upload_package.outcome == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          name: bentomux-${{ runner.os }}
+          path: |
+            ${{ env.BUNDLE_DIR }}/**/*.dmg
+            ${{ env.BUNDLE_DIR }}/**/*.AppImage
+            ${{ env.BUNDLE_DIR }}/**/*.deb
+            ${{ env.BUNDLE_DIR }}/**/*.msi
+            ${{ env.BUNDLE_DIR }}/**/*-setup.exe
+          if-no-files-found: error
+          # a half-created artifact from the failed attempt would otherwise
+          # collide on the same name
+          overwrite: true
+
       - name: Upload checksum list
+        id: upload_checksums
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: bentomux-checksums-${{ runner.os }}
           path: dist/checksums-*.sha256
           if-no-files-found: error
+
+      - name: Upload checksum list (retry)
+        if: steps.upload_checksums.outcome == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          name: bentomux-checksums-${{ runner.os }}
+          path: dist/checksums-*.sha256
+          if-no-files-found: error
+          overwrite: true
 
       - name: Upload updater fragment
         if: startsWith(github.ref, 'refs/tags/v')
