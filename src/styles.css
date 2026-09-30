@@ -144,6 +144,195 @@
   --px-shadow:#1e2130;--px-tex:rgba(237,230,245,.03);
 }
 
+/* ---------------- terminal ANSI colors (xterm) ----------------
+   xterm's built-in 16-color set assumes a dark canvas (bright white,
+   pale yellow, pastel green), so on light backgrounds colored output
+   disappears — the reason terminal text went invisible in light mode.
+   Each palette owns the 16 ANSI slots tuned for its canvas; terminal.ts
+   reads them into the xterm theme. Palettes without an override inherit
+   the neutral default set. The custom palette derives everything from
+   --c-ink/--c-bg: chromatic hues are mixed toward the ink, which darkens
+   them on a light canvas and lifts them on a dark one. */
+:root{
+  --ansi-black:#000000;--ansi-red:#cd3131;--ansi-green:#00bc00;--ansi-yellow:#949800;
+  --ansi-blue:#0451a5;--ansi-magenta:#bc05bc;--ansi-cyan:#0598bc;--ansi-white:#555555;
+  --ansi-bright-black:#666666;--ansi-bright-red:#cd3131;--ansi-bright-green:#14ce14;--ansi-bright-yellow:#b5ba00;
+  --ansi-bright-blue:#0451a5;--ansi-bright-magenta:#bc05bc;--ansi-bright-cyan:#0598bc;--ansi-bright-white:#a5a5a5;
+}
+:root.dark{
+  --ansi-black:#666666;--ansi-red:#f14c4c;--ansi-green:#23d18b;--ansi-yellow:#f5f543;
+  --ansi-blue:#3b8eea;--ansi-magenta:#d670d6;--ansi-cyan:#29b8db;--ansi-white:#e5e5e5;
+  --ansi-bright-black:#666666;--ansi-bright-red:#f14c4c;--ansi-bright-green:#23d18b;--ansi-bright-yellow:#f5f543;
+  --ansi-bright-blue:#3b8eea;--ansi-bright-magenta:#d670d6;--ansi-bright-cyan:#29b8db;--ansi-bright-white:#e5e5e5;
+}
+/* catppuccin — official ANSI per flavor; the three dark-only flavors borrow
+   Latte's set in light mode (the same borrow the syntax tokens use) */
+:root.palette-catppuccin,
+:root.palette-catppuccin-frappe,
+:root.palette-catppuccin-macchiato,
+:root.palette-catppuccin-mocha{
+  --ansi-black:#5c5f77;--ansi-red:#d20f39;--ansi-green:#40a02b;--ansi-yellow:#df8e1d;
+  --ansi-blue:#1e66f5;--ansi-magenta:#8839ef;--ansi-cyan:#179299;--ansi-white:#8c8fa1;
+  --ansi-bright-black:#6c6f85;--ansi-bright-red:#d20f39;--ansi-bright-green:#40a02b;--ansi-bright-yellow:#df8e1d;
+  --ansi-bright-blue:#1e66f5;--ansi-bright-magenta:#8839ef;--ansi-bright-cyan:#179299;--ansi-bright-white:#9ca0b0;
+}
+:root.dark.palette-catppuccin{
+  --ansi-black:#45475a;--ansi-red:#f38ba8;--ansi-green:#a6e3a1;--ansi-yellow:#f9e2af;
+  --ansi-blue:#89b4fa;--ansi-magenta:#f5c2e7;--ansi-cyan:#94e2d5;--ansi-white:#bac2de;
+  --ansi-bright-black:#585b70;--ansi-bright-red:#f38ba8;--ansi-bright-green:#a6e3a1;--ansi-bright-yellow:#f9e2af;
+  --ansi-bright-blue:#89b4fa;--ansi-bright-magenta:#f5c2e7;--ansi-bright-cyan:#94e2d5;--ansi-bright-white:#a6adc8;
+}
+:root.dark.palette-catppuccin-frappe{
+  --ansi-black:#51576d;--ansi-red:#e78284;--ansi-green:#a6d189;--ansi-yellow:#e5c890;
+  --ansi-blue:#8caaee;--ansi-magenta:#f4b8e4;--ansi-cyan:#81c8be;--ansi-white:#949cbb;
+  --ansi-bright-black:#626880;--ansi-bright-red:#e78284;--ansi-bright-green:#a6d189;--ansi-bright-yellow:#e5c890;
+  --ansi-bright-blue:#8caaee;--ansi-bright-magenta:#f4b8e4;--ansi-bright-cyan:#81c8be;--ansi-bright-white:#838ba7;
+}
+:root.dark.palette-catppuccin-macchiato{
+  --ansi-black:#494d64;--ansi-red:#ed8796;--ansi-green:#a6da95;--ansi-yellow:#eed49f;
+  --ansi-blue:#8aadf4;--ansi-magenta:#f5bde6;--ansi-cyan:#8bd5ca;--ansi-white:#939ab7;
+  --ansi-bright-black:#5b6078;--ansi-bright-red:#ed8796;--ansi-bright-green:#a6da95;--ansi-bright-yellow:#eed49f;
+  --ansi-bright-blue:#8aadf4;--ansi-bright-magenta:#f5bde6;--ansi-bright-cyan:#8bd5ca;--ansi-bright-white:#8087a2;
+}
+:root.dark.palette-catppuccin-mocha{
+  --ansi-black:#45475a;--ansi-red:#f38ba8;--ansi-green:#a6e3a1;--ansi-yellow:#f9e2af;
+  --ansi-blue:#89b4fa;--ansi-magenta:#f5c2e7;--ansi-cyan:#94e2d5;--ansi-white:#bac2de;
+  --ansi-bright-black:#585b70;--ansi-bright-red:#f38ba8;--ansi-bright-green:#a6e3a1;--ansi-bright-yellow:#f9e2af;
+  --ansi-bright-blue:#89b4fa;--ansi-bright-magenta:#f5c2e7;--ansi-bright-cyan:#94e2d5;--ansi-bright-white:#a6adc8;
+}
+/* rose-pine — Dawn hues on the paper canvas (white slots map to the palette's
+   muted tones: programs emitting white expect a dark canvas, and on light it
+   must still read); Main keeps the official set */
+:root.palette-rose-pine{
+  --ansi-black:#575279;--ansi-red:#b4637a;--ansi-green:#286983;--ansi-yellow:#9a7d2e;
+  --ansi-blue:#56949f;--ansi-magenta:#907aa9;--ansi-cyan:#d7827e;--ansi-white:#797593;
+  --ansi-bright-black:#9893a5;--ansi-bright-red:#b4637a;--ansi-bright-green:#286983;--ansi-bright-yellow:#9a7d2e;
+  --ansi-bright-blue:#56949f;--ansi-bright-magenta:#907aa9;--ansi-bright-cyan:#d7827e;--ansi-bright-white:#575279;
+}
+:root.dark.palette-rose-pine{
+  --ansi-black:#26233a;--ansi-red:#eb6f92;--ansi-green:#31748f;--ansi-yellow:#f6c177;
+  --ansi-blue:#9ccfd8;--ansi-magenta:#c4a7e7;--ansi-cyan:#ebbcba;--ansi-white:#e0def4;
+  --ansi-bright-black:#6e6a86;--ansi-bright-red:#eb6f92;--ansi-bright-green:#31748f;--ansi-bright-yellow:#f6c177;
+  --ansi-bright-blue:#9ccfd8;--ansi-bright-magenta:#c4a7e7;--ansi-bright-cyan:#ebbcba;--ansi-bright-white:#e0def4;
+}
+/* gruvbox — the official light and dark terminal sets */
+:root.palette-gruvbox{
+  --ansi-black:#3c3836;--ansi-red:#cc241d;--ansi-green:#98971a;--ansi-yellow:#d79921;
+  --ansi-blue:#458588;--ansi-magenta:#b16286;--ansi-cyan:#689d6a;--ansi-white:#7c6f64;
+  --ansi-bright-black:#928374;--ansi-bright-red:#9d0006;--ansi-bright-green:#79740e;--ansi-bright-yellow:#b57614;
+  --ansi-bright-blue:#076678;--ansi-bright-magenta:#8f3f71;--ansi-bright-cyan:#427b58;--ansi-bright-white:#3c3836;
+}
+:root.dark.palette-gruvbox{
+  --ansi-black:#3c3836;--ansi-red:#cc241d;--ansi-green:#98971a;--ansi-yellow:#d79921;
+  --ansi-blue:#458588;--ansi-magenta:#b16286;--ansi-cyan:#689d6a;--ansi-white:#a89984;
+  --ansi-bright-black:#928374;--ansi-bright-red:#fb4934;--ansi-bright-green:#b8bb26;--ansi-bright-yellow:#fabd2f;
+  --ansi-bright-blue:#83a598;--ansi-bright-magenta:#d3869b;--ansi-bright-cyan:#8ec07c;--ansi-bright-white:#ebdbb2;
+}
+/* dracula — light darkens the official hues (as the syntax tokens do);
+   dark is the official set */
+:root.palette-dracula{
+  --ansi-black:#3a3c4e;--ansi-red:#d0342c;--ansi-green:#1b7c3c;--ansi-yellow:#986801;
+  --ansi-blue:#6f42c1;--ansi-magenta:#a626a4;--ansi-cyan:#0e7a8d;--ansi-white:#7c8296;
+  --ansi-bright-black:#6272a4;--ansi-bright-red:#d0342c;--ansi-bright-green:#1b7c3c;--ansi-bright-yellow:#986801;
+  --ansi-bright-blue:#6f42c1;--ansi-bright-magenta:#a626a4;--ansi-bright-cyan:#0e7a8d;--ansi-bright-white:#4d4f5e;
+}
+:root.dark.palette-dracula{
+  --ansi-black:#343746;--ansi-red:#ff5555;--ansi-green:#50fa7b;--ansi-yellow:#f1fa8c;
+  --ansi-blue:#bd93f9;--ansi-magenta:#ff79c6;--ansi-cyan:#8be9fd;--ansi-white:#f8f8f2;
+  --ansi-bright-black:#6272a4;--ansi-bright-red:#ff5555;--ansi-bright-green:#50fa7b;--ansi-bright-yellow:#f1fa8c;
+  --ansi-bright-blue:#bd93f9;--ansi-bright-magenta:#ff79c6;--ansi-bright-cyan:#8be9fd;--ansi-bright-white:#ffffff;
+}
+/* nord — light darkens the polar hues so they read on Snow Storm; dark is
+   the official Polar Night set */
+:root.palette-nord{
+  --ansi-black:#2e3440;--ansi-red:#a6424d;--ansi-green:#5e8b46;--ansi-yellow:#9c7c25;
+  --ansi-blue:#5e81ac;--ansi-magenta:#9d5c8e;--ansi-cyan:#2e85a0;--ansi-white:#6d7891;
+  --ansi-bright-black:#4c566a;--ansi-bright-red:#a6424d;--ansi-bright-green:#5e8b46;--ansi-bright-yellow:#9c7c25;
+  --ansi-bright-blue:#5e81ac;--ansi-bright-magenta:#9d5c8e;--ansi-bright-cyan:#2e85a0;--ansi-bright-white:#434c5e;
+}
+:root.dark.palette-nord{
+  --ansi-black:#3b4252;--ansi-red:#bf616a;--ansi-green:#a3be8c;--ansi-yellow:#ebcb8b;
+  --ansi-blue:#81a1c1;--ansi-magenta:#b48ead;--ansi-cyan:#88c0d0;--ansi-white:#e5e9f0;
+  --ansi-bright-black:#4c566a;--ansi-bright-red:#bf616a;--ansi-bright-green:#a3be8c;--ansi-bright-yellow:#ebcb8b;
+  --ansi-bright-blue:#81a1c1;--ansi-bright-magenta:#b48ead;--ansi-bright-cyan:#8fbcbb;--ansi-bright-white:#eceff4;
+}
+/* classic — PICO-8 hues deepened for the cream canvas; dark is Sweetie-16
+   with the arcade accents the syntax tokens use */
+:root.palette-classic{
+  --ansi-black:#3b2a1f;--ansi-red:#d40049;--ansi-green:#008751;--ansi-yellow:#a35c00;
+  --ansi-blue:#1169b0;--ansi-magenta:#7e2553;--ansi-cyan:#0f7f86;--ansi-white:#6b5240;
+  --ansi-bright-black:#5f574f;--ansi-bright-red:#d40049;--ansi-bright-green:#0b7d3f;--ansi-bright-yellow:#a35c00;
+  --ansi-bright-blue:#1169b0;--ansi-bright-magenta:#7e2553;--ansi-bright-cyan:#0f7f86;--ansi-bright-white:#8a745c;
+}
+:root.dark.palette-classic{
+  --ansi-black:#333c57;--ansi-red:#ff004d;--ansi-green:#38b764;--ansi-yellow:#ffcd75;
+  --ansi-blue:#41a6f6;--ansi-magenta:#ff77a8;--ansi-cyan:#73eff7;--ansi-white:#94b0c2;
+  --ansi-bright-black:#566c86;--ansi-bright-red:#ff004d;--ansi-bright-green:#a7f070;--ansi-bright-yellow:#ffcd75;
+  --ansi-bright-blue:#82c8ff;--ansi-bright-magenta:#ff77a8;--ansi-bright-cyan:#73eff7;--ansi-bright-white:#f4f4f4;
+}
+/* e-ink — achromatic: every hue collapses to ink, white slots map to gray
+   so white-emitting output stays visible on the printed page */
+:root.palette-eink{
+  --ansi-black:#000000;--ansi-red:#000000;--ansi-green:#000000;--ansi-yellow:#000000;
+  --ansi-blue:#000000;--ansi-magenta:#000000;--ansi-cyan:#000000;--ansi-white:#666666;
+  --ansi-bright-black:#666666;--ansi-bright-red:#000000;--ansi-bright-green:#000000;--ansi-bright-yellow:#000000;
+  --ansi-bright-blue:#000000;--ansi-bright-magenta:#000000;--ansi-bright-cyan:#000000;--ansi-bright-white:#333333;
+}
+:root.dark.palette-eink{
+  --ansi-black:#999999;--ansi-red:#ffffff;--ansi-green:#ffffff;--ansi-yellow:#ffffff;
+  --ansi-blue:#ffffff;--ansi-magenta:#ffffff;--ansi-cyan:#ffffff;--ansi-white:#a6a6a6;
+  --ansi-bright-black:#cccccc;--ansi-bright-red:#ffffff;--ansi-bright-green:#ffffff;--ansi-bright-yellow:#ffffff;
+  --ansi-bright-blue:#ffffff;--ansi-bright-magenta:#ffffff;--ansi-bright-cyan:#ffffff;--ansi-bright-white:#ffffff;
+}
+/* tokyo-night — the light theme's famously muted dark hues; dark is the
+   official Night set */
+:root.palette-tokyo-night{
+  --ansi-black:#343b58;--ansi-red:#8c4351;--ansi-green:#485e30;--ansi-yellow:#8f5e15;
+  --ansi-blue:#34548d;--ansi-magenta:#5a4a68;--ansi-cyan:#0f4b6e;--ansi-white:#6172b0;
+  --ansi-bright-black:#565f89;--ansi-bright-red:#8c4351;--ansi-bright-green:#485e30;--ansi-bright-yellow:#8f5e15;
+  --ansi-bright-blue:#34548d;--ansi-bright-magenta:#5a4a68;--ansi-bright-cyan:#0f4b6e;--ansi-bright-white:#34355a;
+}
+:root.dark.palette-tokyo-night{
+  --ansi-black:#292e42;--ansi-red:#f7768e;--ansi-green:#9ece6a;--ansi-yellow:#e0af68;
+  --ansi-blue:#7aa2f7;--ansi-magenta:#bb9af7;--ansi-cyan:#7dcfff;--ansi-white:#a9b1d6;
+  --ansi-bright-black:#414868;--ansi-bright-red:#f7768e;--ansi-bright-green:#9ece6a;--ansi-bright-yellow:#e0af68;
+  --ansi-bright-blue:#7aa2f7;--ansi-bright-magenta:#bb9af7;--ansi-bright-cyan:#7dcfff;--ansi-bright-white:#c0caf5;
+}
+/* pastel-pixel — the pastel set deepened for the cream canvas (same hues as
+   the light syntax tokens); dark lifts them back onto soft navy */
+:root.palette-pastel-pixel{
+  --ansi-black:#5c4a3d;--ansi-red:#c95c7e;--ansi-green:#5d9450;--ansi-yellow:#9c7228;
+  --ansi-blue:#3f7fc1;--ansi-magenta:#8a63c9;--ansi-cyan:#2f8f83;--ansi-white:#8d7c6b;
+  --ansi-bright-black:#ab9a88;--ansi-bright-red:#c95c7e;--ansi-bright-green:#74a95f;--ansi-bright-yellow:#c56a2b;
+  --ansi-bright-blue:#5b93d4;--ansi-bright-magenta:#9d7ddb;--ansi-bright-cyan:#3fa397;--ansi-bright-white:#a89780;
+}
+:root.dark.palette-pastel-pixel{
+  --ansi-black:#453f5e;--ansi-red:#e88a9f;--ansi-green:#a8d494;--ansi-yellow:#f2b98a;
+  --ansi-blue:#9cc0f0;--ansi-magenta:#c9aef5;--ansi-cyan:#8fd4c9;--ansi-white:#c0b4da;
+  --ansi-bright-black:#524b73;--ansi-bright-red:#e88a9f;--ansi-bright-green:#a8d494;--ansi-bright-yellow:#f2b98a;
+  --ansi-bright-blue:#9cc0f0;--ansi-bright-magenta:#c9aef5;--ansi-bright-cyan:#8fd4c9;--ansi-bright-white:#ede6f5;
+}
+/* custom — chromatic hues mix toward the ink (darkens on light, lifts on
+   dark) while the black/white slots come from the ink/bg relationship */
+:root.palette-custom{
+  --ansi-black:var(--c-ink);
+  --ansi-white:color-mix(in srgb,var(--c-ink) 55%,var(--c-bg));
+  --ansi-bright-black:color-mix(in srgb,var(--c-ink) 40%,var(--c-bg));
+  --ansi-bright-white:var(--c-ink);
+  --ansi-red:color-mix(in srgb,#c62828 78%,var(--c-ink));
+  --ansi-bright-red:var(--ansi-red);
+  --ansi-green:color-mix(in srgb,#1a7f37 78%,var(--c-ink));
+  --ansi-bright-green:var(--ansi-green);
+  --ansi-yellow:color-mix(in srgb,#9a7b00 78%,var(--c-ink));
+  --ansi-bright-yellow:var(--ansi-yellow);
+  --ansi-blue:color-mix(in srgb,#1565c0 78%,var(--c-ink));
+  --ansi-bright-blue:var(--ansi-blue);
+  --ansi-magenta:color-mix(in srgb,#8e24aa 78%,var(--c-ink));
+  --ansi-bright-magenta:var(--ansi-magenta);
+  --ansi-cyan:color-mix(in srgb,#00838f 78%,var(--c-ink));
+  --ansi-bright-cyan:var(--ansi-cyan);
+}
+
 /* Custom — the user owns three colors (--c-bg / --c-ink / --c-accent, set
    inline on the root from prefs) and every other token is derived from them
    with color-mix, so light and dark share one set of colors. Diff/git

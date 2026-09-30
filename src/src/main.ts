@@ -17,6 +17,7 @@ import {
   initTerminalEvents,
   terminalPage,
   applyTerminalFont,
+  applyTerminalTheme,
   clearTerminalSelections,
 } from './views/terminal';
 import { initKeyboard } from './keyboard';
@@ -67,6 +68,9 @@ function applyPaletteClass(palette: string | undefined): void {
    without going through a full render() on every picker drag */
 export function applyPalette(): void {
   applyPaletteClass(db.prefs.palette);
+  /* the terminal reads its palette from the computed CSS tokens; live terminals
+     must follow along even when the repaint skips a full render() (color pickers) */
+  applyTerminalTheme();
 }
 
 function applyFontPrefs(): void {

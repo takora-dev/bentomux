@@ -14,6 +14,7 @@ import { emitPaneFocused } from '../main';
 import { leafIds, type PaneNode } from '../../shared/split-tree';
 import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
+import { xtermTheme } from '../terminal-theme';
 import { splitTerminalPane, closeTerminalPane, setNodeDir } from './tabs';
 import api from '../../preload/bentomux';
 
@@ -69,18 +70,12 @@ function writePaths(tabId: string, paths: string[]): void {
   api.writeTab(tabId, paths.map(quotePath).join(' '));
 }
 
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
-function xtermTheme(): Record<string, string> {
-  return {
-    background: cssVar('--content-bg') || '#FAFAFA',
-    foreground: cssVar('--ink') || '#292827',
-    cursor: cssVar('--ink-2') || '#686766',
-    selectionBackground: cssVar('--tint').replace(/rgba?\(([^)]+)\)/, 'rgba($1)') || 'rgba(191,198,199,.48)',
-    selectionForeground: cssVar('--ink'),
-  };
+/* re-theme every live terminal in place — palette and custom-color changes
+   repaint the stylesheet without a full render() */
+export function applyTerminalTheme(): void {
+  if (!lives.size) return;
+  const theme = xtermTheme() as never;
+  for (const live of lives.values()) live.term.options.theme = theme;
 }
 
 function monoFont(): string {
@@ -191,6 +186,9 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
     allowProposedApi: true,
     scrollback: 1000,
     fastScrollSensitivity: 10,
+    /* apps emit truecolor that assumes a dark canvas; on light backgrounds
+       plain white must darken rather than vanish into the page */
+    minimumContrastRatio: 3,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
