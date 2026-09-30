@@ -24,7 +24,9 @@
     "plugin:templates": "node scripts/gen-plugin-templates.mjs",
     "plugin:check": "node scripts/check-plugin-templates.mjs",
     "plugin:skill": "node scripts/gen-plugin-skill.mjs",
-    "plugin:skill:check": "node scripts/gen-plugin-skill.mjs --check"
+    "plugin:skill:check": "node scripts/gen-plugin-skill.mjs --check",
+    "plugin:csp": "node scripts/gen-plugin-csp.mjs",
+    "plugin:csp:check": "node scripts/gen-plugin-csp.mjs --check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.0",

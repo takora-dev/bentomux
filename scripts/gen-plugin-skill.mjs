@@ -110,6 +110,18 @@ the app.
 ${permissions.map(p => `- \`${p}\``).join('\n')}
 
 Unknown names are a validation error, so a typo cannot silently grant nothing.
+
+## \`network\`
+
+HTTPS origins the plugin may \`fetch()\` or load images from, as bare
+\`https://host[:port]\` origins with no path. The generator
+(\`scripts/gen-plugin-csp.mjs\`) bakes them into the Tauri CSP's
+\`connect-src\` and \`img-src\` at build time, and the Studio install review
+shows them next to the permissions. A malformed origin is a validation
+error (\`network-invalid\`); a host outside the last build stays blocked
+until the next release. Petdex declares \`https://petdex.dev\` (manifest)
+and \`https://assets.petdex.dev\` (redirect target + sprites) for this
+reason.
 `;
 }
 

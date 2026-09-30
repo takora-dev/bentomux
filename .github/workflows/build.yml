@@ -81,6 +81,13 @@ jobs:
         shell: bash
         run: npm run plugin:skill:check
 
+      # Plugin `network` origins are baked into the Tauri CSP at build time.
+      # A manifest change that forgets the policy would install fine and fail
+      # at runtime on the user's machine, so drift fails here instead.
+      - name: Check the plugin CSP covers declared origins
+        shell: bash
+        run: node scripts/gen-plugin-csp.mjs --check
+
       # Tauri's nonce injection makes 'unsafe-inline' inert, which silently
       # strips every runtime-injected style (xterm's per-terminal sheets, the
       # palette swatches' style="" attributes) in packaged builds only. The

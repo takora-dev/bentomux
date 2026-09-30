@@ -80,6 +80,14 @@
         ]
       }
     },
+    "network": {
+      "type": "array",
+      "description": "HTTPS origins the plugin may fetch() or load images from. Baked into connect-src/img-src at build time; shown in the install review.",
+      "items": {
+        "type": "string",
+        "pattern": "^https://[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?$"
+      }
+    },
     "contributes": {
       "type": "object",
       "additionalProperties": false,

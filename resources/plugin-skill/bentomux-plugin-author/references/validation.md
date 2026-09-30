@@ -31,6 +31,7 @@ of them and run once more rather than iterating one error at a time.
 | `contribution-id-shape` | contribution id shape |
 | `contribution-id-duplicate` | contribution id duplicate |
 | `permission-unknown` | permission unknown |
+| `network-invalid` | network invalid |
 | `permission-unused` | permission unused |
 | `command-undeclared` | command undeclared |
 | `icon-unknown` | icon unknown |

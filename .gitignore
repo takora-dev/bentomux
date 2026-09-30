@@ -13,6 +13,10 @@ out-test/
 .DS_Store
 *.log
 
+# First-party plugin working copies (e.g. petdex). Committed origins live in
+# resources/plugin-network.json so CI checks the same CSP input.
+plugins/
+
 # Generated production bundle dependency; prepare:cloudflared downloads it.
 # Only the .gz is kept — the raw binary is inflated out of it at runtime.
 resources/cloudflared/*/*

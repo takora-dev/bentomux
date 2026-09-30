@@ -46,6 +46,8 @@ export interface PluginManifest {
   entry: string;
   icon?: PluginIcon;
   permissions?: PluginPermission[];
+  /** HTTPS origins the plugin may fetch() or load images from. Baked into the CSP at build time. */
+  network?: string[];
   contributes?: Contributions;
 }
 

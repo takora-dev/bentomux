@@ -25,7 +25,7 @@ import {
   onPluginsChanged,
   type PluginStatus,
 } from '../plugin/loader';
-import { describePermissions } from '../plugin/facade';
+import { describeNetwork, describePermissions } from '../plugin/facade';
 import { openCreator } from './pluginCreator';
 import { restartApp } from '../updates';
 import type {
@@ -308,6 +308,7 @@ function confirmInstall(manifest: PluginManifest, report: ValidationReport): Pro
         manifest.description ? h('p', { class: 'plugin-review-desc' }, manifest.description) : null,
         contributionSummary(manifest),
         permissionSummary(manifest),
+        networkSummary(manifest),
         report.warnings.length ? warningList(report.warnings.map(w => w.message)) : null,
       ),
       footer: h('div', { class: 'plugin-review-foot' },
@@ -347,6 +348,18 @@ function permissionSummary(manifest: PluginManifest): HTMLElement {
     h('p', { class: 'plugin-review-note' },
       'Plugins run inside Bentomux and are not sandboxed. Install plugins you trust, ' +
       'the same way you would trust an app you download.'),
+  );
+}
+
+function networkSummary(manifest: PluginManifest): HTMLElement | null {
+  const described = describeNetwork(manifest.network);
+  if (!described.length) return null;
+  return h('div', { class: 'plugin-review-block' },
+    h('div', { class: 'plugin-review-label' }, 'It can reach'),
+    h('ul', { class: 'plugin-review-list' }, ...described.map(d => h('li', {}, d))),
+    h('p', { class: 'plugin-review-note' },
+      'These sites are baked into the app at build time — a plugin installed ' +
+      'later can only use the ones its release already allows.'),
   );
 }
 

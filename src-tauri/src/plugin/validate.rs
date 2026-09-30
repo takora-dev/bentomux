@@ -38,6 +38,7 @@ pub mod codes {
     pub const CONTRIBUTION_ID_SHAPE: &str = "contribution-id-shape";
     pub const CONTRIBUTION_ID_DUPLICATE: &str = "contribution-id-duplicate";
     pub const PERMISSION_UNKNOWN: &str = "permission-unknown";
+    pub const NETWORK_INVALID: &str = "network-invalid";
     pub const PERMISSION_UNUSED: &str = "permission-unused";
     pub const COMMAND_UNDECLARED: &str = "command-undeclared";
     pub const ICON_UNKNOWN: &str = "icon-unknown";
@@ -150,6 +151,7 @@ pub fn validate_dir_with(root: &Path, opts: &ValidateOptions) -> ValidationRepor
         check_entry(root, manifest, &mut report);
         check_contributions(manifest, &mut report);
         check_permissions(manifest, &mut report);
+        check_network(manifest, &mut report);
         check_icons(root, manifest, &mut report);
     }
     check_size(root, &mut report);
@@ -237,6 +239,7 @@ fn diagnose(
         "entry",
         "icon",
         "permissions",
+        "network",
         "contributes",
     ];
 
@@ -347,6 +350,31 @@ fn diagnose(
                             "plugin.json",
                         )),
                         Some(name) => salvage.permissions.push(name.to_string()),
+                    }
+                }
+            }
+        },
+    }
+
+    /* network: HTTPS origins only, no paths. Salvaged as plain strings so the
+    semantic pass can judge each one. */
+    match obj.get("network") {
+        None => {}
+        Some(v) => match v.as_array() {
+            None => issues.push(Issue::at(
+                codes::MANIFEST_INVALID,
+                "`network` must be an array of strings",
+                "plugin.json",
+            )),
+            Some(list) => {
+                for entry in list {
+                    match entry.as_str() {
+                        None => issues.push(Issue::at(
+                            codes::MANIFEST_INVALID,
+                            "every network origin must be a string",
+                            "plugin.json",
+                        )),
+                        Some(origin) => salvage.network.push(origin.to_string()),
                     }
                 }
             }
@@ -606,6 +634,65 @@ fn check_permissions(m: &PluginManifest, report: &mut ValidationReport) {
             ));
         }
         seen.push(p);
+    }
+}
+
+/// Every entry must be a bare `https://host[:port]` origin: no path, no
+/// credentials, no wildcard, no other scheme. A path would silently not match
+/// the CSP origin the generator emits, so the plugin would fail at runtime
+/// with a message pointing at the policy rather than the manifest.
+fn valid_network_origin(origin: &str) -> bool {
+    let rest = match origin.strip_prefix("https://") {
+        Some(r) => r,
+        None => return false,
+    };
+    if rest.is_empty()
+        || rest.contains('/')
+        || rest.contains('?')
+        || rest.contains('#')
+        || rest.contains('@')
+        || rest.contains('*')
+        || rest.contains(' ')
+    {
+        return false;
+    }
+    let host = rest.split(':').next().unwrap_or("");
+    if host.is_empty() || host.starts_with('.') || host.starts_with('-') {
+        return false;
+    }
+    if let Some(port) = rest.split(':').nth(1) {
+        if port.is_empty() || port.len() > 5 || !port.chars().all(|c| c.is_ascii_digit()) {
+            return false;
+        }
+    }
+    if rest.split(':').count() > 2 {
+        return false;
+    }
+    true
+}
+
+fn check_network(m: &PluginManifest, report: &mut ValidationReport) {
+    let mut seen: Vec<&str> = Vec::new();
+    for origin in &m.network {
+        if !valid_network_origin(origin) {
+            report.errors.push(Issue::at(
+                codes::NETWORK_INVALID,
+                format!(
+                    "network origin `{}` must be a bare https://host[:port] with no path",
+                    origin
+                ),
+                "plugin.json",
+            ));
+            continue;
+        }
+        if seen.contains(&origin.as_str()) {
+            report.warnings.push(Issue::at(
+                codes::PERMISSION_UNUSED,
+                format!("network origin `{}` is declared twice", origin),
+                "plugin.json",
+            ));
+        }
+        seen.push(origin);
     }
 }
 
@@ -1097,6 +1184,63 @@ mod tests {
             "one run, four independent problems: {:?}",
             codes2
         );
+    }
+
+    #[test]
+    fn network_origins_must_be_bare_https_origins() {
+        for good in ["https://petdex.dev", "https://assets.petdex.dev", "https://api.x.io:8443"] {
+            assert!(valid_network_origin(good), "{good} should pass");
+        }
+        for bad in [
+            "http://petdex.dev",
+            "https://petdex.dev/api/manifest",
+            "https://petdex.dev?x=1",
+            "https://user@petdex.dev",
+            "https://*.petdex.dev",
+            "petdex.dev",
+            "",
+        ] {
+            assert!(!valid_network_origin(bad), "{bad} should fail");
+        }
+    }
+
+    #[test]
+    fn declared_network_origins_pass_and_bad_ones_fail() {
+        let f = Fixture::new("net");
+        f.manifest(&GOOD_MANIFEST.replace(
+            r#""entry": "index.js","#,
+            r#""entry": "index.js", "network": ["https://petdex.dev", "https://assets.petdex.dev"],"#,
+        ))
+        .write("index.js", "export {}");
+        let r = f.validate();
+        assert!(r.ok, "{:?}", r.errors);
+        assert_eq!(r.manifest.unwrap().network.len(), 2);
+
+        let g = Fixture::new("netbad");
+        g.manifest(&GOOD_MANIFEST.replace(
+            r#""entry": "index.js","#,
+            r#""entry": "index.js", "network": ["https://petdex.dev/api", "http://x.io"],"#,
+        ))
+        .write("index.js", "export {}");
+        let bad = g.validate();
+        assert!(!bad.ok);
+        assert_eq!(
+            bad.errors.iter().filter(|i| i.code == codes::NETWORK_INVALID).count(),
+            2
+        );
+    }
+
+    #[test]
+    fn duplicate_network_origin_warns() {
+        let f = Fixture::new("netdupe");
+        f.manifest(&GOOD_MANIFEST.replace(
+            r#""entry": "index.js","#,
+            r#""entry": "index.js", "network": ["https://x.io", "https://x.io"],"#,
+        ))
+        .write("index.js", "export {}");
+        let r = f.validate();
+        assert!(r.ok, "{:?}", r.errors);
+        assert!(r.warnings.iter().any(|i| i.message.contains("declared twice")));
     }
 
     #[test]

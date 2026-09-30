@@ -129,6 +129,11 @@ pub struct PluginManifest {
     pub icon: Option<PluginIcon>,
     #[serde(default)]
     pub permissions: Vec<String>,
+    /// HTTPS origins the plugin may fetch() or load images from. Baked into
+    /// connect-src/img-src at build time by scripts/gen-plugin-csp.mjs; shown
+    /// in the install review alongside permissions.
+    #[serde(default)]
+    pub network: Vec<String>,
     #[serde(default)]
     pub contributes: Contributions,
 }
@@ -445,11 +450,13 @@ mod tests {
             "minAppVersion": "0.3.0",
             "entry": "index.js",
             "permissions": ["storage"],
+            "network": ["https://api.acme.test"],
             "contributes": {
                 "commands": [{ "id": "acme.habit-tracker.open", "title": "Open" }]
             }
         });
         let m: PluginManifest = serde_json::from_value(raw).unwrap();
+        assert_eq!(m.network, vec!["https://api.acme.test"]);
         assert_eq!(m.api_version, 1);
         assert_eq!(m.min_app_version.as_deref(), Some("0.3.0"));
         assert_eq!(m.contributes.command_ids(), vec!["acme.habit-tracker.open"]);

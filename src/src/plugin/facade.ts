@@ -92,6 +92,11 @@ export function buildAppFacade(
   return facade;
 }
 
+/** For the Studio review screen: which outside websites a plugin may reach. */
+export function describeNetwork(network: string[] | undefined): string[] {
+  return (network ?? []).map(h => `Talk to ${h}`);
+}
+
 /** For the Studio review screen: what a permission set adds up to. */
 export function describePermissions(permissions: PluginPermission[]): string[] {
   const out: string[] = [];

@@ -237,6 +237,10 @@ Plugin files are served over a registered custom scheme (`docs/adr/0003-plugin-c
 - The host resolves every request against that plugin's own root and **refuses** paths containing `..`, absolute paths, and symlinks that escape the root.
 - The production CSP gains the plugin scheme in `script-src`, `style-src`, and `img-src`. Nothing else in the policy widens: no `'unsafe-eval'`, no `blob:`, no `data:` in `script-src`.
 
+## Network access
+
+A plugin that reaches an outside website declares it in `plugin.json` under `network`, as bare `https://host[:port]` origins with no path. `scripts/gen-plugin-csp.mjs` bakes them into `connect-src` and `img-src` at build time; a malformed origin fails validation (`network-invalid`). The Studio install review shows the declared hosts next to the permissions. A host outside the last build stays blocked until the next release — that limit is stated in the review, not hidden.
+
 ---
 
 ## 11. Validation

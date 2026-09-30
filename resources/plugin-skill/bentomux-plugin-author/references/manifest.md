@@ -18,6 +18,7 @@ A plugin is a folder containing `plugin.json` and an ES module entry.
 | `entry` | string | yes | Path to the ES module entry, relative to the plugin root and inside it. |
 | `icon` | any | no | A builtin icon name or an image file inside the plugin folder. Inline markup is never accepted. |
 | `permissions` | array | no | Namespaces of the app the plugin may use. A contract, not a sandbox. |
+| `network` | array | no | HTTPS origins the plugin may fetch() or load images from. Baked into connect-src/img-src at build time; shown in the install review. |
 | `contributes` | object | no | What the plugin adds. Declaring an id that is never registered is a warning; registering an undeclared id is an error. |
 
 `apiVersion` must be `1`.
@@ -68,3 +69,15 @@ the app.
 - `backend.invoke`
 
 Unknown names are a validation error, so a typo cannot silently grant nothing.
+
+## `network`
+
+HTTPS origins the plugin may `fetch()` or load images from, as bare
+`https://host[:port]` origins with no path. The generator
+(`scripts/gen-plugin-csp.mjs`) bakes them into the Tauri CSP's
+`connect-src` and `img-src` at build time, and the Studio install review
+shows them next to the permissions. A malformed origin is a validation
+error (`network-invalid`); a host outside the last build stays blocked
+until the next release. Petdex declares `https://petdex.dev` (manifest)
+and `https://assets.petdex.dev` (redirect target + sprites) for this
+reason.
