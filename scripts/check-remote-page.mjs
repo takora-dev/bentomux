@@ -213,8 +213,9 @@ const scrollOf = (id) => {
 
 /* two panes open on the desktop: the phone mirrors both at once, in one tap */
 socket.onmessage({ data: JSON.stringify({ t: 'panes', panes: [
-  { id: 't-1', title: 'pi — build', state: 'working' },
-  { id: 't-2', title: 'shell', state: null }
+  { id: 't-1', tabId: 'tab-a', title: 'pi — build', state: 'working' },
+  { id: 't-2', tabId: 'tab-a', title: 'shell', state: null },
+  { id: 't-3', tabId: 'tab-b', title: 'other tab', state: null }
 ] }) });
 sent.length = 0;
 openPane('t-1');
@@ -399,6 +400,12 @@ closeViewer();
 if (!lastSent('unwatch')) fail('leaving the viewer did not release the pane');
 if ('paneId' in lastSent('unwatch')) fail('unwatch named one pane — the phone held two');
 if (node('panes').childNodes.length) fail('closing the viewer left slots behind');
+sent.length = 0;
+openPane('t-3');
+const otherTabWatches = sent.filter((m) => m.t === 'watch').map((m) => m.paneId);
+if (otherTabWatches.join(',') !== 't-3') fail(`opening another tab watched ${otherTabWatches.join(',')}`);
+if (node('panes').childNodes.length !== 1) fail('another tab inherited unrelated pane slots');
+closeViewer();
 sent.length = 0;
 socket.onmessage({ data: JSON.stringify({ t: 'view', paneId: 't-1', text: 'late' }) });
 if (closedLog.textContent.includes('late')) fail('a frame landed after the viewer closed');

@@ -398,11 +398,11 @@ function setFocus(id) {
 var MAX_PANES = 2;
 
 function openPane(id) {
-  /* mirror the pane that was tapped plus the next one the desktop has open:
-     the phone shows the split without a second trip through the list */
+  /* mirror only panes in the selected tab's split tree */
+  var selected = panes.find(function (pane) { return pane.id === id; });
   var ids = [id];
-  for (var i = 0; i < panes.length && ids.length < MAX_PANES; i++) {
-    if (panes[i].id !== id) ids.push(panes[i].id);
+  for (var i = 0; selected && i < panes.length && ids.length < MAX_PANES; i++) {
+    if (panes[i].tabId === selected.tabId && panes[i].id !== id) ids.push(panes[i].id);
   }
   closeViewer();
   var host = $('panes');

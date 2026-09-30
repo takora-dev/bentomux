@@ -59,6 +59,7 @@ const MAX_AUTH_PER_MIN: u32 = 30;
 #[serde(rename_all = "camelCase")]
 pub struct RemotePaneInfo {
     pub id: String,
+    pub tab_id: String,
     pub title: String,
     pub workspace: String,
     pub state: Option<crate::runtime::AgentRunState>,
@@ -188,6 +189,7 @@ fn pane_list(app: &tauri::AppHandle) -> Vec<RemotePaneInfo> {
         let status = statuses.get(&t.id);
         out.push(RemotePaneInfo {
             id: t.id,
+            tab_id: rec.id.clone(),
             title: rec
                 .title
                 .clone()
@@ -1569,6 +1571,7 @@ mod tests {
     fn remote_pane_info_serializes_camel_case() {
         let p = RemotePaneInfo {
             id: "t-1".into(),
+            tab_id: "tab-1".into(),
             title: "Main".into(),
             workspace: "proj".into(),
             state: Some(crate::runtime::AgentRunState::Working),
