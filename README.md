@@ -7,34 +7,14 @@ Bentomux a customizable desktop companion that brings AI agents, development too
 
 <img src="assets/screenshot.png" alt="Bentomux screenshot — split-pane terminals with an agent runtime and a plain shell" width="100%">
 
-## Features
-
-**Workspaces & Terminals**
-- Project-based workspaces with persistent state
-- Multiple terminal tabs with split right/down layouts
-- Configurable shells and terminal settings
-
-**Git**
-- Branch and file status monitoring
-- Changes and per-file diffs
-
-**AI Agents**
-- Live agent status per terminal
-- Support for multiple AI coding agents
-
-**Plugins**
-- Extend the workspace with plugins like **Kanban, To-Do, and Pomodoro** etc
-- Support for custom and future plugins
-
-**Remote Access**
-- Access and control your workspace from mobile
-- Monitor terminals and AI agents remotely
-- QR-code pairing
-
-**Cozy Workspace**
-- Light/dark themes and custom palettes
-- Custom backgrounds and layouts
-- Personalizable workspace settings
+| **Cozy Workspaces** | Organize projects with persistent workspaces and customizable layouts. |
+| ------------------- | --------------------------------------------------------------------- |
+| **Multiple Terminals** | Run multiple terminal sessions with tabs and split-right/down layouts. |
+| **AI Agents** | Run and manage multiple AI coding agents with model, provider, memory, skills, and MCP support. |
+| **Git Integration** | Monitor branches and changes, view diffs, and push directly from your workspace. |
+| **Plugin System** | Extend your workspace with plugins like **Kanban, To-Do, Pomodoro**, and more. |
+| **Remote Access** | Monitor and control terminals and AI agents remotely from your mobile browser. |
+| **Customizable** | Personalize themes, backgrounds, layouts, and workspace settings. |
 
 ## Install
 
