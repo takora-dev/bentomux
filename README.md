@@ -38,26 +38,13 @@ Bentomux a customizable desktop companion that brings AI agents, development too
 
 ## Install
 
-Prebuilt releases are published for macOS, Linux (x86_64) and Windows.
-
-The commands below use `bentomux.netlify.app/install.sh`, `/install.ps1` and
-`/install.cmd`, which redirect to `installers/install.sh`,
-`installers/install.ps1` and `installers/install.cmd` in this repository. The
-short link is the same script, served from the same place; the marketing site
-quotes these strings, so keep the host in step with `NEXT_PUBLIC_SITE_URL`
-there.
-
-**macOS and Linux**
-
 ```sh
+# macOS / Linux / WSL2
 curl -fsSL https://bentomux.netlify.app/install.sh | sh
 ```
 
-Installs the `.app` bundle into `/Applications` on macOS, and the AppImage into `~/.local/bin` (plus a desktop entry) on Linux. Add `--deb` to install the Debian package through `apt` instead, or `--dry-run` to resolve and verify the release without installing anything.
-
-**Windows**
-
 ```powershell
+# Windows PowerShell
 powershell -ExecutionPolicy Bypass -c "irm https://bentomux.netlify.app/install.ps1 | iex"
 ```
 
@@ -67,11 +54,8 @@ Where policy or endpoint security blocks PowerShell running straight from the in
 curl.exe -fsSLo install.cmd https://bentomux.netlify.app/install.cmd && install.cmd && del install.cmd
 ```
 
-Windows installs the per-user NSIS setup (no UAC prompt), falling back to the MSI.
-
-**Homebrew**
-
 ```sh
+# Homebrew
 brew install takora-dev/tap/bentomux
 ```
 
