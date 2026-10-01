@@ -3,50 +3,38 @@
   <h1>Bentomux</h1>
 </div>
 
-Calm desktop for AI agent runtime workspaces. Bentomux brings project workspaces, persistent split-pane terminals, Git status, agent configuration, approval requests, and remote monitoring into one native desktop app.
-
-Bentomux v2 is the Tauri 2 port of the original Electron application. The renderer remains vanilla TypeScript; the desktop backend is Rust.
+Bentomux a customizable desktop companion that brings AI agents, development tools, and productivity features into one cozy workspace.
 
 <img src="assets/screenshot.png" alt="Bentomux screenshot — split-pane terminals with an agent runtime and a plain shell" width="100%">
 
 ## Features
 
-**Workspaces and terminals**
-- Add and remove project folders as workspaces; app state persists in `bentomux.json`
-- Real PTY terminals with shell auto-detection and configurable shell selection
-- Chrome-style terminal tabs with renameable titles
-- Recursive split panes, split right or down, with persisted layouts restored across restarts
-- Copy and paste, right-click context menu, clickable URLs, terminal resizing, and hidden scrollbars
-- Command palette (`Ctrl+K`) for navigation, terminal panes, and open tabs
+**Workspaces & Terminals**
+- Project-based workspaces with persistent state
+- Multiple terminal tabs with split right/down layouts
+- Configurable shells and terminal settings
 
 **Git**
-- Per-workspace branch and file status monitoring
-- Changes count in the titlebar
-- Read-only Git panel with branch status and changed files
-- Full-page per-file diffs with Shiki syntax highlighting
-- Push with upstream tracking
+- Branch and file status monitoring
+- Changes and per-file diffs
 
-**Agent runtimes**
-- Detects Claude Code, pi, Qwen CLI, OpenAI Codex, OpenCode, Gemini CLI, Cursor, Kilo Code, and QwenPaw
-- Per-agent model settings, base URL, context window, API key, and provider format
-- Manage agent memory, skills, and MCP resources from one place
-- Native resource toggles with snapshot restore where an agent has no disable flag
-- Live idle, working, and blocked status per terminal tab, derived from process and terminal-screen state
+**AI Agents**
+- Live agent status per terminal
+- Support for multiple AI coding agents
 
-**Approvals and remote monitoring**
-- Agent permission requests through the bundled hook bridge over Unix sockets or Windows named pipes
-- Always-on-top approval overlay with Approve, Deny, and Jump-to-tab actions
-- Fail-open behavior: if the bridge is unavailable, the agent falls back to its native prompt
-- Optional HTTP/WebSocket remote monitor with QR-code pairing and a persistent access token
-- Mirror terminal panes and runtime status to a browser on the local network
-- Approve or deny remote permission requests without switching to the desktop
+**Plugins**
+- Extend the workspace with plugins like **Kanban, To-Do, and Pomodoro** etc
+- Support for custom and future plugins
 
-**Settings**
-- Light/dark appearance and six palettes: default, Catppuccin, Rosé Pine, Gruvbox, Dracula, and Nord
-- Terminal font family and size
-- Shell selection for new terminals
-- Rebind command-palette and split-pane shortcuts
-- Configure remote monitoring, approval overlay size, notification sound, sidebar width, and expanded sections
+**Remote Access**
+- Access and control your workspace from mobile
+- Monitor terminals and AI agents remotely
+- QR-code pairing
+
+**Cozy Workspace**
+- Light/dark themes and custom palettes
+- Custom backgrounds and layouts
+- Personalizable workspace settings
 
 ## Install
 
