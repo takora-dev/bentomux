@@ -37,12 +37,16 @@ export function treeHasKey(t: PaneNode, key: string): boolean {
   return t.kind === 'split' && (t.key === key || treeHasKey(t.first, key) || treeHasKey(t.second, key));
 }
 
-/* divide the pane `paneId` in two; no-op on non-matching leaves */
-export function splitLeaf(t: PaneNode, paneId: string, dir: 'v' | 'h', newId: string, key: string): PaneNode {
+/* divide the pane `paneId` in two; no-op on non-matching leaves.
+   `before` puts the new pane first (up/left), default appends after (right/down) */
+export function splitLeaf(t: PaneNode, paneId: string, dir: 'v' | 'h', newId: string, key: string, before = false): PaneNode {
   if (t.kind === 'leaf') {
-    return t.id === paneId ? { kind: 'split', key, dir, first: t, second: leafNode(newId) } : t;
+    if (t.id !== paneId) return t;
+    const oldLeaf = t;
+    const newLeaf = leafNode(newId);
+    return { kind: 'split', key, dir, first: before ? newLeaf : oldLeaf, second: before ? oldLeaf : newLeaf };
   }
-  return { ...t, first: splitLeaf(t.first, paneId, dir, newId, key), second: splitLeaf(t.second, paneId, dir, newId, key) };
+  return { ...t, first: splitLeaf(t.first, paneId, dir, newId, key, before), second: splitLeaf(t.second, paneId, dir, newId, key, before) };
 }
 
 /* remove a leaf; the enclosing axis collapses to its surviving branch.

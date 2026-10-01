@@ -351,16 +351,17 @@ function reportPaneFailure(e: unknown): void {
   });
 }
 
-/* split the pane `paneId`: new shell to its right ('v') or below it ('h').
-   The key is generated here so main and renderer grow identical trees. */
-export async function splitTerminalPane(paneId: string, dir: 'v' | 'h' = 'v'): Promise<void> {
+/* split the pane `paneId`: new shell to its right/below ('v'/'h').
+   `before` puts it left/above instead. Key generated here so main and
+   renderer grow identical trees. */
+export async function splitTerminalPane(paneId: string, dir: 'v' | 'h' = 'v', before = false): Promise<void> {
   const entry = entryForPane(paneId);
   if (!entry || entry.route.view !== 'terminal') return;
   const key = newNodeKey();
   try {
-    const rec = await api.splitTab(paneId, dir, key);
+    const rec = await api.splitTab(paneId, dir, key, before);
     const base = entry.tree ?? leafNode(entry.route.tabId);
-    entry.tree = splitLeaf(base, paneId, dir, rec.id, key);
+    entry.tree = splitLeaf(base, paneId, dir, rec.id, key, before);
     activity[rec.id] = Date.now();
     if (entry.workspaceId) lastCreatedWs.set(rec.id, entry.workspaceId);
     render();

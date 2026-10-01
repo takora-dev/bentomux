@@ -446,7 +446,9 @@ function paneMenu(e: MouseEvent, ids: string[]): void {
   const targetId = paneEl?.getAttribute('data-pane') || ids[0];
   const entries: MenuEntry[] = [
     { label: 'Split right', action: () => void splitTerminalPane(targetId, 'v') },
+    { label: 'Split left', action: () => void splitTerminalPane(targetId, 'v', true) },
     { label: 'Split down', action: () => void splitTerminalPane(targetId, 'h') },
+    { label: 'Split up', action: () => void splitTerminalPane(targetId, 'h', true) },
   ];
   if (ids.length > 1) entries.push({ label: 'Close pane', action: () => void closeTerminalPane(targetId) });
   openContextMenu(e.clientX, e.clientY, entries);

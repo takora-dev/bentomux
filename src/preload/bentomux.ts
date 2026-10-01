@@ -164,8 +164,8 @@ const api = {
   /* terminal tabs (panes: a tab may hold up to two shells side by side) */
   restoreTabs: () => invoke<TabRec[]>('tab_restore'),
   createTab: (workspaceId: string) => invoke<TabRec>('tab_create', { workspaceId }),
-  splitTab: (paneId: string, dir?: 'v' | 'h', key?: string) =>
-    invoke<TabRec>('tab_split', { paneId, dir, key }),
+  splitTab: (paneId: string, dir?: 'v' | 'h', key?: string, before?: boolean) =>
+    invoke<TabRec>('tab_split', { paneId, dir, key, before }),
   setSplitDir: (nodeKey: string, dir: 'v' | 'h') => { void invoke('tab_set_dir', { nodeKey, dir }); },
   renameTab: (id: string, title: string) => { void invoke('tab_rename', { paneId: id, rawTitle: title }); },
   closePane: (paneId: string) => invoke<AppState>('tab_close_pane', { paneId }),

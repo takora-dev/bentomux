@@ -11,7 +11,7 @@ use tauri::State;
 
 use crate::pty::PtyManager;
 use crate::split_tree::{
-    first_leaf_id, leaf_ids, leaf_node, new_node_key, remove_leaf, set_split_dir, split_leaf,
+    first_leaf_id, leaf_ids, leaf_node, new_node_key, remove_leaf, set_split_dir, split_leaf_at,
     tree_has_key, tree_has_leaf, Dir, PaneNode,
 };
 use crate::state::{
@@ -372,6 +372,7 @@ pub fn tab_split(
     pane_id: String,
     dir: Option<String>,
     key: Option<String>,
+    before: Option<bool>,
     state: State<'_, AppStateManager>,
     pty: State<'_, PtyManager>,
 ) -> Result<TabRec, String> {
@@ -394,7 +395,7 @@ pub fn tab_split(
     crate::git::watch_workspace(&ws.id, &ws.path); /* idempotent */
     let pref = state.get_state().prefs.shell.clone();
     let term_id = pty.create_term(&ws.id, &ws.path, pref.as_deref())?;
-    let tree = split_leaf(
+    let tree = split_leaf_at(
         tree_of(&rec),
         &pane_id,
         if dir.as_deref() == Some("h") {
@@ -404,6 +405,7 @@ pub fn tab_split(
         },
         &term_id,
         &key.unwrap_or_else(new_node_key),
+        before.unwrap_or(false),
     );
     state.patch_state(|s| {
         s.open_tabs = s

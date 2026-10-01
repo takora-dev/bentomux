@@ -109,14 +109,24 @@ pub fn tree_has_key(t: &PaneNode, key: &str) -> bool {
 
 /* divide the pane `pane_id` in two; no-op on non-matching leaves */
 pub fn split_leaf(t: PaneNode, pane_id: &str, dir: Dir, new_id: &str, key: &str) -> PaneNode {
+    split_leaf_at(t, pane_id, dir, new_id, key, false)
+}
+
+/* `before` puts the new pane first (up/left), default appends after (right/down) */
+pub fn split_leaf_at(t: PaneNode, pane_id: &str, dir: Dir, new_id: &str, key: &str, before: bool) -> PaneNode {
     match t {
         PaneNode::Leaf { id } => {
             if id == pane_id {
+                let (first, second) = if before {
+                    (leaf_node(new_id), PaneNode::Leaf { id })
+                } else {
+                    (PaneNode::Leaf { id }, leaf_node(new_id))
+                };
                 PaneNode::Split {
                     key: key.to_string(),
                     dir,
-                    first: Box::new(PaneNode::Leaf { id }),
-                    second: Box::new(leaf_node(new_id)),
+                    first: Box::new(first),
+                    second: Box::new(second),
                 }
             } else {
                 PaneNode::Leaf { id }
@@ -130,8 +140,8 @@ pub fn split_leaf(t: PaneNode, pane_id: &str, dir: Dir, new_id: &str, key: &str)
         } => PaneNode::Split {
             key: k,
             dir: d,
-            first: Box::new(split_leaf(*first, pane_id, dir, new_id, key)),
-            second: Box::new(split_leaf(*second, pane_id, dir, new_id, key)),
+            first: Box::new(split_leaf_at(*first, pane_id, dir, new_id, key, before)),
+            second: Box::new(split_leaf_at(*second, pane_id, dir, new_id, key, before)),
         },
     }
 }
@@ -248,6 +258,14 @@ mod tests {
                 shape(second)
             ),
         }
+    }
+
+    #[test]
+    fn test_split_before_puts_new_pane_first() {
+        let t = split_leaf_at(leaf_node("a"), "a", Dir::V, "b", "k1", true);
+        assert_eq!(shape(&t), "(b v a)");
+        assert_eq!(leaf_ids(&t), vec!["b".to_string(), "a".to_string()]);
+        assert_eq!(first_leaf_id(&t), "b");
     }
 
     #[test]

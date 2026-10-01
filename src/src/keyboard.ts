@@ -18,6 +18,8 @@ const DEFAULT_ACCELS = {
   palette: `${MOD}+k`,
   splitDefault: `${MOD}+\\`,
   splitAlt: `${MOD}+shift+\\`,
+  splitLeft: `${MOD}+alt+ArrowLeft`,
+  splitUp: `${MOD}+alt+ArrowUp`,
 } as const;
 export type ActionId = keyof typeof DEFAULT_ACCELS;
 
@@ -30,7 +32,12 @@ export function accelFor(action: ActionId): string {
 export function formatAccel(accel: string): string {
   const parts = accel.split('+');
   const key = parts.pop() || '';
-  const prettyKey = key.length === 1 ? key.toUpperCase() : key;
+  const prettyKey = key.length === 1 ? key.toUpperCase()
+    : key.toLowerCase() === 'arrowleft' ? '\u2190'
+    : key.toLowerCase() === 'arrowup' ? '\u2191'
+    : key.toLowerCase() === 'arrowright' ? '\u2192'
+    : key.toLowerCase() === 'arrowdown' ? '\u2193'
+    : key.charAt(0).toUpperCase() + key.slice(1);
   const modParts = parts.map(p => {
     const lower = p.toLowerCase();
     if (lower === 'meta') return IS_MAC ? 'Cmd' : 'Ctrl';
@@ -50,9 +57,9 @@ function accelMatches(e: KeyboardEvent, accel: string): boolean {
     && e.key.toLowerCase() === parts[parts.length - 1];
 }
 
-function splitFocusedPane(dir: 'v' | 'h'): void {
+function splitFocusedPane(dir: 'v' | 'h', before = false): void {
   const entry = ui.tabs.find(t => t.id === ui.activeTab);
-  if (entry) void splitTerminalPane(mostRecentPane(leavesOf(entry)), dir);
+  if (entry) void splitTerminalPane(mostRecentPane(leavesOf(entry)), dir, before);
 }
 
 export function initKeyboard(): void {
@@ -71,9 +78,12 @@ export function initKeyboard(): void {
     }
 
     if (ui.route.view === 'terminal') {
-      /* Ctrl+\ splits right, Ctrl+Shift+\ splits down */
+      /* Ctrl+\ splits right, Ctrl+Shift+\ splits down,
+         Ctrl+Alt+Left splits left, Ctrl+Alt+Up splits up */
       if (accelMatches(e, accelFor('splitDefault'))) { e.preventDefault(); splitFocusedPane('v'); return; }
       if (accelMatches(e, accelFor('splitAlt'))) { e.preventDefault(); splitFocusedPane('h'); return; }
+      if (accelMatches(e, accelFor('splitLeft'))) { e.preventDefault(); splitFocusedPane('v', true); return; }
+      if (accelMatches(e, accelFor('splitUp'))) { e.preventDefault(); splitFocusedPane('h', true); return; }
     }
 
     const tag = (e.target as HTMLElement).tagName;
