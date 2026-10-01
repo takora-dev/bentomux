@@ -106,6 +106,13 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     if let Some(v) = obj.get("sidebarWidth").and_then(|v| v.as_f64()) {
         cur.sidebar_width = Some(v);
     }
+    /* per-axis terminal divider positions, keyed by split-node key; written
+    by the renderer when a divider is dragged */
+    if let Some(v) = obj.get("paneRatios") {
+        if let Ok(m) = serde_json::from_value::<HashMap<String, f64>>(v.clone()) {
+            cur.pane_ratios = Some(m);
+        }
+    }
     if let Some(v) = obj.get("notifEnabled").and_then(|v| v.as_bool()) {
         cur.notif_enabled = Some(v);
     }

@@ -10,6 +10,9 @@ pub mod bridge_config;
 pub mod commands;
 pub mod detect;
 pub mod git;
+/* macOS-only: the app menu (Cmd+W belongs to the focused pane, not the window) */
+#[cfg(target_os = "macos")]
+pub mod menu;
 pub mod overlay;
 pub mod plugin;
 pub mod pty;
@@ -73,6 +76,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .manage(pty_manager);
+    /* macOS: replace Tauri's default app menu, whose Close Window item binds
+    Cmd+W to "hide the app", with the same menu minus that item and plus
+    File > Close Pane on the accelerator (see menu.rs). */
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.menu(menu::build);
+    }
     builder = builder.setup(move |app| {
         eprintln!(
             "[perf] backend-ready-ms={}",
@@ -81,6 +91,13 @@ pub fn run() {
         use tauri::Emitter;
         use tauri::Manager;
         let handle = app.handle().clone();
+        /* the window already exists (config windows are built before this
+        hook runs). Apply the remembered geometry first, before the slow pty
+        handshake, so the user sees as little of the config default as
+        possible. */
+        if let Some(main) = app.get_webview_window("main") {
+            restore_window_bounds(&handle, &main);
+        }
         /* connect to (or spawn) the pty host daemon. Runs first because it is
         the slowest step, and any IPC command that arrives meanwhile waits
         on the manager's ready gate instead of failing. */
@@ -167,6 +184,13 @@ pub fn run() {
                     if now_full != prev_full {
                         let _ = app_for_event.emit("win:fullscreen", now_full);
                     }
+                    /* resize is also how maximize/fullscreen land, so the
+                    remembered geometry is refreshed here too */
+                    save_window_bounds(&app_for_event, &main_for_event);
+                }
+                /* a window dragged to a new place has to come back there */
+                tauri::WindowEvent::Moved(_) => {
+                    save_window_bounds(&app_for_event, &main_for_event);
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     /* Closing the window does NOT quit: the app keeps
@@ -277,6 +301,23 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {
+            /* clicking the dock icon (or any "reopen" from the OS) has to
+            bring the hidden window back. Without this, closing the window
+            left the app running with no way back except a relaunch. */
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_main_window(_app);
+                return;
+            }
+            /* File > Close Pane owns Cmd+W, so the renderer is told instead
+            of the keypress arriving as a DOM event. */
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::MenuEvent(menu_event) = &event {
+                if menu_event.id().as_ref() == menu::CLOSE_PANE_ID {
+                    let _ = tauri::Emitter::emit_to(_app, "main", "menu:close-pane", ());
+                    return;
+                }
+            }
             /* ensure pending hook connections are closed on exit so agent
             PermissionRequests don't hang waiting for our directive
             (port of Electron's before-quit → stopBridge in bridge.ts).
@@ -300,6 +341,82 @@ pub fn run() {
                 }
             }
         });
+}
+
+/* geometry of the main window, remembered in prefs.window for the next
+launch. Written through the debounced state path, so a drag-resize storm
+costs one disk write instead of one per frame. The rect is only recorded
+while the window is in its normal state: maximized/fullscreen geometry must
+not overwrite the size the user unmaximizes back to. */
+fn save_window_bounds(app: &tauri::AppHandle, win: &tauri::WebviewWindow) {
+    use tauri::Manager;
+    let Some(mgr) = app.try_state::<state::AppStateManager>() else {
+        return;
+    };
+    if win.is_maximized().unwrap_or(false) || win.is_fullscreen().unwrap_or(false) {
+        mgr.patch_prefs(|p| {
+            let mut cur = p.window.clone().unwrap_or(state::WindowBounds {
+                x: 0.0,
+                y: 0.0,
+                w: 0.0,
+                h: 0.0,
+                maximized: true,
+            });
+            cur.maximized = true;
+            p.window = Some(cur);
+        });
+        return;
+    }
+    let (Ok(size), Ok(pos)) = (win.inner_size(), win.outer_position()) else {
+        return;
+    };
+    let scale = win.scale_factor().unwrap_or(1.0);
+    let bounds = state::WindowBounds {
+        x: (pos.x as f64 / scale).round(),
+        y: (pos.y as f64 / scale).round(),
+        w: (size.width as f64 / scale).round(),
+        h: (size.height as f64 / scale).round(),
+        maximized: false,
+    };
+    mgr.patch_prefs(|p| p.window = Some(bounds));
+}
+
+/* apply the remembered geometry. Sizes come from `inner_size` and positions
+from `outer_position`, which is exactly what `set_size`/`set_position` write
+back, so a save/restore cycle is stable instead of creeping by the
+window-frame size on every launch. */
+fn restore_window_bounds(app: &tauri::AppHandle, win: &tauri::WebviewWindow) {
+    use tauri::Manager;
+    let Some(bounds) = app.state::<state::AppStateManager>().get_state().prefs.window else {
+        return;
+    };
+    if bounds.is_usable() {
+        /* a display may be gone since the last run (undocked laptop): only
+        re-place the window when some part of the saved rect still lands on
+        an attached monitor, otherwise it would open off-screen. Monitor
+        rects are compared in the window's own scale factor — good enough for
+        an overlap test. */
+        let scale = win.scale_factor().unwrap_or(1.0);
+        let visible = win.available_monitors().unwrap_or_default().iter().any(|m| {
+            let (mx, my) = (
+                m.position().x as f64 / scale,
+                m.position().y as f64 / scale,
+            );
+            let (mw, mh) = (
+                m.size().width as f64 / scale,
+                m.size().height as f64 / scale,
+            );
+            bounds.x < mx + mw && bounds.x + bounds.w > mx && bounds.y < my + mh
+                && bounds.y + bounds.h > my
+        });
+        if visible {
+            let _ = win.set_position(tauri::LogicalPosition::new(bounds.x, bounds.y));
+        }
+        let _ = win.set_size(tauri::LogicalSize::new(bounds.w, bounds.h));
+    }
+    if bounds.maximized {
+        let _ = win.maximize();
+    }
 }
 
 /* shared maximize-state guard; `win_toggle_maximize` reads/swaps it after

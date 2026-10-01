@@ -145,6 +145,10 @@ const api = {
   close: () => { void invoke('win_close'); },
   onMaximized: (cb: (max: boolean) => void) => subscribe<boolean>('win:maximized', cb),
   onFullscreen: (cb: (full: boolean) => void) => subscribe<boolean>('win:fullscreen', cb),
+  /* File > Close Pane (Cmd+W on macOS). The native menu owns the
+     accelerator, so the keypress never reaches the webview — the renderer is
+     told instead, and closes the focused pane. */
+  onClosePane: (cb: () => void) => subscribe<null>('menu:close-pane', () => cb()),
 
   /* persisted state */
   /* WebView2 can dispatch the first IPC call while its native startup is

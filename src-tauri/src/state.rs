@@ -57,6 +57,30 @@ pub struct OverlaySize {
     pub h: f64,
 }
 
+/* main window geometry (logical px) remembered across launches. The rect is
+only recorded while the window is in its normal state, so `maximized` can
+unmaximize back to it (see `lib::save_window_bounds`). */
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowBounds {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub maximized: bool,
+}
+
+/* mirrors the main window's minWidth/minHeight in tauri.conf.json: a rect
+smaller than this came from a transient state and is not worth restoring */
+pub const MIN_WINDOW_W: f64 = 900.0;
+pub const MIN_WINDOW_H: f64 = 600.0;
+
+impl WindowBounds {
+    pub fn is_usable(&self) -> bool {
+        self.w >= MIN_WINDOW_W && self.h >= MIN_WINDOW_H
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RemotePrefs {
@@ -95,6 +119,12 @@ pub struct Prefs {
     pub shortcuts: Option<HashMap<String, String>>,
     pub pane_hidden: Option<bool>,
     pub sidebar_width: Option<f64>,
+    /* main window size/position; absent = the tauri.conf.json default */
+    pub window: Option<WindowBounds>,
+    /* terminal split divider positions: split-node key → '%' of the axis.
+    Node keys are generated per split, so a stale entry is only ever an
+    unused key, never a wrong divider. */
+    pub pane_ratios: Option<HashMap<String, f64>>,
     pub expanded: Option<HashMap<String, bool>>,
     /* last custom tab title per workspace; new tabs inherit it so closing
     a tab never loses the name */
@@ -130,6 +160,8 @@ impl Default for Prefs {
             shortcuts: None,
             pane_hidden: Some(false),
             sidebar_width: Some(248.0),
+            window: None,
+            pane_ratios: None,
             expanded: Some(HashMap::new()),
             tab_titles: None,
             recent_folders: None,
@@ -889,6 +921,22 @@ mod tests {
             "the registry arrives empty, not missing"
         );
         cleanup(&path);
+    }
+
+    /* a window too small to be the real one (e.g. saved while it was being
+    configured) must not be restored */
+    #[test]
+    fn test_window_bounds_usability_guard() {
+        let saved = WindowBounds {
+            x: 40.0,
+            y: 40.0,
+            w: 1400.0,
+            h: 900.0,
+            maximized: false,
+        };
+        assert!(saved.is_usable());
+        assert!(!WindowBounds { w: 899.0, ..saved.clone() }.is_usable());
+        assert!(!WindowBounds { h: 599.0, ..saved }.is_usable());
     }
 
     /* JSON on disk must match the Electron camelCase contract exactly */

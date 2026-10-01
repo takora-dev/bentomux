@@ -77,6 +77,8 @@ export interface Prefs {
   shortcuts?: Record<string, string>;
   paneHidden?: boolean;
   sidebarWidth?: number;
+  /* terminal split divider positions: split-node key → '%' of the axis */
+  paneRatios?: Record<string, number>;
   expanded?: Record<string, boolean>;
   /* last custom tab title per workspace; new tabs inherit it so closing
      a tab never loses the name */

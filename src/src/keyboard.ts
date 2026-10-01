@@ -4,7 +4,7 @@ import { ui } from './state';
 import { db } from './store';
 import { render } from './render';
 import { currentModal } from './components/modal';
-import { leavesOf, splitTerminalPane, stepHistory } from './views/tabs';
+import { leavesOf, splitTerminalPane, stepHistory, closeFocusedPaneOrTab } from './views/tabs';
 import { mostRecentPane } from './views/terminal';
 import { openSearchModal } from './views/search';
 import api from '../preload/bentomux';
@@ -84,6 +84,17 @@ export function initKeyboard(): void {
       if (accelMatches(e, accelFor('splitAlt'))) { e.preventDefault(); splitFocusedPane('h'); return; }
       if (accelMatches(e, accelFor('splitLeft'))) { e.preventDefault(); splitFocusedPane('v', true); return; }
       if (accelMatches(e, accelFor('splitUp'))) { e.preventDefault(); splitFocusedPane('h', true); return; }
+
+      /* Windows/Linux: Ctrl+W closes the focused pane, or the tab when it is
+         down to its last pane. macOS keeps this in the native menu
+         (src-tauri/src/menu.rs) — a DOM handler there would close a second
+         pane whenever the webview also saw the key. Terminal route only, so
+         Ctrl+W never discards typed input on some other tab. */
+      if (!IS_MAC && e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        closeFocusedPaneOrTab();
+        return;
+      }
     }
 
     const tag = (e.target as HTMLElement).tagName;

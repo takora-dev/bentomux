@@ -402,6 +402,24 @@ export function primePaneFocus(paneId: string): void {
 /* drop a remembered divider position so that axis returns to 50/50 */
 export function resetPaneRatio(nodeKey: string): void {
   ratioByNode.delete(nodeKey);
+  savePaneRatios();
+}
+
+/* divider positions survive a relaunch: they are persisted per axis key in
+prefs.paneRatios and re-applied by mountAxis when the tree is built */
+export function seedPaneRatios(saved: Record<string, number> | undefined): void {
+  for (const [key, pct] of Object.entries(saved ?? {})) {
+    if (typeof pct === 'number' && Number.isFinite(pct)) ratioByNode.set(key, clampRatio(pct));
+  }
+}
+
+/* one write per interaction (not per pointermove); the backend debounces the
+actual disk write */
+function savePaneRatios(): void {
+  const ratios: Record<string, number> = {};
+  for (const [key, pct] of ratioByNode) ratios[key] = Math.round(pct * 100) / 100;
+  db.prefs.paneRatios = ratios;
+  void api.setPrefs({ paneRatios: ratios });
 }
 
 /* draggable boundary between two branches; ResizeObservers refit both sides.
@@ -422,6 +440,7 @@ function wireDivider(divider: HTMLElement, first: HTMLElement, axis: HTMLElement
     if (!dragging) return;
     dragging = false;
     document.body.classList.remove(dragClass);
+    savePaneRatios();
   };
   divider.addEventListener('pointerup', stop);
   divider.addEventListener('pointercancel', stop);

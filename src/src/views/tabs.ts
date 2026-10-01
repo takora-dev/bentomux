@@ -6,8 +6,7 @@ import { leafNode, leafIds, firstLeafId, splitLeaf, removeLeaf, setSplitDir, new
 import { ui, type Route, type TabEntry } from '../state';
 import { db, branches, activity } from '../store';
 import { render } from '../render';
-import { disposeTerminal } from './terminal';
-import { resetPaneRatio } from './terminal';
+import { disposeTerminal, mostRecentPane, resetPaneRatio } from './terminal';
 import { openContextMenu } from '../components/menu';
 import { openModal } from '../components/modal';
 import { refreshChangesPill } from './gitPanel';
@@ -397,6 +396,18 @@ export async function closeTerminalPane(paneId: string): Promise<void> {
   }
   reanchorEntryOnPaneClose(entry, tree);
   render();
+}
+
+/* Cmd+W / File > Close Pane: the focused pane of a split tab goes first; a
+   tab down to its last pane (or any non-terminal tab) closes entirely */
+export function closeFocusedPaneOrTab(): void {
+  const entry = ui.tabs.find(t => t.id === ui.activeTab);
+  if (!entry) return;
+  if (entry.route.view === 'terminal') {
+    void closeTerminalPane(mostRecentPane(leavesOf(entry)));
+    return;
+  }
+  void closeTab(entry.id);
 }
 
 function reanchorEntryOnPaneClose(entry: TabEntry, tree: PaneNode): void {

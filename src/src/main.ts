@@ -9,7 +9,7 @@ import { rel, abs } from './time';
 import { ui, type Route, type TabEntry } from './state';
 import { db, setDb, branches, runtime, activity } from './store';
 import { registerRenderers, render } from './render';
-import { renderTabs, activate, stepHistory, registerRestoredTab } from './views/tabs';
+import { renderTabs, activate, stepHistory, registerRestoredTab, closeFocusedPaneOrTab } from './views/tabs';
 import { openAddWorkspaceMenu, renderSidebar, patchPaneStatuses, toggleGitPanel, closeRailFlyout } from './views/sidebar';
 import { agentsPage, agentDetailPage } from './views/agents';
 import { welcomePage, disposeWidgets } from './views/welcome';
@@ -19,6 +19,7 @@ import {
   applyTerminalFont,
   applyTerminalTheme,
   clearTerminalSelections,
+  seedPaneRatios,
 } from './views/terminal';
 import { initKeyboard } from './keyboard';
 import { refreshChangesPill, startPillHeartbeat } from './views/gitPanel';
@@ -26,7 +27,7 @@ import { initAgentEvents } from './views/agent-events';
 import { initAutoUpdate, updateStatus, onUpdateChange } from './updates';
 import { topbarEntries, tabRenderer, modalRenderer } from './plugin/registry';
 import { openPluginTab } from './views/tabs';
-import { openModal } from './components/modal';
+import { openModal, currentModal } from './components/modal';
 import { initPlugins, ensureActive, pluginAssetUrl, onPluginsChanged, bindHost, onTeardown } from './plugin/loader';
 import { contributionIcon, contributionLabel } from './plugin/icons';
 import api from '../preload/bentomux';
@@ -697,6 +698,8 @@ function wireUpdateBanner(): void {
 async function boot(): Promise<void> {
   const bootStart = performance.now();
   setDb(await api.getState());
+  /* divider positions before the first terminal mounts: mountAxis reads them */
+  seedPaneRatios(db.prefs.paneRatios);
 
   /* wire the plugin host before anything can activate a plugin: storage and
      events need modules that import this one, so they are handed over rather
@@ -749,6 +752,11 @@ async function boot(): Promise<void> {
 
   wireAppBar();
   initKeyboard();
+  /* File > Close Pane (Cmd+W). Skipped while a modal owns the screen, same as
+     the keyboard handler's guard. */
+  api.onClosePane(() => {
+    if (!currentModal) closeFocusedPaneOrTab();
+  });
 
   restoreInitialView(restored);
   hideBootSplash();
