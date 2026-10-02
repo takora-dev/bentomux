@@ -53,6 +53,7 @@ const PALETTE_LABELS: Record<PaletteName, string> = {
   eink: 'E-Ink',
   'tokyo-night': 'Tokyo Night',
   'pastel-pixel': 'Pastel Pixel',
+  'pi-web': 'Pi Web',
   custom: 'Custom',
 };
 
@@ -72,6 +73,7 @@ const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   eink: ['#ffffff', '#000000', '#000000'],
   'tokyo-night': ['#eceef2', '#2e7de9', '#34355a'],
   'pastel-pixel': ['#fdf9f0', '#a088d8', '#5c4a3d'],
+  'pi-web': ['#fff9ee', '#6430d8', '#15131b'],
   custom: ['#11161d', '#58a6ff', '#e6edf3'],
 };
 

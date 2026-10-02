@@ -144,6 +144,25 @@
   --px-shadow:#1e2130;--px-tex:rgba(237,230,245,.03);
 }
 
+/* Pi Web — pi-web.dev brand hues verbatim. Light sits on the warm paper
+   canvas (violet/teal/amber deepened for contrast); dark sits on the
+   near-black navy canvas with the full-bright brand triad. No ANSI
+   override: both canvases read fine on the neutral default sets. */
+:root.palette-pi-web{
+  --bg:#eee5d5;--surface:#fff9ee;--ink:#15131b;--ink-2:#5f586a;--ink-3:#766f7e;
+  --content-bg:#f7f1e6;
+  --line:#c9bca8;--line-2:#8d7b64;--tint:rgba(0,140,130,.10);
+  --accent:#008c82;--accent-ink:#6430d8;--accent-tint:rgba(0,140,130,.16);--danger:#b51d49;
+}
+:root.dark.palette-pi-web{
+  --bg:#070912;--surface:#101527;--ink:#f7f4ff;--ink-2:#aaa4bd;--ink-3:#817a99;
+  --line:#26304f;--line-2:#3d4a78;--tint:rgba(0,240,216,.08);
+  --accent:#00f0d8;--accent-ink:#b7a2ff;--accent-tint:rgba(0,240,216,.16);--danger:#ff4f7b;
+  --content-bg:#0b0f1d;
+}
+/* bright teal accent keeps pi-web.dev's near-black button text */
+:root.dark.palette-pi-web .btn.primary{color:#070912}
+
 /* ---------------- terminal ANSI colors (xterm) ----------------
    xterm's built-in 16-color set assumes a dark canvas (bright white,
    pale yellow, pastel green), so on light backgrounds colored output
@@ -1766,6 +1785,18 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.dark.palette-pastel-pixel .diff-line .code .syn-num  { color:#f2b98a }
 :root.dark.palette-pastel-pixel .diff-line .code .syn-fn   { color:#9cc0f0 }
 :root.dark.palette-pastel-pixel .diff-line .code .syn-type { color:#8fd4c9 }
+
+/* pi-web: keyword/function=violet, string/type=teal, number=amber */
+:root.palette-pi-web .diff-line .code .syn-kw   { color:#6430d8 }
+:root.palette-pi-web .diff-line .code .syn-str  { color:#008c82 }
+:root.palette-pi-web .diff-line .code .syn-num  { color:#b05f00 }
+:root.palette-pi-web .diff-line .code .syn-fn   { color:#6430d8 }
+:root.palette-pi-web .diff-line .code .syn-type { color:#008c82 }
+:root.dark.palette-pi-web .diff-line .code .syn-kw   { color:#b7a2ff }
+:root.dark.palette-pi-web .diff-line .code .syn-str  { color:#00f0d8 }
+:root.dark.palette-pi-web .diff-line .code .syn-num  { color:#ffb000 }
+:root.dark.palette-pi-web .diff-line .code .syn-fn   { color:#b7a2ff }
+:root.dark.palette-pi-web .diff-line .code .syn-type { color:#00f0d8 }
 
 /* ---------------- Changes pill (titlebar window action) ----------------
    Sits in the right cluster of the titlebar, just before the dark-mode
