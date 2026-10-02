@@ -184,6 +184,10 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
     letterSpacing: 0,
     cursorBlink: false,
     allowProposedApi: true,
+    /* the workspace wallpaper (html.bg-content) shows through the pane, so
+       the renderer must accept a transparent theme background; with no
+       wallpaper the theme keeps an opaque color and nothing changes */
+    allowTransparency: true,
     scrollback: 1000,
     fastScrollSensitivity: 10,
     /* apps emit truecolor that assumes a dark canvas; on light backgrounds

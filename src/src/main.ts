@@ -82,6 +82,96 @@ function applyFontPrefs(): void {
   else root.style.removeProperty('--term-font-size');
 }
 
+/* ---------------- zone background images ----------------
+   Maps prefs.backgrounds onto the --bg-<zone>-* CSS vars styles.css consumes.
+   Image files are fetched once per name and kept as blob URLs (img-src blob:
+   is CSP-allowed); the cache revokes anything the current prefs no longer
+   reference. */
+
+const BG_ZONES = ['sidebar', 'topbar', 'content', 'terminal'] as const;
+type BgZone = (typeof BG_ZONES)[number];
+
+const bgUrls = new Map<string, string>();
+const bgLoading = new Map<string, Promise<string | null>>();
+
+/* cached blob URL for a background file name; null when it cannot load */
+export function backgroundImageUrl(name: string): Promise<string | null> {
+  const cached = bgUrls.get(name);
+  if (cached) return Promise.resolve(cached);
+  let inflight = bgLoading.get(name);
+  if (!inflight) {
+    inflight = api.backgroundRead(name).then(({ mime, data }) => {
+      const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+      bgUrls.set(name, url);
+      return url;
+    }).catch(e => {
+      console.error(`[backgrounds] could not load \`${name}\``, e);
+      return null;
+    }).finally(() => {
+      bgLoading.delete(name);
+    });
+    bgLoading.set(name, inflight);
+  }
+  return inflight;
+}
+
+function setBgVars(zone: BgZone, spec: import('../shared/types').BackgroundSpec | undefined, url: string | null): void {
+  const style = document.documentElement.style;
+  const p = `--bg-${zone}`;
+  if (!spec?.image || !url) {
+    style.setProperty(`${p}-image`, 'none');
+    style.setProperty(`${p}-dim`, '0');
+    return;
+  }
+  const fit = spec.fit ?? 'cover';
+  style.setProperty(`${p}-image`, `url("${url}")`);
+  style.setProperty(`${p}-size`, fit === 'tile' ? 'auto' : fit);
+  style.setProperty(`${p}-repeat`, fit === 'tile' ? 'repeat' : 'no-repeat');
+  style.setProperty(`${p}-pos`, `${spec.position?.x ?? 50}% ${spec.position?.y ?? 50}%`);
+  style.setProperty(`${p}-opacity`, String(spec.opacity ?? 1));
+  style.setProperty(`${p}-blur`, `${spec.blur ?? 0}px`);
+  style.setProperty(`${p}-dim`, String(spec.dim ?? 0));
+  style.setProperty(`${p}-scale`, String((spec.scale ?? 100) / 100));
+}
+
+let bgApplySeq = 0;
+
+export async function applyBackgrounds(): Promise<void> {
+  const seq = ++bgApplySeq;
+  const bgs = db.prefs.backgrounds ?? {};
+  const urls: Partial<Record<BgZone, string | null>> = {};
+  for (const zone of BG_ZONES) {
+    const spec = bgs[zone];
+    if (!spec?.image) continue;
+    urls[zone] = await backgroundImageUrl(spec.image);
+    if (seq !== bgApplySeq) return; /* a newer apply superseded this one */
+  }
+  for (const zone of BG_ZONES) {
+    setBgVars(zone, bgs[zone], urls[zone] ?? null);
+  }
+  /* the classes gate the CSS that must follow the image (transparent page
+     backgrounds, visible-behind dock/footer) */
+  const panesWereClear = document.documentElement.classList.contains('bg-content')
+    || document.documentElement.classList.contains('bg-terminal');
+  for (const zone of BG_ZONES) {
+    document.documentElement.classList.toggle('bg-' + zone, !!bgs[zone]?.image);
+  }
+  const panesAreClear = document.documentElement.classList.contains('bg-content')
+    || document.documentElement.classList.contains('bg-terminal');
+  /* xterm needs a theme swap when the canvas behind its text changes:
+     either wallpaper (workspace or terminal) makes the pane transparent */
+  if (panesWereClear !== panesAreClear) applyTerminalTheme();
+  /* revoke blobs the current prefs no longer reference */
+  const referenced = new Set(BG_ZONES.map(z => bgs[z]?.image).filter((v): v is string => !!v));
+  for (const [name, url] of bgUrls) {
+    if (!referenced.has(name)) {
+      URL.revokeObjectURL(url);
+      bgUrls.delete(name);
+    }
+  }
+}
+
 function applyShellPrefs(): void {
   document.documentElement.style.setProperty('--sidebar-width', (db.prefs.sidebarWidth || MIN_SIDEBAR_WIDTH) + 'px');
   document.title = 'Bentomux';
@@ -90,6 +180,7 @@ function applyShellPrefs(): void {
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
   applyPaletteClass(db.prefs.palette);
   applyFontPrefs();
+  void applyBackgrounds();
   $('#sidebar').classList.toggle('open', ui.sidebarOpen);
   $('#scrim').classList.toggle('show', ui.sidebarOpen);
 }

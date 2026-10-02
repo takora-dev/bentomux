@@ -157,6 +157,11 @@ const api = {
   getState: () => invokeWithRetry<AppState>('get_state'),
   setPrefs: (partial: Omit<Partial<Prefs>, 'font'> & { font?: string | null }) => invoke<AppState>('prefs_update', { partial }),
 
+  /* zone background images (Settings → Appearance → Background) */
+  backgroundPick: () => invoke<string | null>('background_pick'),
+  backgroundRead: (name: string) => invoke<{ mime: string; data: string }>('background_read', { name }),
+  backgroundDelete: (name: string) => invoke<void>('background_delete', { name }),
+
   /* workspaces */
   chooseFolder: () => invoke<string | null>('workspace_choose'),
   addWorkspace: (path: string) => invoke<AppState>('workspace_add', { path }),

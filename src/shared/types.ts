@@ -63,11 +63,45 @@ export interface CustomPalette {
 export const CUSTOM_KEYS: Array<keyof CustomPalette> = ['bg', 'ink', 'accent'];
 export const DEFAULT_CUSTOM_PALETTE: CustomPalette = { bg: '#11161d', ink: '#e6edf3', accent: '#58a6ff' };
 
+/* Per-zone wallpaper for the app chrome (Settings → Appearance → Background).
+   `image` is a bare file name inside app_data_dir/backgrounds/ — the backend
+   resolves it there and rejects anything else, so a pref can never point
+   outside that directory. Absent fields fall back to the documented
+   defaults: fit cover, position 50%/50%, opacity 1, blur 0, dim 0. */
+export interface BackgroundPosition {
+  x: number; /* 0–100, percent across the image */
+  y: number;
+}
+export type BackgroundFit = 'cover' | 'contain' | 'tile';
+export interface BackgroundSpec {
+  image: string;
+  fit?: BackgroundFit;
+  position?: BackgroundPosition;
+  /* image transparency over the zone's own color (0–1, default 1) */
+  opacity?: number;
+  /* css blur in px (default 0) */
+  blur?: number;
+  /* dark overlay strength for text readability (0–1, default 0) */
+  dim?: number;
+  /* zoom relative to the fit result, percent (default 100) */
+  scale?: number;
+}
+export interface Backgrounds {
+  sidebar?: BackgroundSpec;
+  topbar?: BackgroundSpec;
+  content?: BackgroundSpec;
+  /* behind the terminal text itself — sits on .terminal-page, above the
+     workspace wallpaper, and applies to every workspace's panes */
+  terminal?: BackgroundSpec;
+}
+
 export interface Prefs {
   theme?: 'light' | 'dark' | 'system';
   palette?: PaletteName;
   /* source colors for the 'custom' palette; absent = built-in default */
   customPalette?: CustomPalette;
+  /* per-zone background images; absent = plain palette colors */
+  backgrounds?: Backgrounds;
   /* terminal font family (CSS font stack) + size in px; absent = built-in default */
   font?: string;
   fontSize?: number;
@@ -471,6 +505,11 @@ export interface BentomuxApi {
   /* persisted app state */
   getState(): Promise<AppState>;
   setPrefs(partial: Omit<Partial<Prefs>, 'font'> & { font?: string | null }): Promise<AppState>;
+
+  /* zone background images (Settings → Appearance → Background) */
+  backgroundPick(): Promise<string | null>;
+  backgroundRead(name: string): Promise<{ mime: string; data: string }>;
+  backgroundDelete(name: string): Promise<void>;
 
   /* workspaces */
   chooseFolder(): Promise<string | null>;

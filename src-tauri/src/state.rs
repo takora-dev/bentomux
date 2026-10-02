@@ -104,12 +104,59 @@ pub struct CustomPalette {
     pub accent: String,
 }
 
+/* zone wallpaper (Settings → Appearance → Background). `image` is a bare
+file name inside app_data_dir/backgrounds/, resolved there by the backend —
+never a path the renderer chose. Absent fields fall back to the documented
+defaults: fit cover, position 50%/50%, opacity 1, blur 0, dim 0, scale 100. */
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundPosition {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<BackgroundPosition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blur: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dim: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+}
+
+/* wallpaper per shell zone: sidebar, topbar (titlebar), content (the
+workspace canvas) and terminal (behind the xterm text) */
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Backgrounds {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidebar: Option<BackgroundSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topbar: Option<BackgroundSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<BackgroundSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<BackgroundSpec>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
     pub theme: Option<String>,
     pub palette: Option<String>,
     pub custom_palette: Option<CustomPalette>,
+    /* per-zone background images; absent = plain palette colors */
+    pub backgrounds: Option<Backgrounds>,
     /* terminal font family (CSS font stack) + size in px; absent = built-in default */
     pub font: Option<String>,
     pub font_size: Option<f64>,
@@ -154,6 +201,7 @@ impl Default for Prefs {
             theme: Some("system".to_string()),
             palette: Some("default".to_string()),
             custom_palette: None,
+            backgrounds: None,
             font: None,
             font_size: None,
             shell: None,

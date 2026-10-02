@@ -9,9 +9,9 @@ import { openContextMenu, closeContextMenu, contextMenuAnchoredTo } from '../com
 import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
-import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize } from '../main';
+import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, backgroundImageUrl } from '../main';
 import { accelFor, formatAccel, type ActionId } from '../keyboard';
-import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs } from '../../shared/types';
+import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
 import {
   updateStatus, checkForUpdate, installUpdate, restartApp, onUpdateChange,
@@ -201,12 +201,199 @@ function buildFontSizeSelect(): HTMLElement {
   return sel;
 }
 
+/* ---------------- Background (zone wallpapers) ---------------- */
+
+const BG_ZONE_LABELS: Array<[keyof Backgrounds, string]> = [
+  ['sidebar', 'Sidebar'],
+  ['topbar', 'Top bar'],
+  ['content', 'Workspace'],
+  ['terminal', 'Terminal'],
+];
+
+const BG_FITS: Array<[BackgroundFit, string]> = [
+  ['cover', 'Cover'],
+  ['contain', 'Contain'],
+  ['tile', 'Tile'],
+];
+
+function currentBackgrounds(): Backgrounds {
+  return db.prefs.backgrounds ?? {};
+}
+
+/* persist the whole backgrounds object and repaint the shell. Image files no
+   zone references anymore are removed so the backgrounds folder cannot grow
+   without bound; failures are ignorable (an orphaned file is harmless). */
+function setBackgrounds(next: Backgrounds): void {
+  const before = new Set(Object.values(currentBackgrounds()).map(s => s?.image).filter((v): v is string => !!v));
+  const after = new Set(Object.values(next).map(s => s?.image).filter((v): v is string => !!v));
+  db.prefs.backgrounds = next;
+  void api.setPrefs({ backgrounds: next });
+  void applyBackgrounds();
+  for (const name of before) {
+    if (!after.has(name)) api.backgroundDelete(name).catch(() => {});
+  }
+}
+
+/* one zone's editor, laid out as two cards: the image card (preview + actions)
+   and the settings card (placement + visual sliders). `redraw` rebuilds just
+   the cards (the Area card above must survive); sliders never repaint while
+   dragging. */
+function buildBackgroundEditor(zone: keyof Backgrounds, redraw: () => void): HTMLElement {
+  const cur: BackgroundSpec = { ...(currentBackgrounds()[zone] ?? { image: '' }) };
+  const status = h('span', { class: 'bg-status' }, '');
+
+  /* checked: every edit below propagates to all four zones at once (checking
+     it copies the current spec immediately, too) */
+  const applyAll = h('input', { type: 'checkbox', 'aria-label': 'Apply to all areas' }) as HTMLInputElement;
+  applyAll.addEventListener('change', () => {
+    if (applyAll.checked && cur.image) commit();
+  });
+
+  const commit = (): void => {
+    const next = { ...currentBackgrounds() };
+    if (cur.image) {
+      next[zone] = { ...cur };
+      if (applyAll.checked) for (const [z] of BG_ZONE_LABELS) next[z] = { ...cur };
+    } else {
+      delete next[zone];
+    }
+    setBackgrounds(next);
+  };
+
+  /* the preview img mirrors the live spec (object-position/object-fit/
+     transform mirror the background properties the shell uses); the frame
+     clips zoom like the zone does and shows a placeholder when empty */
+  const previewImg = h('img', { class: 'bg-preview', alt: '' }) as HTMLImageElement;
+  const preview = h('div', { class: 'bg-preview-frame' },
+    cur.image ? previewImg : h('span', { class: 'bg-preview-empty' }, 'No image selected'));
+  if (cur.image) {
+    void backgroundImageUrl(cur.image).then(url => { if (url) previewImg.src = url; });
+    previewImg.style.objectPosition = `${cur.position?.x ?? 50}% ${cur.position?.y ?? 50}%`;
+    previewImg.style.objectFit = (cur.fit ?? 'cover') === 'contain' ? 'contain' : 'cover';
+    previewImg.style.transform = `scale(${(cur.scale ?? 100) / 100})`;
+  }
+
+  const pick = h('button', { class: 'btn', type: 'button' }, ic('image'), cur.image ? 'Change image…' : 'Choose image…');
+  pick.addEventListener('click', () => {
+    void api.backgroundPick().then(name => {
+      if (!name) return; /* cancelled */
+      cur.image = name;
+      commit();
+      redraw();
+    }).catch(e => { status.textContent = String(e); });
+  });
+
+  const actions = h('div', { class: 'bg-actions' }, pick, status);
+  if (cur.image) {
+    const remove = h('button', { class: 'btn ghost', type: 'button' }, ic('trash'), 'Remove');
+    remove.addEventListener('click', () => {
+      cur.image = '';
+      commit();
+      redraw();
+    });
+    actions.append(remove,
+      h('label', { class: 'bg-apply-all' }, applyAll, h('span', {}, 'Apply to all areas')));
+  }
+
+  const imageCard = h('div', { class: 'bg-card' },
+    h('div', { class: 'bg-card-title' }, ic('image'), h('span', {}, 'Background Image')),
+    h('div', { class: 'bg-card-sub' }, 'Preview and manage the background image for the selected area.'),
+    preview,
+    actions);
+
+  if (!cur.image) {
+    return h('div', { class: 'bg-columns' }, imageCard);
+  }
+
+  const slider = (label: string, min: number, max: number, value: number, suffix: string, onInput: (v: number) => void): HTMLElement => {
+    const out = h('span', { class: 'bg-slider-val' }, value + suffix);
+    const input = h('input', { type: 'range', class: 'bg-slider', min, max, step: 1, value, 'aria-label': label }) as HTMLInputElement;
+    input.addEventListener('input', () => {
+      out.textContent = input.value + suffix;
+      onInput(Number(input.value));
+      commit();
+    });
+    return h('div', { class: 'bg-row' },
+      h('span', { class: 'bg-row-label' }, label), input, out);
+  };
+
+  /* free 0–100% sliders per axis, so the position can be set exactly;
+     the preview follows the drag without a repaint */
+  const posSlider = (label: string, axis: 'x' | 'y'): HTMLElement => {
+    const value = Math.round((axis === 'x' ? cur.position?.x : cur.position?.y) ?? 50);
+    const out = h('span', { class: 'bg-slider-val' }, value + '%');
+    const input = h('input', { type: 'range', class: 'bg-slider', min: 0, max: 100, step: 1, value, 'aria-label': label }) as HTMLInputElement;
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      out.textContent = v + '%';
+      cur.position = { x: axis === 'x' ? v : (cur.position?.x ?? 50), y: axis === 'y' ? v : (cur.position?.y ?? 50) };
+      previewImg.style.objectPosition = `${cur.position.x}% ${cur.position.y}%`;
+      commit();
+    });
+    return h('div', { class: 'bg-row' },
+      h('span', { class: 'bg-row-label' }, label), input, out);
+  };
+
+  const fitSel = selectEl(BG_FITS, cur.fit ?? 'cover');
+  fitSel.addEventListener('change', () => {
+    cur.fit = fitSel.value as BackgroundFit;
+    previewImg.style.objectFit = cur.fit === 'contain' ? 'contain' : 'cover';
+    commit();
+  });
+
+  const rows = h('div', { class: 'bg-rows' },
+    h('div', { class: 'bg-row' }, h('span', { class: 'bg-row-label' }, 'Placement'), fitSel),
+    posSlider('Position X', 'x'),
+    posSlider('Position Y', 'y'),
+    h('div', { class: 'bg-divide' }),
+    slider('Zoom', 20, 300, Math.round(cur.scale ?? 100), '%', v => {
+      cur.scale = v;
+      previewImg.style.transform = `scale(${v / 100})`;
+    }),
+    slider('Transparency', 0, 100, Math.round((cur.opacity ?? 1) * 100), '%', v => { cur.opacity = v / 100; }),
+    slider('Blur', 0, 30, Math.round(cur.blur ?? 0), 'px', v => { cur.blur = v; }),
+    slider('Dimming', 0, 100, Math.round((cur.dim ?? 0) * 100), '%', v => { cur.dim = v / 100; }));
+
+  const settingsCard = h('div', { class: 'bg-card' },
+    h('div', { class: 'bg-card-title' }, ic('sliders'), h('span', {}, 'Placement & Visual Settings')),
+    h('div', { class: 'bg-card-sub' }, 'Adjust how the image is positioned and displayed.'),
+    rows,
+    h('div', { class: 'bg-info' }, ic('info'),
+      h('span', {}, 'Transparency fades the image into the palette color; dimming darkens it so terminal text stays readable.')));
+
+  return h('div', { class: 'bg-columns' }, imageCard, settingsCard);
+}
+
+/* the area being edited lives here, not inside buildBackgroundBlock, because
+   a section repaint (which fires right after picking an image) rebuilds the
+   whole Appearance section and would otherwise reset the Area select */
+let bgZone: keyof Backgrounds = 'sidebar';
+
+function buildBackgroundBlock(_paint: () => void): HTMLElement {
+  const zoneSel = selectEl(BG_ZONE_LABELS, bgZone);
+  const body = h('div', { class: 'bg-zone-editor' });
+  /* the cards redraw only themselves: a full section repaint would rebuild this
+     block and drop the Area selection mid-flow (pick image → repaint → Sidebar) */
+  const draw = (): void => {
+    body.innerHTML = '';
+    body.append(buildBackgroundEditor(bgZone, draw));
+  };
+  zoneSel.addEventListener('change', () => { bgZone = zoneSel.value as keyof Backgrounds; draw(); });
+  draw();
+  return h('div', { class: 'bg-block' },
+    h('div', { class: 'bg-card bg-area-card' },
+      h('div', { class: 'bg-card-title' }, ic('image'), h('span', {}, 'Background Area')),
+      zoneSel),
+    body);
+}
+
 function buildAppearanceSection(paint: () => void): HTMLElement {
   return h('div', { class: 'settings-section' },
     field('Theme', buildModeSeg(paint)),
     field('Palette', buildPaletteSelect(paint)),
     field('Terminal font', buildFontSelect()),
-    field('Font size', buildFontSizeSelect()));
+    field('Font size', buildFontSizeSelect()),
+    buildBackgroundBlock(paint));
 }
 
 /* ---------------- Keybindings ---------------- */

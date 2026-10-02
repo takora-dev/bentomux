@@ -71,12 +71,20 @@ const FALLBACK_ANSI: Record<'light' | 'dark', Record<string, string>> = {
 export function xtermTheme(): Record<string, string> {
   const fb = FALLBACK_ANSI[document.documentElement.classList.contains('dark') ? 'dark' : 'light'];
   const ink = toXtermColor(cssVar('--ink'), '#292827');
-  const bg = toXtermColor(cssVar('--content-bg'), '#FAFAFA');
+  /* with a workspace or terminal wallpaper active (html.bg-content /
+     html.bg-terminal, set by applyBackgrounds) an image is painted behind
+     the panes — the terminal canvas goes transparent and readability is the
+     user's opacity/dim setting. cursorAccent stays opaque: it fills the
+     block cursor, where a transparent color would hide the character under
+     it. */
+  const root = document.documentElement.classList;
+  const transparentBg = root.contains('bg-content') || root.contains('bg-terminal');
+  const bg = transparentBg ? 'rgba(0,0,0,0)' : toXtermColor(cssVar('--content-bg'), '#FAFAFA');
   const theme: Record<string, string> = {
     background: bg,
     foreground: ink,
     cursor: toXtermColor(cssVar('--ink-2'), '#686766'),
-    cursorAccent: bg,
+    cursorAccent: toXtermColor(cssVar('--content-bg'), '#FAFAFA'),
     selectionBackground: selectionColor('rgba(35,42,52,.25)'),
     selectionForeground: ink,
   };

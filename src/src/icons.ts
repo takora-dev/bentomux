@@ -22,6 +22,10 @@ export const IC = {
   dots:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.8" cy="8" r="1.3"/></svg>',
   bell:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2a4 4 0 0 0-4 4c0 3.2-1.3 4.6-1.3 4.6h10.6S12 9.4 12 6.2a4 4 0 0 0-4-4z"/><path d="M6.8 13.3a1.3 1.3 0 0 0 2.4 0"/></svg>',
   phone:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2" stroke-linecap="round"/></svg>',
+  image:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.8" cy="6.4" r="1.1"/><path d="m2.5 11.5 3.3-3 2.4 2 2.6-2.6 2.7 2.7"/></svg>',
+  trash:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11"/><path d="M6.5 2.5h3"/><path d="m4 4.5.7 8.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8l.7-8.2"/><path d="M6.7 7.2v3.4M9.3 7.2v3.4"/></svg>',
+  sliders:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 5h3.2M9.3 5h4.2M2.5 11h5.2M11.3 11h2.2"/><circle cx="7.5" cy="5" r="1.6"/><circle cx="9.5" cy="11" r="1.6"/></svg>',
+  info:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.3"/><circle cx="8" cy="5.3" r="0.7" fill="currentColor" stroke="none"/></svg>',
 };
 
 export const ic = (name: keyof typeof IC): HTMLElement => markup('span', { class: 'ic' }, IC[name]);

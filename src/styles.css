@@ -2075,3 +2075,85 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .plugin-skill-target{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;flex-wrap:wrap}
 .plugin-skill-agent{font-size:13px;font-weight:600;color:var(--ink);flex:0 0 auto}
 .plugin-skill-target .plugin-row-id{flex:1;min-width:0;overflow-wrap:anywhere}
+
+/* ---------------- zone background images (Settings → Appearance) ----------------
+   applyBackgrounds() sets --bg-<zone>-* vars on the root. The image lives on
+   an oversized ::before: the extra 24px gives filter blur bleed room, and the
+   zone itself clips (sidebar/content always overflow:hidden; titlebar gets it
+   while a wallpaper is active). clip-path cannot be used for the clip because
+   it lives in the layer's local space and would scale with --bg-scale.
+   isolation keeps z-index:-1 above the zone's own color and below every
+   child, so terminals, nav rows and buttons stay on top. */
+.sidebar,.titlebar,.content,.terminal-page{isolation:isolate}
+.sidebar::before,.titlebar::before,.content::before,.terminal-page::before{
+  content:"";position:absolute;z-index:-1;inset:-24px;
+  background-image:var(--bg-image,none);
+  background-size:var(--bg-size,cover);
+  background-position:var(--bg-pos,50% 50%);
+  background-repeat:var(--bg-repeat,no-repeat);
+  opacity:var(--bg-opacity,1);
+  filter:blur(var(--bg-blur,0px));
+  transform:scale(var(--bg-scale,1));
+  pointer-events:none;
+}
+.sidebar::after,.titlebar::after,.content::after,.terminal-page::after{
+  content:"";position:absolute;z-index:-1;inset:0;
+  background:rgb(0 0 0 / var(--bg-dim,0));
+  pointer-events:none;
+}
+/* each zone binds the shared layer to its own var set (vars are set on the
+   root by applyBackgrounds and inherit down) */
+.sidebar{--bg-image:var(--bg-sidebar-image,none);--bg-size:var(--bg-sidebar-size,cover);--bg-pos:var(--bg-sidebar-pos,50% 50%);--bg-repeat:var(--bg-sidebar-repeat,no-repeat);--bg-opacity:var(--bg-sidebar-opacity,1);--bg-blur:var(--bg-sidebar-blur,0px);--bg-dim:var(--bg-sidebar-dim,0);--bg-scale:var(--bg-sidebar-scale,1)}
+.titlebar{--bg-image:var(--bg-topbar-image,none);--bg-size:var(--bg-topbar-size,cover);--bg-pos:var(--bg-topbar-pos,50% 50%);--bg-repeat:var(--bg-topbar-repeat,no-repeat);--bg-opacity:var(--bg-topbar-opacity,1);--bg-blur:var(--bg-topbar-blur,0px);--bg-dim:var(--bg-topbar-dim,0);--bg-scale:var(--bg-topbar-scale,1)}
+.content{--bg-image:var(--bg-content-image,none);--bg-size:var(--bg-content-size,cover);--bg-pos:var(--bg-content-pos,50% 50%);--bg-repeat:var(--bg-content-repeat,no-repeat);--bg-opacity:var(--bg-content-opacity,1);--bg-blur:var(--bg-content-blur,0px);--bg-dim:var(--bg-content-dim,0);--bg-scale:var(--bg-content-scale,1)}
+/* the terminal zone sits on the page that hosts the panes: it paints above
+   the workspace wallpaper but below the (transparent) xterm canvas, so its
+   image shows behind the terminal text of every workspace. overflow:hidden
+   clips the ::before's 24px blur bleed here — without it the bleed reaches
+   .tabbody (overflow:auto) and shows phantom scrollbars on the terminal. */
+.terminal-page{position:relative;overflow:hidden;--bg-image:var(--bg-terminal-image,none);--bg-size:var(--bg-terminal-size,cover);--bg-pos:var(--bg-terminal-pos,50% 50%);--bg-repeat:var(--bg-terminal-repeat,no-repeat);--bg-opacity:var(--bg-terminal-opacity,1);--bg-blur:var(--bg-terminal-blur,0px);--bg-dim:var(--bg-terminal-dim,0);--bg-scale:var(--bg-terminal-scale,1)}
+/* with a wallpaper active, children that paint an opaque zone-colored
+   background would hide it — let the image show through. Tied specificity
+   against :root.dark .terminal-page is resolved by block order. The titlebar
+   also starts clipping: it has no overflow rule of its own, and the scaled
+   layer must not bleed over the content area. */
+:root.bg-sidebar .sidebar-bottom,:root.bg-sidebar .compact-sidebar-footer{background:transparent}
+:root.bg-topbar .top-tabs .tabadd{background:transparent}
+:root.bg-topbar .titlebar{overflow:hidden}
+:root.bg-content .terminal-page{background:transparent}
+:root.bg-content .mux-body{background:transparent}
+:root.bg-terminal .terminal-page{background:transparent}
+:root.bg-terminal .mux-body{background:transparent}
+/* xterm.css paints .xterm-viewport black; the theme's own background lives on
+   the scrollable element INSIDE it, so an opaque theme simply covers that
+   black, but a transparent one (any wallpaper behind the panes) lets it show
+   through as a solid black terminal. Neutralize it while a wallpaper is on. */
+:root.bg-content .xterm .xterm-viewport,
+:root.bg-terminal .xterm .xterm-viewport{background-color:transparent}
+
+/* settings editor: Area card on top, image + settings cards side by side */
+.bg-block{margin-top:16px}
+.bg-card{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px 14px}
+.bg-card-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
+.bg-card-title .ic{display:flex;color:var(--ink-2)}
+.bg-card-sub{font-size:11.5px;color:var(--ink-3);margin:2px 0 10px}
+.bg-area-card .select-input{display:block;width:100%;margin-top:8px;padding:7px 9px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--content-bg);border:1px solid var(--line);border-radius:7px}
+.bg-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:14px;align-items:start;margin-top:14px}
+.bg-preview-frame{display:flex;width:100%;aspect-ratio:2/1;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--tint);margin-bottom:10px}
+.bg-preview{display:block;width:100%;height:100%;object-fit:cover}
+.bg-preview-empty{margin:auto;color:var(--ink-3);font-size:12px}
+.bg-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bg-apply-all{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);cursor:pointer;user-select:none}
+.bg-apply-all input{accent-color:var(--accent);width:14px;height:14px;margin:0;cursor:pointer}
+.bg-status{color:var(--danger);font-size:11.5px}
+.bg-status:empty{display:none}
+.bg-rows{display:flex;flex-direction:column;gap:10px}
+.bg-row{display:grid;grid-template-columns:92px minmax(0,1fr) 52px;align-items:center;gap:10px}
+.bg-row-label{color:var(--ink-2);font-size:12px}
+.bg-row select{grid-column:2 / -1;display:block;width:100%;padding:6px 9px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--content-bg);border:1px solid var(--line);border-radius:7px}
+.bg-divide{border-top:1px solid var(--line);margin:3px 0}
+.bg-slider{width:100%;min-width:0;accent-color:var(--accent)}
+.bg-slider-val{padding:3px 0;border:1px solid var(--line);border-radius:7px;text-align:center;font:11px var(--mono);color:var(--ink-2);background:var(--content-bg)}
+.bg-info{display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;color:var(--ink-3);font-size:11.5px;line-height:1.45}
+.bg-info .ic{display:flex;flex:0 0 auto;margin-top:1px}
+@media (max-width:820px){.bg-columns{grid-template-columns:1fr}}

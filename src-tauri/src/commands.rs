@@ -15,7 +15,7 @@ use crate::split_tree::{
     tree_has_key, tree_has_leaf, Dir, PaneNode,
 };
 use crate::state::{
-    AppState, AppStateManager, CustomPalette, OverlaySize, Prefs, RemotePrefs, TabRec,
+    AppState, AppStateManager, Backgrounds, CustomPalette, OverlaySize, Prefs, RemotePrefs, TabRec,
     WorkspaceRec,
 };
 use std::collections::HashMap;
@@ -154,6 +154,23 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     if let Some(v) = obj.get("customPalette") {
         if let Ok(c) = serde_json::from_value::<CustomPalette>(v.clone()) {
             cur.custom_palette = Some(c);
+        }
+    }
+    /* whole-object replace with validation: every field is range-checked and
+    the image name is confined to backgrounds_dir, so a bad patch can never
+    point the webview at an arbitrary file. Rejections are logged — silently
+    dropping the patch would make the setting look broken. */
+    if let Some(v) = obj.get("backgrounds") {
+        if v.is_null() {
+            cur.backgrounds = None;
+        } else {
+            match serde_json::from_value::<Backgrounds>(v.clone()) {
+                Ok(b) => match validate_backgrounds(&b) {
+                    Ok(()) => cur.backgrounds = Some(b),
+                    Err(e) => eprintln!("[bentomux] rejected backgrounds patch: {}", e),
+                },
+                Err(e) => eprintln!("[bentomux] rejected backgrounds patch: {}", e),
+            }
         }
     }
 }
@@ -1037,10 +1054,239 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
     base64::engine::general_purpose::STANDARD.decode(s)
 }
 
+/* ---------------- zone background images ----------------
+   Wallpaper files live under app_data_dir/backgrounds/ and are named by
+   their content hash, so re-picking the same image never duplicates
+   storage and prefs stay valid across restarts. The renderer only ever
+   handles the bare file name; read/delete resolve it strictly inside that
+   directory after the same name check merge_prefs applies to patches. */
+
+const BACKGROUND_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "gif"];
+const BACKGROUND_MAX_BYTES: usize = 25 * 1024 * 1024;
+
+fn backgrounds_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("backgrounds");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/* one name, no separators, no dotfile, known image extension: joining this
+to backgrounds_dir can never escape it */
+fn is_background_name(name: &str) -> bool {
+    let ext = name.rsplit('.').next().unwrap_or_default();
+    !name.is_empty()
+        && name.len() <= 128
+        && !name.starts_with('.')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        && BACKGROUND_EXTENSIONS.contains(&ext)
+}
+
+fn validate_backgrounds(b: &Backgrounds) -> Result<(), String> {
+    let zones = [
+        ("sidebar", &b.sidebar),
+        ("topbar", &b.topbar),
+        ("content", &b.content),
+        ("terminal", &b.terminal),
+    ];
+    for (zone, spec) in zones {
+        let Some(spec) = spec else { continue };
+        if let Some(image) = &spec.image {
+            if !is_background_name(image) {
+                return Err(format!("{}.image is not a background file name", zone));
+            }
+        }
+        if let Some(fit) = &spec.fit {
+            if !matches!(fit.as_str(), "cover" | "contain" | "tile") {
+                return Err(format!("{}.fit is not a known fit", zone));
+            }
+        }
+        if let Some(pos) = &spec.position {
+            if !(0.0..=100.0).contains(&pos.x) || !(0.0..=100.0).contains(&pos.y) {
+                return Err(format!("{}.position is out of range", zone));
+            }
+        }
+        for (field, value) in [("opacity", spec.opacity), ("dim", spec.dim)] {
+            if let Some(v) = value {
+                if !(0.0..=1.0).contains(&v) {
+                    return Err(format!("{}.{} is out of range", zone, field));
+                }
+            }
+        }
+        if let Some(v) = spec.blur {
+            if !(0.0..=60.0).contains(&v) {
+                return Err(format!("{}.blur is out of range", zone));
+            }
+        }
+        if let Some(v) = spec.scale {
+            if !(10.0..=500.0).contains(&v) {
+                return Err(format!("{}.scale is out of range", zone));
+            }
+        }
+    }
+    Ok(())
+}
+
+/* native image picker; copies the chosen file into backgrounds/ under its
+content-hash name and returns that name (None when the user cancels).
+Blocking is fine — same contract as workspace_choose. */
+#[tauri::command]
+pub fn background_pick(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title("Choose background image")
+        .add_filter("Images", &BACKGROUND_EXTENSIONS)
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !BACKGROUND_EXTENSIONS.contains(&ext.as_str()) {
+        return Err("Unsupported image type (use png, jpg, webp or gif).".to_string());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("could not read the image: {}", e))?;
+    if bytes.len() > BACKGROUND_MAX_BYTES {
+        return Err("Image is too large (max 25 MB).".to_string());
+    }
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(&bytes);
+    let name = format!("{}-{:x}.{}", bytes.len(), hasher.finalize(), ext);
+    let dest = backgrounds_dir(&app)?.join(&name);
+    if !dest.exists() {
+        std::fs::write(&dest, &bytes).map_err(|e| format!("could not save the image: {}", e))?;
+    }
+    Ok(Some(name))
+}
+
+/* base64 bytes + mime for one background image, addressed by bare name */
+#[derive(serde::Serialize)]
+pub struct BackgroundImageData {
+    pub mime: String,
+    pub data: String,
+}
+
+#[tauri::command]
+pub fn background_read(
+    app: tauri::AppHandle,
+    name: String,
+) -> Result<BackgroundImageData, String> {
+    if !is_background_name(&name) {
+        return Err("invalid background file name".to_string());
+    }
+    let bytes = std::fs::read(backgrounds_dir(&app)?.join(&name)).map_err(|e| e.to_string())?;
+    let mime = match name.rsplit('.').next().unwrap_or_default() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => return Err("unsupported image type".to_string()),
+    };
+    use base64::Engine as _;
+    let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(BackgroundImageData {
+        mime: mime.to_string(),
+        data,
+    })
+}
+
+/* removal of a file no zone references anymore (best effort) */
+#[tauri::command]
+pub fn background_delete(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    if !is_background_name(&name) {
+        return Err("invalid background file name".to_string());
+    }
+    let path = backgrounds_dir(&app)?.join(&name);
+    if path.is_file() {
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{remember_recent, safe_temp_name, MAX_RECENT_FOLDERS};
-    use crate::state::Prefs;
+    use super::{
+        is_background_name, remember_recent, safe_temp_name, validate_backgrounds,
+        MAX_RECENT_FOLDERS,
+    };
+    use crate::state::{BackgroundPosition, BackgroundSpec, Backgrounds, Prefs};
+
+    #[test]
+    fn background_names_cannot_leave_the_backgrounds_dir() {
+        assert!(is_background_name("abc123.png"));
+        assert!(is_background_name("12-9f2c.webp"));
+        /* traversal, separators, dotfiles and unknown extensions are refused */
+        assert!(!is_background_name("../secret.png"));
+        assert!(!is_background_name("a/b.png"));
+        assert!(!is_background_name("a\\b.png"));
+        assert!(!is_background_name(".hidden.png"));
+        assert!(!is_background_name("image.svg"));
+        assert!(!is_background_name(""));
+    }
+
+    #[test]
+    fn background_specs_are_range_checked() {
+        let ok = Backgrounds {
+            sidebar: Some(BackgroundSpec {
+                image: Some("a.png".into()),
+                position: Some(BackgroundPosition { x: 50.0, y: 100.0 }),
+                scale: Some(300.0),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_backgrounds(&ok).is_ok());
+
+        let bad_scale = Backgrounds {
+            content: Some(BackgroundSpec {
+                scale: Some(600.0),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_backgrounds(&bad_scale).is_err());
+
+        let bad_fit: Backgrounds = serde_json::from_value(serde_json::json!({
+            "content": { "image": "a.png", "fit": "stretch" }
+        }))
+        .unwrap();
+        assert!(validate_backgrounds(&bad_fit).is_err());
+
+        let bad_opacity = Backgrounds {
+            content: Some(BackgroundSpec {
+                opacity: Some(1.5),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_backgrounds(&bad_opacity).is_err());
+
+        let bad_position = Backgrounds {
+            topbar: Some(BackgroundSpec {
+                position: Some(BackgroundPosition { x: 120.0, y: 0.0 }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_backgrounds(&bad_position).is_err());
+
+        let traversal = Backgrounds {
+            content: Some(BackgroundSpec {
+                image: Some("../x.png".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_backgrounds(&traversal).is_err());
+    }
 
     #[test]
     fn keeps_extension_and_flattens_traversal() {
