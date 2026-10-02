@@ -73,7 +73,7 @@ const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   classic: ['#fff6e5', '#ffcd75', '#3b2a1f'],
   eink: ['#ffffff', '#000000', '#000000'],
   'tokyo-night': ['#eceef2', '#2e7de9', '#34355a'],
-  'pastel-pixel': ['#fdf9f0', '#a088d8', '#5c4a3d'],
+  'pastel-pixel': ['#fdf9f0', '#e5944f', '#5c4a3d'],
   'pi-web': ['#fff9ee', '#6430d8', '#15131b'],
   custom: ['#11161d', '#58a6ff', '#e6edf3'],
 };

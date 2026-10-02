@@ -122,9 +122,9 @@
 
 /* Pastel Pixel — cozy pixel-art pastels.
    Light sits on a warm cream canvas with muted-brown ink and a dusty
-   lavender accent; dark wraps a soft-navy terminal/editor canvas in
+   orange accent; dark wraps a soft-navy terminal/editor canvas in
    dusty plum chrome — pure black is avoided on purpose. Both modes keep
-   a pastel accent, so primary buttons carry deep-plum text instead of
+   a pastel accent, so primary buttons carry deep-brown text instead of
    white (see the pixel-art overrides at the bottom of this file). The
    --px-* tokens feed that override layer: a solid hard offset shadow
    one step away from the canvas, and a faint checker-dither tint. */
@@ -133,13 +133,13 @@
   --bg:var(--parchment);--surface:var(--bright-snow);--ink:#5c4a3d;--ink-2:#7f6c5b;--ink-3:#ab9a88;
   --content-bg:#faf3e5;
   --line:var(--alabaster-grey);--line-2:var(--silver);--tint:rgba(92,74,61,.09);
-  --accent:#a088d8;--accent-ink:#7e63c4;--accent-tint:rgba(160,136,216,.17);--danger:#c95c7e;
+  --accent:#e5944f;--accent-ink:#b35a12;--accent-tint:rgba(229,148,79,.17);--danger:#c95c7e;
   --px-shadow:#e3d2ae;--px-tex:rgba(92,74,61,.045);
 }
 :root.dark.palette-pastel-pixel{
   --bg:#332e46;--surface:#3a3450;--ink:#ede6f5;--ink-2:#c0b4da;--ink-3:#877da3;
   --line:#453f5e;--line-2:#524b73;--tint:rgba(237,230,245,.07);
-  --accent:#c9aef5;--accent-ink:#b295ec;--accent-tint:rgba(201,174,245,.15);--danger:#e88a9f;
+  --accent:#f5a75e;--accent-ink:#ec8f35;--accent-tint:rgba(245,167,94,.15);--danger:#e88a9f;
   --content-bg:#272b3b;
   --px-shadow:#1e2130;--px-tex:rgba(237,230,245,.03);
 }
@@ -321,15 +321,15 @@
    the light syntax tokens); dark lifts them back onto soft navy */
 :root.palette-pastel-pixel{
   --ansi-black:#5c4a3d;--ansi-red:#c95c7e;--ansi-green:#5d9450;--ansi-yellow:#9c7228;
-  --ansi-blue:#3f7fc1;--ansi-magenta:#8a63c9;--ansi-cyan:#2f8f83;--ansi-white:#8d7c6b;
+  --ansi-blue:#3f7fc1;--ansi-magenta:#cf5a17;--ansi-cyan:#2f8f83;--ansi-white:#8d7c6b;
   --ansi-bright-black:#ab9a88;--ansi-bright-red:#c95c7e;--ansi-bright-green:#74a95f;--ansi-bright-yellow:#c56a2b;
-  --ansi-bright-blue:#5b93d4;--ansi-bright-magenta:#9d7ddb;--ansi-bright-cyan:#3fa397;--ansi-bright-white:#a89780;
+  --ansi-bright-blue:#5b93d4;--ansi-bright-magenta:#e2762f;--ansi-bright-cyan:#3fa397;--ansi-bright-white:#a89780;
 }
 :root.dark.palette-pastel-pixel{
   --ansi-black:#453f5e;--ansi-red:#e88a9f;--ansi-green:#a8d494;--ansi-yellow:#f2b98a;
-  --ansi-blue:#9cc0f0;--ansi-magenta:#c9aef5;--ansi-cyan:#8fd4c9;--ansi-white:#c0b4da;
+  --ansi-blue:#9cc0f0;--ansi-magenta:#f5a75e;--ansi-cyan:#8fd4c9;--ansi-white:#c0b4da;
   --ansi-bright-black:#524b73;--ansi-bright-red:#e88a9f;--ansi-bright-green:#a8d494;--ansi-bright-yellow:#f2b98a;
-  --ansi-bright-blue:#9cc0f0;--ansi-bright-magenta:#c9aef5;--ansi-bright-cyan:#8fd4c9;--ansi-bright-white:#ede6f5;
+  --ansi-bright-blue:#9cc0f0;--ansi-bright-magenta:#f5a75e;--ansi-bright-cyan:#8fd4c9;--ansi-bright-white:#ede6f5;
 }
 /* custom — chromatic hues mix toward the ink (darkens on light, lifts on
    dark) while the black/white slots come from the ink/bg relationship */
@@ -1778,14 +1778,14 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.dark.palette-tokyo-night .diff-line .code .syn-type { color:#7dcfff }
 
 /* pastel-pixel: the pastel set deepened just enough to read on the cream
-   canvas (keyword=lavender, string=sage, number=peach, function=blue,
+   canvas (keyword=burnt orange, string=sage, number=peach, function=blue,
    type=mint); dark lifts the same five hues to full pastel on soft navy */
-:root.palette-pastel-pixel .diff-line .code .syn-kw   { color:#8a63c9 }
+:root.palette-pastel-pixel .diff-line .code .syn-kw   { color:#cf5a17 }
 :root.palette-pastel-pixel .diff-line .code .syn-str  { color:#5d9450 }
 :root.palette-pastel-pixel .diff-line .code .syn-num  { color:#c56a2b }
 :root.palette-pastel-pixel .diff-line .code .syn-fn   { color:#3f7fc1 }
 :root.palette-pastel-pixel .diff-line .code .syn-type { color:#2f8f83 }
-:root.dark.palette-pastel-pixel .diff-line .code .syn-kw   { color:#c9aef5 }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-kw   { color:#f5a75e }
 :root.dark.palette-pastel-pixel .diff-line .code .syn-str  { color:#a8d494 }
 :root.dark.palette-pastel-pixel .diff-line .code .syn-num  { color:#f2b98a }
 :root.dark.palette-pastel-pixel .diff-line .code .syn-fn   { color:#9cc0f0 }
@@ -1892,17 +1892,17 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
   transform:translate(2px,2px);
   box-shadow:0 0 0 0 var(--px-shadow);
 }
-/* pastel fill + deep-plum text + darker outline is the pixel button */
+/* pastel fill + deep-brown text + darker outline is the pixel button */
 :root.palette-pastel-pixel .btn.primary,
 :root.dark.palette-pastel-pixel .btn.primary{
-  color:#3b2c55;
+  color:#4a2810;
   border-color:color-mix(in srgb,var(--accent) 68%,var(--ink));
 }
 :root.palette-pastel-pixel .btn.primary:hover{
   background:color-mix(in srgb,var(--accent) 82%,#fff);
 }
 :root.palette-pastel-pixel .btn.danger-strong{color:#4d2433}
-:root.palette-pastel-pixel .welcome-step-num{border-radius:6px;color:#3b2c55}
+:root.palette-pastel-pixel .welcome-step-num{border-radius:6px;color:#4a2810}
 
 /* cards and popovers carry the same hard shadow */
 :root.palette-pastel-pixel .card,
@@ -1917,7 +1917,7 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.palette-pastel-pixel .remote-pop,
 :root.palette-pastel-pixel .update-banner{
   border-width:2px;
-  box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(58,44,76,.10);
+  box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(92,58,24,.10);
 }
 
 /* inputs and small chips get the chunky edge too */
@@ -1942,8 +1942,8 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.palette-pastel-pixel .palette-check{color:var(--accent-ink)}
 
 /* warm dim under modals, squared status pixels, pixel scrollbar thumbs */
-:root.palette-pastel-pixel .overlay{background:rgba(58,44,76,.32)}
-:root.dark.palette-pastel-pixel .overlay{background:rgba(18,14,28,.5)}
+:root.palette-pastel-pixel .overlay{background:rgba(92,58,24,.32)}
+:root.dark.palette-pastel-pixel .overlay{background:rgba(28,18,10,.5)}
 :root.palette-pastel-pixel .thinking i,
 :root.palette-pastel-pixel .dock-dot,
 :root.palette-pastel-pixel .nav-item .dot,
