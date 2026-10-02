@@ -26,7 +26,6 @@ import {
   type PluginStatus,
 } from '../plugin/loader';
 import { describeNetwork, describePermissions } from '../plugin/facade';
-import { openCreator } from './pluginCreator';
 import { restartApp } from '../updates';
 import type {
   PluginManifest,
@@ -86,12 +85,6 @@ function studioHeader(rerender: () => void): HTMLElement {
       type: 'button',
       onclick: () => void installFlow(rerender),
     }, 'Install plugin…'),
-    h('button', {
-      class: 'btn',
-      type: 'button',
-      title: 'Create a plugin from a template',
-      onclick: () => openCreator(),
-    }, 'Create…'),
     h('button', {
       class: 'btn',
       type: 'button',
