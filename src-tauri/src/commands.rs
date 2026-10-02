@@ -106,6 +106,9 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     if let Some(v) = obj.get("sidebarWidth").and_then(|v| v.as_f64()) {
         cur.sidebar_width = Some(v);
     }
+    if let Some(v) = obj.get("showTabGroupNames").and_then(|v| v.as_bool()) {
+        cur.show_tab_group_names = Some(v);
+    }
     /* per-axis terminal divider positions, keyed by split-node key; written
     by the renderer when a divider is dragged */
     if let Some(v) = obj.get("paneRatios") {

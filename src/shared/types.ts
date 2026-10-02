@@ -111,6 +111,8 @@ export interface Prefs {
   shortcuts?: Record<string, string>;
   paneHidden?: boolean;
   sidebarWidth?: number;
+  /* workspace name labels before tab groups in the top bar; absent = shown */
+  showTabGroupNames?: boolean;
   /* terminal split divider positions: split-node key → '%' of the axis */
   paneRatios?: Record<string, number>;
   expanded?: Record<string, boolean>;

@@ -166,6 +166,8 @@ pub struct Prefs {
     pub shortcuts: Option<HashMap<String, String>>,
     pub pane_hidden: Option<bool>,
     pub sidebar_width: Option<f64>,
+    /* workspace name labels before tab groups in the top bar; absent = shown */
+    pub show_tab_group_names: Option<bool>,
     /* main window size/position; absent = the tauri.conf.json default */
     pub window: Option<WindowBounds>,
     /* terminal split divider positions: split-node key → '%' of the axis.
@@ -208,6 +210,7 @@ impl Default for Prefs {
             shortcuts: None,
             pane_hidden: Some(false),
             sidebar_width: Some(248.0),
+            show_tab_group_names: None,
             window: None,
             pane_ratios: None,
             expanded: Some(HashMap::new()),

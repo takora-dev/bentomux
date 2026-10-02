@@ -648,7 +648,9 @@ export function renderTabs(): void {
       title: name,
       dataset: { workspace: workspaceId },
     });
-    group.append(h('span', { class: 'tabgroup-name' }, name));
+    if (db.prefs.showTabGroupNames !== false) {
+      group.append(h('span', { class: 'tabgroup-name' }, name));
+    }
     group.append(...tabs.map(tabButton));
     strip.append(group);
   }

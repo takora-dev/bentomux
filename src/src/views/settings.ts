@@ -22,6 +22,7 @@ import { settingsSectionEntries } from '../plugin/registry';
 import { onPluginsChanged } from '../plugin/loader';
 import { contributionLabel } from '../plugin/icons';
 import { buildPluginsSection } from './pluginStudio';
+import { renderTabs } from './tabs';
 import api from '../../preload/bentomux';
 
 /* persist one pref key and run any immediate side effect; callers repaint
@@ -393,6 +394,9 @@ function buildAppearanceSection(paint: () => void): HTMLElement {
     field('Palette', buildPaletteSelect(paint)),
     field('Terminal font', buildFontSelect()),
     field('Font size', buildFontSizeSelect()),
+    field('Workspace labels', toggleSeg(db.prefs.showTabGroupNames !== false,
+      on => setPref('showTabGroupNames', on, renderTabs))),
+    hint('Workspace names before their tab groups in the top bar. Hover a group to see its name while labels are hidden.'),
     buildBackgroundBlock(paint));
 }
 
