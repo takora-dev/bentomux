@@ -299,11 +299,19 @@ struct Sessions {
     map: Mutex<HashMap<String, Instant>>,
 }
 
+/* expiry predicate, split out so tests can exercise it with synthetic
+instants: Instant - Duration overflows on machines whose uptime is shorter
+than the TTL (the Windows monotonic clock starts at boot), so a test cannot
+fake an old session by subtraction. */
+fn session_live(seen: Instant, now: Instant) -> bool {
+    now.duration_since(seen) < SESSION_TTL
+}
+
 impl Sessions {
     fn create(&self) -> String {
         let mut map = self.map.lock().unwrap();
         let now = Instant::now();
-        map.retain(|_, seen| now.duration_since(*seen) < SESSION_TTL);
+        map.retain(|_, seen| session_live(*seen, now));
         while map.len() >= MAX_SESSIONS {
             let Some(oldest) = map
                 .iter()
@@ -322,7 +330,7 @@ impl Sessions {
     fn valid(&self, id: &str) -> bool {
         let mut map = self.map.lock().unwrap();
         let now = Instant::now();
-        map.retain(|_, seen| now.duration_since(*seen) < SESSION_TTL);
+        map.retain(|_, seen| session_live(*seen, now));
         let Some(seen) = map.get_mut(id) else {
             return false;
         };
@@ -399,11 +407,22 @@ mod ws_auth_regression {
         assert!(!sessions.valid("nope"));
         let id = sessions.create();
         assert!(sessions.valid(&id));
-        sessions.map.lock().unwrap().insert(
-            id.clone(),
-            Instant::now() - SESSION_TTL - Duration::from_secs(1),
-        );
-        assert!(!sessions.valid(&id));
+        /* fake a 12-hour-old session. Subtracting from `now` overflows the
+        Windows monotonic clock (anchored at boot) on machines with less
+        uptime than the TTL — it panicked there — so when the old instant is
+        not representable, assert the extracted predicate with synthetic
+        instants instead (adding to `now` never underflows). */
+        match Instant::now().checked_sub(SESSION_TTL + Duration::from_secs(1)) {
+            Some(stale) => {
+                sessions.map.lock().unwrap().insert(id.clone(), stale);
+                assert!(!sessions.valid(&id));
+            }
+            None => {
+                let now = Instant::now();
+                assert!(session_live(now, now));
+                assert!(!session_live(now, now + SESSION_TTL + Duration::from_secs(1)));
+            }
+        }
     }
 
     #[test]
