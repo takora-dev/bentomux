@@ -883,13 +883,15 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .confirm-p{margin:0;font-size:13px;line-height:1.55;color:var(--ink-2)}
 .confirm-p b{color:var(--ink);font-weight:600}
 .field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:5px}
-.field input,.field select{
+/* .select-input (the shared selectEl component) shares the field-input look
+   wherever it lands, including outside .field wrappers (background area) */
+.field input,.field select,.select-input{
   width:100%;height:32px;
   border:1px solid var(--line-2);border-radius:6px;
   background:var(--surface);padding:0 10px;
   font-size:12.5px;
 }
-.field input:focus,.field select:focus{border-color:var(--accent);outline:none}
+.field input:focus,.field select:focus,.select-input:focus{border-color:var(--accent);outline:none}
 .field textarea{
   width:100%;min-height:80px;
   border:1px solid var(--line-2);border-radius:6px;
@@ -898,7 +900,7 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
   font-size:12.5px;
 }
 .field textarea:focus{border-color:var(--accent);outline:none}
-.field select{
+.field select,.select-input{
   appearance:none;
   -webkit-appearance:none;
   -moz-appearance:none;
@@ -908,7 +910,7 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
   padding-right:32px;
   cursor:pointer;
 }
-.field select:hover{border-color:var(--line);background-color:var(--tint)}
+.field select:hover,.select-input:hover{border-color:var(--line);background-color:var(--tint)}
 
 @keyframes tk-fade{from{opacity:0}to{opacity:1}}
 @keyframes tk-pop{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:none}}
@@ -1920,7 +1922,7 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 
 /* inputs and small chips get the chunky edge too */
 :root.palette-pastel-pixel .field input,
-:root.palette-pastel-pixel .field select,
+:root.palette-pastel-pixel .select-input,
 :root.palette-pastel-pixel .field textarea,
 :root.palette-pastel-pixel .search-palette-input,
 :root.palette-pastel-pixel .chatbar textarea,
@@ -2147,7 +2149,7 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .bg-card-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
 .bg-card-title .ic{display:flex;color:var(--ink-2)}
 .bg-card-sub{font-size:11.5px;color:var(--ink-3);margin:2px 0 10px}
-.bg-area-card .select-input{display:block;width:100%;margin-top:8px;padding:7px 9px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--content-bg);border:1px solid var(--line);border-radius:7px}
+.bg-area-card .select-input{display:block;margin-top:8px}
 .bg-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:14px;align-items:start;margin-top:14px}
 .bg-preview-frame{display:flex;width:100%;aspect-ratio:2/1;overflow:hidden;border:1px solid var(--line);border-radius:8px;background:var(--tint);margin-bottom:10px}
 .bg-preview{display:block;width:100%;height:100%;object-fit:cover}
@@ -2160,7 +2162,7 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .bg-rows{display:flex;flex-direction:column;gap:10px}
 .bg-row{display:grid;grid-template-columns:92px minmax(0,1fr) 52px;align-items:center;gap:10px}
 .bg-row-label{color:var(--ink-2);font-size:12px}
-.bg-row select{grid-column:2 / -1;display:block;width:100%;padding:6px 9px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--content-bg);border:1px solid var(--line);border-radius:7px}
+.bg-row select{grid-column:2 / -1;display:block}
 .bg-divide{border-top:1px solid var(--line);margin:3px 0}
 .bg-slider{width:100%;min-width:0;accent-color:var(--accent)}
 .bg-slider-val{padding:3px 0;border:1px solid var(--line);border-radius:7px;text-align:center;font:11px var(--mono);color:var(--ink-2);background:var(--content-bg)}
