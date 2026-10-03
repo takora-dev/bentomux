@@ -46,13 +46,21 @@ pub fn active_overlay(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(&label)
 }
 
-/* hide whatever overlay currently exists (decisions resolved elsewhere) */
+/* show the pill and re-assert always-on-top: on Windows the TOPMOST bit is
+   lost across hide/show cycles, which let foreground apps cover the pill */
+fn show_topmost(w: &WebviewWindow) {
+    let _ = w.show();
+    let _ = w.set_always_on_top(true);
+}
+
+/* hide whatever overlay currently exists (decisions resolved elsewhere).
+   Never touch the always-on-top flag here — the pill must survive
+   hide/show cycles still above every normal app. */
 pub fn hide_active_overlay(app: &AppHandle) {
     match active_overlay(app) {
         Some(w) => {
-            let _ = w.set_always_on_top(false);
-            let _ = w.hide();
             eprintln!("[bentomux] overlay hidden label={}", w.label());
+            let _ = w.hide();
         }
         None => eprintln!("[bentomux] overlay hide: none active"),
     }
@@ -133,7 +141,7 @@ pub fn show_approval_overlay(app: &AppHandle) {
             let _ = existing.set_size(LogicalSize::new(w, h));
             /* show WITHOUT focusing — the overlay must never steal keyboard
             from the user's foreground app (Electron's showInactive) */
-            let _ = existing.show();
+            show_topmost(&existing);
             return;
         }
         /* dead shell: drop it and build a fresh window below */
@@ -162,7 +170,7 @@ pub fn show_approval_overlay(app: &AppHandle) {
         .on_page_load(|window, payload| {
             if payload.event() == PageLoadEvent::Finished {
                 eprintln!("[bentomux] overlay page finished, showing {}", window.label());
-                let _ = window.show();
+                show_topmost(&window);
             }
         });
 
