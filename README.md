@@ -5,19 +5,20 @@
 
 Bentomux a customizable desktop companion that brings AI agents, development tools, and productivity features into one cozy workspace.
 
-<a href="https://www.producthunt.com/products/bentomux?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-bentomux" target="_blank" rel="noopener noreferrer"><img alt="Bentomux - A bento box for your terminal workspace. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1267496&amp;theme=light&amp;t=1791020095216"></a>
+<div align="center">
+    <a href="https://www.producthunt.com/products/bentomux?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-bentomux" target="_blank" rel="noopener noreferrer"><img alt="Bentomux - A bento box for your terminal workspace. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1267496&amp;theme=light&amp;t=1791020095216"></a>
+
 
 <img src="assets/screenshot.png" alt="Bentomux screenshot — split-pane terminals with an agent runtime and a plain shell" width="100%">
 
 | **Cozy Workspaces** | Organize projects with persistent workspaces and customizable layouts. |
 | ------------------- | --------------------------------------------------------------------- |
 | **Multiple Terminals** | Run multiple terminal sessions with tabs and split-right/down layouts. |
-| **AI Agents** | Run and manage multiple AI coding agents with model, provider, memory, skills, and MCP support. |
 | **Git Integration** | Monitor branches and changes, view diffs, and push directly from your workspace. |
 | **Plugin System** | Extend your workspace with plugins like **Kanban, To-Do, Pomodoro**, and more. |
 | **Remote Access** | Monitor and control terminals and AI agents remotely from your mobile browser. |
 | **Customizable** | Personalize themes, backgrounds, layouts, and workspace settings. |
-
+</div>
 ## Install
 
 ```sh
