@@ -61,8 +61,10 @@ struct HookReg {
 struct BridgeState {
     app: Option<tauri::AppHandle>,
     pending: HashMap<String, Pending>,
+    /* insertion order of pending ids: HashMap iteration is arbitrary and the
+       overlay replay must surface the newest blocked request */
+    order: Vec<String>,
     hooks: HookReg,
-    active_tab_anchor: Option<String>,
 }
 
 fn bridge_state() -> &'static Mutex<BridgeState> {
@@ -71,16 +73,28 @@ fn bridge_state() -> &'static Mutex<BridgeState> {
         Mutex::new(BridgeState {
             app: None,
             pending: HashMap::new(),
+            order: Vec::new(),
             hooks: HookReg {
                 created: Vec::new(),
                 closed: Vec::new(),
             },
-            active_tab_anchor: None,
         })
     })
 }
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
+
+/* Node's module loader cannot load a script from a verbatim \\?\ path
+(lstat on the drive letter fails with EISDIR), and Tauri's resolve()
+returns one on Windows. Strip the prefix the way dunce would; UNC paths
+map back to \\server\share form. */
+fn plain_path(p: &std::path::Path) -> String {
+    let s = p.to_string_lossy().into_owned();
+    if let Some(rest) = s.strip_prefix("\\\\?\\UNC\\") {
+        return format!("\\\\{rest}");
+    }
+    s.strip_prefix("\\\\?\\").unwrap_or(&s).to_string()
+}
 
 /* absolute path of the hook CLI agents execute — unpacked next to the
 binary as a Tauri resource (packaged equivalent of process.resourcesPath) */
@@ -92,7 +106,7 @@ pub fn hook_script_path(app: &tauri::AppHandle) -> String {
         .resolve("../resources/bentomux-hook.cjs", BaseDirectory::Resource)
     {
         if bundled.is_file() {
-            return bundled.to_string_lossy().into_owned();
+            return plain_path(&bundled);
         }
     }
     /* dev: resource_dir may not contain the bundled resources yet, so fall
@@ -138,15 +152,15 @@ pub fn pending_approvals() -> Vec<AgentApprovalRequest> {
         .collect()
 }
 /* Replay the request when a newly-created overlay missed the initial event
-while its WebView was still loading. */
+while its WebView was still loading. Returns the NEWEST blocked request, so
+the replay surfaces what the user is being asked about now — an arbitrary
+HashMap entry could resurrect a stale one instead. */
 pub fn pending_approval() -> Option<AgentApprovalRequest> {
-    bridge_state()
-        .lock()
-        .unwrap()
-        .pending
-        .values()
-        .next()
-        .map(|p| p.req.clone())
+    let st = bridge_state().lock().unwrap();
+    st.order
+        .iter()
+        .rev()
+        .find_map(|id| st.pending.get(id).map(|p| p.req.clone()))
 }
 
 /* ---------- helpers ---------- */
@@ -202,6 +216,7 @@ pub fn close_pending(request_id: &str) {
     let Some(pending) = st.pending.remove(request_id) else {
         return;
     };
+    st.order.retain(|id| id != request_id);
     let hooks = st.hooks.closed.clone();
     let _ = pending.response.send(None);
     drop(st);
@@ -230,6 +245,7 @@ pub fn resolve_approval(request_id: &str, decision: bool) -> bool {
     let Some(pending) = st.pending.remove(request_id) else {
         return false;
     };
+    st.order.retain(|id| id != request_id);
     let hooks = st.hooks.closed.clone();
     let _ = pending.response.send(Some(directive(decision) + "\n"));
     drop(st);
@@ -243,42 +259,14 @@ pub fn resolve_approval(request_id: &str, decision: bool) -> bool {
 /* anchor pane of the tab the renderer currently shows; reported by the
 renderer on every activation so the overlay can stay hidden while the
 user is already looking at the requesting pane */
-pub fn set_active_tab_anchor(tab_id: Option<String>) {
-    bridge_state().lock().unwrap().active_tab_anchor = tab_id;
-}
-
-fn tree_has_leaf_nodes(pane_id: &str) -> bool {
-    let st = bridge_state().lock().unwrap();
-    let anchor = match &st.active_tab_anchor {
-        Some(a) if !a.is_empty() => a.clone(),
-        _ => return false,
+/* approval notifications live ONLY in the floating overlay (port of
+Electron's src/main/overlay.ts showApprovalOverlay). Every blocked request
+raises it, even while Bentomux is focused: a blocked agent is exactly the
+thing the user must act on, so there is no "already looking at it" opt-out. */
+fn desktop_notify() {
+    let Some(app) = bridge_state().lock().unwrap().app.clone() else {
+        return;
     };
-    let state = match &st.app {
-        Some(app) => app.state::<crate::state::AppStateManager>().get_state(),
-        _ => return false,
-    };
-    let tree_of = |rec: &crate::state::TabRec| -> crate::split_tree::PaneNode {
-        rec.split_tree
-            .clone()
-            .unwrap_or_else(|| crate::split_tree::leaf_node(&rec.id))
-    };
-    /* find the tab that owns the anchor, then check the pane lands in it */
-    let rec = state
-        .open_tabs
-        .iter()
-        .find(|r| crate::split_tree::tree_has_leaf(&tree_of(r), &anchor));
-    match rec {
-        Some(rec) => crate::split_tree::tree_has_leaf(&tree_of(rec), pane_id),
-        None => false,
-    }
-}
-
-/* approval notifications live ONLY in the floating overlay now. When the
-main window is focused AND the requesting pane's tab is on screen the
-user is already looking at it — show nothing at all. */
-fn desktop_notify(req: &AgentApprovalRequest) {
-    let st = bridge_state().lock().unwrap();
-    let Some(app) = st.app.clone() else { return };
     let notify_enabled = {
         let s = app.state::<crate::state::AppStateManager>();
         s.get_state().prefs.notif_enabled.unwrap_or(true)
@@ -286,24 +274,6 @@ fn desktop_notify(req: &AgentApprovalRequest) {
     if !notify_enabled {
         return;
     }
-    let focused = app
-        .get_webview_window("main")
-        .map(|w| w.is_focused().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
-        .unwrap_or(false);
-    drop(st);
-    if focused
-        && req
-            .pane_id
-            .as_deref()
-            .map(tree_has_leaf_nodes)
-            .unwrap_or(false)
-    {
-        return;
-    }
-    /* the floating approval overlay is the user-facing notify surface
-    (port of Electron's src/main/overlay.ts showApprovalOverlay). Show
-    it; the overlay page subscribes to the `agent:approval` event that
-    the bridge already emitted for this request. */
     crate::overlay::show_approval_overlay(&app);
 }
 
@@ -406,6 +376,7 @@ fn dispatch(line: &str, response: mpsc::Sender<Option<String>>) -> bool {
     let rid = req.request_id.clone();
     {
         let mut st = bridge_state().lock().unwrap();
+        st.order.push(rid.clone());
         st.pending.insert(
             rid,
             Pending {
@@ -420,7 +391,7 @@ fn dispatch(line: &str, response: mpsc::Sender<Option<String>>) -> bool {
         }
         /* Create/show the overlay before emitting the request. A newly-created
         WebView cannot receive events emitted before its page subscribes. */
-        desktop_notify(&req);
+        desktop_notify();
         emit("agent:approval", &req);
     }
     true
@@ -560,18 +531,42 @@ pub fn start_bridge(app: tauri::AppHandle, pty: &PtyManager) {
         };
         runtime.block_on(async move {
             use tokio::net::windows::named_pipe::ServerOptions;
+            /* a named-pipe instance serves exactly ONE client, and between
+            "client N accepted" and "instance N+1 created" there is a window
+            where NO listener exists — a hook connecting then gets ENOENT,
+            treats the bridge as dead, and its approval never surfaces. Keep
+            the next instance pre-created at all times. */
+            let mut next = match ServerOptions::new().create(&addr) {
+                Ok(server) => Some(server),
+                Err(error) => {
+                    eprintln!("[bentomux] bridge pipe bind failed on {addr}: {error}");
+                    return;
+                }
+            };
             loop {
-                let server = match ServerOptions::new().create(&addr) {
-                    Ok(server) => server,
-                    Err(error) => {
-                        eprintln!("[bentomux] bridge pipe bind failed on {addr}: {error}");
-                        return;
-                    }
+                let server = match next.take() {
+                    Some(server) => server,
+                    None => match ServerOptions::new().create(&addr) {
+                        Ok(server) => server,
+                        Err(error) => {
+                            eprintln!("[bentomux] bridge pipe bind failed on {addr}: {error}");
+                            return;
+                        }
+                    },
                 };
                 if let Err(error) = server.connect().await {
                     eprintln!("[bentomux] bridge pipe accept error: {error}");
                     continue;
                 }
+                /* the next instance must exist before this connection is
+                handled — handling blocks until the user decides */
+                next = match ServerOptions::new().create(&addr) {
+                    Ok(server) => Some(server),
+                    Err(error) => {
+                        eprintln!("[bentomux] bridge pipe bind failed on {addr}: {error}");
+                        None
+                    }
+                };
                 tokio::spawn(handle_connection(server));
             }
         });
@@ -583,6 +578,7 @@ pub fn start_bridge(_app: tauri::AppHandle, _pty: &PtyManager) {}
 
 pub fn stop_bridge() {
     let mut st = bridge_state().lock().unwrap();
+    st.order.clear();
     for (_, pending) in st.pending.drain() {
         let _ = pending.response.send(None);
     }
@@ -605,6 +601,22 @@ mod tests {
         assert_eq!(to_base36(35), "z");
         assert_eq!(to_base36(36), "10");
         assert_eq!(to_base36(46655), "zzz");
+    }
+
+    #[test]
+    fn plain_path_strips_verbatim_prefix() {
+        assert_eq!(
+            plain_path(std::path::Path::new(r"\\?\C:\Users\x\bentomux-hook.cjs")),
+            r"C:\Users\x\bentomux-hook.cjs"
+        );
+        assert_eq!(
+            plain_path(std::path::Path::new(r"\\?\UNC\srv\share\hook.cjs")),
+            r"\\srv\share\hook.cjs"
+        );
+        assert_eq!(
+            plain_path(std::path::Path::new(r"C:\plain\hook.cjs")),
+            r"C:\plain\hook.cjs"
+        );
     }
 
     #[test]
@@ -658,6 +670,28 @@ mod tests {
         let b = request_id();
         assert!(a.starts_with("ar-"));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn pending_approval_returns_the_newest_block() {
+        let _guard = test_lock();
+        stop_bridge();
+        let (tx1, _rx1) = mpsc::channel();
+        let (tx2, _rx2) = mpsc::channel();
+        assert!(dispatch(
+            r#"{"v":1,"event":"PermissionRequest","pane":"p1","payload":{"tool_name":"Bash","tool_input":{"command":"one"}}}"#,
+            tx1,
+        ));
+        assert!(dispatch(
+            r#"{"v":1,"event":"PermissionRequest","pane":"p2","payload":{"tool_name":"Bash","tool_input":{"command":"two"}}}"#,
+            tx2,
+        ));
+        let newest = pending_approval().expect("pending after two dispatches");
+        assert_eq!(newest.summary, "two");
+        /* resolving the newest falls the replay back to the older block */
+        assert!(resolve_approval(&newest.request_id, true));
+        assert_eq!(pending_approval().expect("older block remains").summary, "one");
+        stop_bridge();
     }
 
     #[test]

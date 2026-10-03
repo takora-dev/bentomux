@@ -15,22 +15,6 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "fullscreen": false
-      },
-      {
-        "label": "approval-overlay",
-        "title": "Bentomux ??? approval",
-        "url": "approval.html",
-        "width": 480,
-        "height": 220,
-        "minWidth": 480,
-        "minHeight": 220,
-        "resizable": true,
-        "decorations": false,
-        "transparent": true,
-        "visible": false,
-        "focus": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true
       }
     ]
   }

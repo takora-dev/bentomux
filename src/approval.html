@@ -5,15 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bentomux — approval</title>
 <style>
+  /* The island is a floating dialog: it renders with the same semantic
+     tokens (theme.css, imported by approval.ts) and restates the app's
+     .btn / .dialog language so the pill reads like every other surface.
+     The palette-pastel-pixel blocks mirror styles.css's pixel-art layer. */
   html, body {
     margin: 0;
     background: transparent;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    border-radius: 16px;
-    clip-path: inset(0 round 16px);
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    border-radius: 10px;
+    clip-path: inset(0 round 10px);
+    font-family: var(--sans, system-ui, sans-serif);
   }
   @keyframes island-in {
     from { opacity: 0; transform: translateY(-14px) scale(.96); }
@@ -25,22 +29,20 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    background: var(--bg, rgba(18, 18, 22, .96));
-    border: 1px solid var(--border, rgba(255, 255, 255, .18));
-    border-radius: 16px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line, rgba(0, 0, 0, .14));
+    border-radius: 10px;
     padding: 14px 16px;
-    box-shadow: var(--shadow, 0 12px 40px rgba(0, 0, 0, .45));
-    font-size: 12px;
+    box-shadow: 0 16px 40px rgba(32, 29, 25, .16);
+    font-size: 12.5px;
     color: var(--ink, #1f2328);
     animation: island-in .22s cubic-bezier(.2, .9, .25, 1.15) both;
-    transition: background .15s ease;
   }
-  .island:hover { background: var(--bg-hover, #ffffff); }
   .head { display: flex; gap: 8px; align-items: baseline; flex: 0 0 auto; }
-  .agent { font-weight: 600; }
-  .where { color: var(--ink2, #57606a); font-size: 11px; }
+  .agent { font-weight: 650; font-size: 13.5px; }
+  .where { color: var(--ink-2, #5a6472); font-size: 11px; }
   .tool {
-    color: var(--ink2, #57606a);
+    color: var(--ink-3, #8a919b);
     font-size: 10px;
     letter-spacing: .05em;
     text-transform: uppercase;
@@ -48,8 +50,9 @@
     flex: 0 0 auto;
   }
   .sum {
-    font: 11.5px/1.6 Consolas, monospace;
-    background: var(--sum-bg, rgba(0, 0, 0, .055));
+    font: 11.5px/1.6 var(--mono, Consolas, monospace);
+    background: var(--content-bg, rgba(0, 0, 0, .04));
+    border: 1px solid var(--line, rgba(0, 0, 0, .14));
     border-radius: 8px;
     padding: 7px 9px;
     margin-top: 5px;
@@ -58,20 +61,58 @@
     flex: 1;
     overflow: auto;
   }
-  .row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; flex: 0 0 auto; }
-  button {
-    border: 0;
-    border-radius: 8px;
-    padding: 5px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    background: transparent;
+  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex: 0 0 auto; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--line-2, rgba(0, 0, 0, .2));
+    background: var(--surface, #fff);
+    font: 500 12.5px var(--sans, system-ui, sans-serif);
     color: var(--ink, #1f2328);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: background .1s, border-color .1s, color .1s;
   }
-  button:hover { background: var(--btn-hover, rgba(0, 0, 0, .08)); }
-  .approve { background: #2563eb; color: #fff; }
-  .approve:hover { background: #1d4ed8; }
-  button { user-select: none; }
+  .btn:hover { background: var(--tint, rgba(0, 0, 0, .07)); }
+  .btn.ghost { border-color: transparent; background: none; color: var(--ink-2, #5a6472); }
+  .btn.ghost:hover { background: var(--tint, rgba(0, 0, 0, .07)); color: var(--ink, #1f2328); }
+  .btn.danger { border-color: transparent; background: none; color: var(--danger, #dc2626); }
+  .btn.danger:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+  .btn.primary { background: var(--accent, #2563eb); border-color: var(--accent, #2563eb); color: #fff; }
+  .btn.primary:hover { background: var(--accent-ink, #1d4ed8); border-color: var(--accent-ink, #1d4ed8); }
+
+  /* pastel-pixel: chunky edges + hard offset shadows, buttons that press
+     into their own shadow, deep-brown label on the pastel primary */
+  :root.palette-pastel-pixel .island,
+  :root.dark.palette-pastel-pixel .island {
+    border-width: 2px;
+    box-shadow: 5px 5px 0 0 var(--px-shadow), 0 18px 40px rgba(92, 58, 24, .10);
+  }
+  :root.palette-pastel-pixel .btn,
+  :root.dark.palette-pastel-pixel .btn {
+    border-width: 2px;
+    border-radius: 7px;
+    box-shadow: 2px 2px 0 0 var(--px-shadow);
+  }
+  :root.palette-pastel-pixel .btn.ghost,
+  :root.palette-pastel-pixel .btn.danger { border-width: 1px; box-shadow: none; }
+  :root.palette-pastel-pixel .btn:not(.ghost):not(.danger):active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 0 var(--px-shadow);
+  }
+  :root.palette-pastel-pixel .btn.primary,
+  :root.dark.palette-pastel-pixel .btn.primary {
+    color: #4a2810;
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--ink));
+  }
+  :root.palette-pastel-pixel .btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 82%, #fff);
+  }
 </style>
 </head>
 <body>
@@ -80,9 +121,9 @@
   <div class="tool" id="tool"></div>
   <div class="sum" id="sum"></div>
   <div class="row">
-    <button id="jump">Jump</button>
-    <button id="deny">Deny</button>
-    <button id="approve" class="approve">Approve</button>
+    <button id="jump" class="btn ghost">Jump</button>
+    <button id="deny" class="btn danger">Deny</button>
+    <button id="approve" class="btn primary">Approve</button>
   </div>
 </div>
 <script type="module" src="/approval.ts"></script>

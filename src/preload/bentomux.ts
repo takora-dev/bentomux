@@ -239,9 +239,9 @@ const api = {
     invoke<boolean>('agent_approval_resolve', { requestId, decision }),
   approvalPending: () => invoke<AgentApprovalRequest | null>('agent_approval_pending'),
   hideApproval: () => invoke('agent_approval_hide'),
+  approvalDismiss: () => invoke('agent_approval_dismiss'),
   approvalJump: (paneId: string | null, cwd: string | null) =>
     invoke<void>('agent_approval_jump', { paneId, cwd }),
-  setActiveTab: (tabId: string | null) => { void invoke('agent_set_active_tab', { tabId }); },
   agentHooksStatus: () => invoke<AgentHooksStatus>('agent_hooks_status'),
   agentHooksInstall: () => invoke<AgentHooksStatus>('agent_hooks_install'),
   agentHooksUninstall: () => invoke<AgentHooksStatus>('agent_hooks_uninstall'),

@@ -789,10 +789,7 @@ pub fn agent_approval_pending() -> Option<crate::bridge::AgentApprovalRequest> {
 Bentomux so the click cannot leave the always-on-top overlay in front. */
 #[tauri::command]
 pub fn agent_approval_jump(app: tauri::AppHandle, pane_id: Option<String>, cwd: Option<String>) {
-    if let Some(overlay) = app.get_webview_window("approval-overlay") {
-        let _ = overlay.set_always_on_top(false);
-        let _ = overlay.hide();
-    }
+    crate::overlay::hide_active_overlay(&app);
     if let Some(w) = app.get_webview_window("main") {
         if w.is_minimized().unwrap_or(false) {
             let _ = w.unminimize();
@@ -825,16 +822,14 @@ pub fn agent_approval_jump(app: tauri::AppHandle, pane_id: Option<String>, cwd: 
 
 #[tauri::command]
 pub fn agent_approval_hide(app: tauri::AppHandle) {
-    if let Some(w) = app.get_webview_window("approval-overlay") {
-        let _ = w.hide();
-    }
+    crate::overlay::hide_active_overlay(&app);
 }
 
-/* report the active terminal tab's anchor pane so the approval overlay
-can stay hidden while that tab is on screen */
+/* the overlay page's own dismiss: window.close() is a no-op for windows not
+opened by script (WebView2 refuses it), so the page asks Rust to destroy */
 #[tauri::command]
-pub fn agent_set_active_tab(tab_id: Option<String>) {
-    crate::bridge::set_active_tab_anchor(tab_id);
+pub fn agent_approval_dismiss(app: tauri::AppHandle) {
+    crate::overlay::dismiss_active_overlay(&app);
 }
 
 /* ---------------- resources (memory / skills / MCP) ---------------- */

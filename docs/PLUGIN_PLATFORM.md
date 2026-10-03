@@ -113,7 +113,7 @@ Each permission unlocks a namespace on `ctx`. Declaring a permission the plugin 
 | `app.window` | `minimize`, `toggleMaximize`, `toggleFullscreen`, `close`, `onMaximized`, `quitApp` |
 | `files.temp` | `saveTempFile` |
 | `workspaces.write` | `chooseFolder`, `addWorkspace`, `removeWorkspace`, `reorderWorkspaces`, `setActiveWorkspace` |
-| `tabs.write` | `createTab`, `splitTab`, `setSplitDir`, `renameTab`, `closePane`, `closeTab`, `setActiveTab` |
+| `tabs.write` | `createTab`, `splitTab`, `setSplitDir`, `renameTab`, `closePane`, `closeTab` |
 | `terminal.read` | `onPtyData`, `onPtyExit` |
 | `terminal.input` | `writeTab`, `resizeTab` |
 | `git.read` | `branchFor`, `gitStatus`, `gitDiff`, `gitDiffStat`, `gitRemoteInfo` |

@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for the main Bentomux window",
-  "windows": ["main", "approval-overlay"],
+  "description": "Default capabilities for the main Bentomux window and the approval overlay (created on demand, one per request)",
+  "windows": ["main", "approval-overlay*"],
   "permissions": [
     "core:default",
     "core:window:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-set-title",
     "core:event:default",
     "updater:default",
     "process:allow-restart",

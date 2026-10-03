@@ -1,9 +1,7 @@
 /* ---------------- agent events from the bridge ----------------
    Approval decisions live entirely in the overlay window (src/main/
    overlay.ts) — the main renderer shows no notification UI. It only
-   reacts to jump requests by focusing the pane, and reports the active
-   tab's anchor pane to main so the bridge knows when the user is
-   already looking at the requesting pane. */
+   reacts to jump requests by focusing the pane. */
 
 import { ui, type Route, type TabEntry } from '../state';
 import { db } from '../store';

@@ -569,11 +569,10 @@ export interface BentomuxApi {
   /* overlay-only: read the still-pending request, and dismiss the island */
   approvalPending(): Promise<AgentApprovalRequest | null>;
   hideApproval(): Promise<void>;
+  /* destroy the overlay window (window.close() is refused by WebView2) */
+  approvalDismiss(): Promise<void>;
   /* focus Bentomux and jump to the requesting pane (overlay Jump button) */
   approvalJump(paneId: string | null, cwd: string | null): void;
-  /* report the active terminal tab's anchor pane so the approval overlay
-     can stay hidden while that tab is on screen */
-  setActiveTab(tabId: string | null): void;
   agentHooksStatus(): Promise<AgentHooksStatus>;
   agentHooksInstall(): Promise<AgentHooksStatus>;
   agentHooksUninstall(): Promise<AgentHooksStatus>;

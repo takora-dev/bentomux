@@ -14,7 +14,7 @@ named error rather than working by accident.
 | `app.window` | `ctx.app.minimize`, `ctx.app.toggleMaximize`, `ctx.app.toggleFullscreen`, `ctx.app.close`, `ctx.app.onMaximized`, `ctx.app.quitApp` |
 | `files.temp` | `ctx.app.saveTempFile` |
 | `workspaces.write` | `ctx.app.chooseFolder`, `ctx.app.addWorkspace`, `ctx.app.removeWorkspace`, `ctx.app.reorderWorkspaces`, `ctx.app.setActiveWorkspace` |
-| `tabs.write` | `ctx.app.createTab`, `ctx.app.splitTab`, `ctx.app.setSplitDir`, `ctx.app.renameTab`, `ctx.app.closePane`, `ctx.app.closeTab`, `ctx.app.setActiveTab` |
+| `tabs.write` | `ctx.app.createTab`, `ctx.app.splitTab`, `ctx.app.setSplitDir`, `ctx.app.renameTab`, `ctx.app.closePane`, `ctx.app.closeTab` |
 | `terminal.read` | `ctx.app.onPtyData`, `ctx.app.onPtyExit` |
 | `terminal.input` | `ctx.app.writeTab`, `ctx.app.resizeTab` |
 | `git.read` | `ctx.app.branchFor`, `ctx.app.gitStatus`, `ctx.app.gitDiff`, `ctx.app.gitDiffStat`, `ctx.app.gitRemoteInfo` |
