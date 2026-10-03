@@ -108,7 +108,7 @@ export const PERMISSION_METHODS: Record<PluginPermission, string[]> = {
   'app.window': ['minimize', 'toggleMaximize', 'toggleFullscreen', 'close', 'onMaximized', 'quitApp'],
   'files.temp': ['saveTempFile'],
   'workspaces.write': ['chooseFolder', 'addWorkspace', 'removeWorkspace', 'reorderWorkspaces', 'setActiveWorkspace'],
-  'tabs.write': ['createTab', 'splitTab', 'setSplitDir', 'renameTab', 'closePane', 'closeTab'],
+  'tabs.write': ['createTab', 'splitTab', 'setSplitDir', 'renameTab', 'closePane', 'closeTab', 'setActiveTab'],
   'terminal.read': ['onPtyData', 'onPtyExit'],
   'terminal.input': ['writeTab', 'resizeTab'],
   'git.read': ['branchFor', 'gitStatus', 'gitDiff', 'gitDiffStat', 'gitRemoteInfo'],

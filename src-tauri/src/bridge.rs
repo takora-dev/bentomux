@@ -64,6 +64,10 @@ struct BridgeState {
     /* insertion order of pending ids: HashMap iteration is arbitrary and the
        overlay replay must surface the newest blocked request */
     order: Vec<String>,
+    /* tab the renderer currently shows, reported on every activation — lets
+       desktop_notify stay quiet while the user is already looking at the
+       requesting pane */
+    active_tab_anchor: Option<String>,
     hooks: HookReg,
 }
 
@@ -74,6 +78,7 @@ fn bridge_state() -> &'static Mutex<BridgeState> {
             app: None,
             pending: HashMap::new(),
             order: Vec::new(),
+            active_tab_anchor: None,
             hooks: HookReg {
                 created: Vec::new(),
                 closed: Vec::new(),
@@ -259,14 +264,63 @@ pub fn resolve_approval(request_id: &str, decision: bool) -> bool {
 /* anchor pane of the tab the renderer currently shows; reported by the
 renderer on every activation so the overlay can stay hidden while the
 user is already looking at the requesting pane */
-/* approval notifications live ONLY in the floating overlay (port of
-Electron's src/main/overlay.ts showApprovalOverlay). Every blocked request
-raises it, even while Bentomux is focused: a blocked agent is exactly the
-thing the user must act on, so there is no "already looking at it" opt-out. */
-fn desktop_notify() {
-    let Some(app) = bridge_state().lock().unwrap().app.clone() else {
-        return;
+/* anchor pane of the tab the renderer currently shows; reported by the
+renderer on every activation so the overlay can stay hidden while the
+user is already looking at the requesting pane */
+pub fn set_active_tab_anchor(tab_id: Option<String>) {
+    bridge_state().lock().unwrap().active_tab_anchor = tab_id;
+}
+
+/* does the requesting pane land in the tab that owns the active anchor? */
+fn tree_has_leaf_nodes(pane_id: &str) -> bool {
+    let st = bridge_state().lock().unwrap();
+    let anchor = match &st.active_tab_anchor {
+        Some(a) if !a.is_empty() => a.clone(),
+        _ => return false,
     };
+    let state = match &st.app {
+        Some(app) => app.state::<crate::state::AppStateManager>().get_state(),
+        _ => return false,
+    };
+    let tree_of = |rec: &crate::state::TabRec| -> crate::split_tree::PaneNode {
+        rec.split_tree
+            .clone()
+            .unwrap_or_else(|| crate::split_tree::leaf_node(&rec.id))
+    };
+    /* find the tab that owns the anchor, then check the pane lands in it */
+    let rec = state
+        .open_tabs
+        .iter()
+        .find(|r| crate::split_tree::tree_has_leaf(&tree_of(r), &anchor));
+    match rec {
+        Some(rec) => crate::split_tree::tree_has_leaf(&tree_of(rec), pane_id),
+        None => false,
+    }
+}
+
+/* approval notifications live ONLY in the floating overlay (port of
+Electron's src/main/overlay.ts showApprovalOverlay). When the main window
+is focused AND the requesting pane's tab is on screen the user is already
+looking at the prompt — raising the pill over their own terminal is noise
+(and with chatty agents, spam), so it stays quiet in that case. */
+fn desktop_notify(req: &AgentApprovalRequest) {
+    let (app, focused) = {
+        let st = bridge_state().lock().unwrap();
+        match st.app.clone() {
+            Some(app) => {
+                let focused = app
+                    .get_webview_window("main")
+                    .map(|w| w.is_focused().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+                    .unwrap_or(false);
+                (app, focused)
+            }
+            None => return,
+        }
+    };
+    /* lock released — tree_has_leaf_nodes takes it again */
+    if focused && req.pane_id.as_deref().map(tree_has_leaf_nodes).unwrap_or(false) {
+        return;
+    }
     let notify_enabled = {
         let s = app.state::<crate::state::AppStateManager>();
         s.get_state().prefs.notif_enabled.unwrap_or(true)
@@ -391,7 +445,7 @@ fn dispatch(line: &str, response: mpsc::Sender<Option<String>>) -> bool {
         }
         /* Create/show the overlay before emitting the request. A newly-created
         WebView cannot receive events emitted before its page subscribes. */
-        desktop_notify();
+        desktop_notify(&req);
         emit("agent:approval", &req);
     }
     true

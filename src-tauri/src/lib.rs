@@ -260,6 +260,7 @@ pub fn run() {
             commands::agent_approval_hide,
             commands::agent_approval_dismiss,
             commands::agent_approval_jump,
+            commands::agent_set_active_tab,
             commands::res_list,
             commands::res_save,
             commands::res_delete,

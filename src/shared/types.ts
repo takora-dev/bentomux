@@ -573,6 +573,9 @@ export interface BentomuxApi {
   approvalDismiss(): Promise<void>;
   /* focus Bentomux and jump to the requesting pane (overlay Jump button) */
   approvalJump(paneId: string | null, cwd: string | null): void;
+  /* report the active terminal tab so the approval overlay stays quiet
+     while that tab (with the requesting pane) is on screen */
+  setActiveTab(tabId: string | null): void;
   agentHooksStatus(): Promise<AgentHooksStatus>;
   agentHooksInstall(): Promise<AgentHooksStatus>;
   agentHooksUninstall(): Promise<AgentHooksStatus>;

@@ -98,6 +98,7 @@ export function setRoute(route: Route): void {
   if (route.view !== 'terminal' && route.view !== 'diff' && route.view !== 'plugin' && route.view !== 'commit') {
     if (ui.activeTab) pushHistory(ui.activeTab, '');
     ui.route = route;
+    api.setActiveTab(null);
     render();
     return;
   }
@@ -154,6 +155,9 @@ export function activate(id: string): void {
   /* the sidebar's active-workspace marker follows the tab being viewed;
      non-terminal tabs keep the last workspace marked */
   syncActiveWorkspaceMarker(t.workspaceId);
+  /* main tracks which pane's tab is on screen so the approval overlay
+     stays quiet while the user is already looking at it */
+  api.setActiveTab(t.route.view === 'terminal' ? t.route.tabId : null);
   /* switching to a terminal tab dismisses the Git Tools right-panel so the
      full content area is available for the shell; the panel can be
      re-opened from its titlebar pill regardless of route */

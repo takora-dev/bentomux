@@ -832,6 +832,13 @@ pub fn agent_approval_dismiss(app: tauri::AppHandle) {
     crate::overlay::dismiss_active_overlay(&app);
 }
 
+/* report the active terminal tab so the approval overlay stays quiet while
+that tab (with the requesting pane) is on screen */
+#[tauri::command]
+pub fn agent_set_active_tab(tab_id: Option<String>) {
+    crate::bridge::set_active_tab_anchor(tab_id);
+}
+
 /* ---------------- resources (memory / skills / MCP) ---------------- */
 
 #[tauri::command]
