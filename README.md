@@ -5,6 +5,8 @@
 
 Bentomux a customizable desktop companion that brings AI agents, development tools, and productivity features into one cozy workspace.
 
+<a href="https://www.producthunt.com/products/bentomux?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-bentomux" target="_blank" rel="noopener noreferrer"><img alt="Bentomux - A bento box for your terminal workspace. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1267496&amp;theme=light&amp;t=1791020095216"></a>
+
 <img src="assets/screenshot.png" alt="Bentomux screenshot — split-pane terminals with an agent runtime and a plain shell" width="100%">
 
 | **Cozy Workspaces** | Organize projects with persistent workspaces and customizable layouts. |
