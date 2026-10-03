@@ -168,6 +168,53 @@
 /* bright teal accent keeps pi-web.dev's near-black button text */
 :root.dark.palette-pi-web .btn.primary{color:#070912}
 
+/* Pixelated — cool pastels. Deliberately the opposite temperature from
+   Pastel Pixel, which is warm (cream canvas, orange accent, plum dark): this
+   one runs cool — lavender-grey canvas, periwinkle accent, soft-slate dark.
+   Both are pastel, so they read as siblings without competing for the same
+   mood. Saturation stays low on purpose: pastel here means muted, not
+   washed-out, so body text still clears WCAG AA (~7.7:1 light, ~10:1 dark)
+   instead of the 2-4:1 a literal pastel ink would give.
+
+   --px-* feeds the structure layer in styles.css (square corners, hard
+   offset shadows, dot-matrix grid) — the pixel character comes from
+   geometry, not from a retro color cast. No ANSI override: the neutral
+   default light/dark terminal sets already sit correctly on both canvases.
+
+   Fonts: the Silkscreen @font-face rules live in styles.css (that file owns
+   @font-face). --sans is overridden here so the chrome picks it up. */
+:root.palette-pixelated{
+  --bg:#EDF0F5;--surface:#F8F9FC;--ink:#4C5163;--ink-2:#6C7286;--ink-3:#9CA1B3;
+  --content-bg:#FBFCFE;
+  --line:#DCE0EA;--line-2:#C4CAD9;--tint:rgba(76,81,99,.06);
+  --accent:#9AA7D4;--accent-ink:#5F6FAC;--accent-tint:rgba(154,167,212,.16);--danger:#A85966;
+  --px-shadow:#D8DDE8;--px-tex:rgba(76,81,99,.035);
+  --sans:'Silkscreen',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+:root.dark.palette-pixelated{
+  --bg:#22252E;--surface:#2A2E39;--ink:#D4D8E4;--ink-2:#A2A8BA;--ink-3:#757B8E;
+  --line:#343947;--line-2:#454B5C;--tint:rgba(212,216,228,.06);
+  --accent:#A9B4DE;--accent-ink:#C0C9E8;--accent-tint:rgba(169,180,222,.15);--danger:#E8A0AB;
+  --content-bg:#262A34;
+  --px-shadow:#0E1015;--px-tex:rgba(212,216,228,.035);
+}
+/* pastel accents are too light for #fff labels, so primary/danger buttons
+   take a dark label instead (the same move pastel-pixel makes) */
+:root.palette-pixelated .btn.primary{color:#333A56}
+:root.dark.palette-pixelated .btn.primary{color:#22252E}
+/* danger is dark enough in light mode to keep a white label */
+:root.palette-pixelated .btn.danger-strong{color:#FFFFFF}
+:root.dark.palette-pixelated .btn.danger-strong{color:#3A2026}
+/* accent-as-text spots step up to --accent-ink; the raw accent is too light
+   to read as a label on either canvas */
+:root.palette-pixelated .termbar .prompt,
+:root.palette-pixelated .agent-card-go,
+:root.palette-pixelated .agent-resource-go,
+:root.palette-pixelated .agent-subtab:hover:not(.off):not(:disabled),
+:root.palette-pixelated .editor-back:hover,
+:root.palette-pixelated .plugin-status.status-active,
+:root.palette-pixelated .palette-check{color:var(--accent-ink)}
+
 /* Custom — the user owns three colors (--c-bg / --c-ink / --c-accent, set
    inline on the root from prefs) and every other token is derived from them
    with color-mix, so light and dark share one set of colors. Diff/git

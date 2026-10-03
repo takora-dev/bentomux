@@ -48,8 +48,8 @@ export interface TabRec {
   title?: string;
 }
 
-export type PaletteName = 'default' | 'catppuccin' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night' | 'pastel-pixel' | 'pi-web' | 'custom';
-export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'catppuccin-frappe', 'catppuccin-macchiato', 'catppuccin-mocha', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night', 'pastel-pixel', 'pi-web', 'custom'];
+export type PaletteName = 'default' | 'catppuccin' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha' | 'rose-pine' | 'gruvbox' | 'dracula' | 'nord' | 'classic' | 'eink' | 'tokyo-night' | 'pastel-pixel' | 'pi-web' | 'pixelated' | 'custom';
+export const PALETTES: PaletteName[] = ['default', 'catppuccin', 'catppuccin-frappe', 'catppuccin-macchiato', 'catppuccin-mocha', 'rose-pine', 'gruvbox', 'dracula', 'nord', 'classic', 'eink', 'tokyo-night', 'pastel-pixel', 'pi-web', 'pixelated', 'custom'];
 
 /* Custom palette: three source colors. Every semantic token is derived from
    them in CSS (`:root.palette-custom`), so one set of colors covers both

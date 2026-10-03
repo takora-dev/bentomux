@@ -5,6 +5,36 @@
 
 @import './theme.css';
 
+/* ---------------- pixelated: bundled pixel fonts ----------------
+   Silkscreen (UI chrome) and VT323 (terminal) — both SIL Open Font License
+   1.1, latin + latin-ext subsets only, ~23 KB total. font-display:swap keeps
+   first paint instant and swaps in the pixel face a frame later; the
+   unicode-range values are copied verbatim from the Google Fonts CSS so the
+   browser only fetches a subset when those code points are actually used.
+   The CSP already allows this: font-src 'self' (tauri.conf.json).
+   NOTE: neither face ships box-drawing glyphs (U+2500-257F) — measured, not
+   assumed — so the terminal deliberately does not use them (see the
+   --term-font note in the pixelated palette block below). */
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:400;font-display:swap;size-adjust:85%;
+  src:url('./assets/fonts/silkscreen-400.woff2') format('woff2');
+  unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:400;font-display:swap;size-adjust:85%;
+  src:url('./assets/fonts/silkscreen-400-ext.woff2') format('woff2');
+  unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:700;font-display:swap;size-adjust:85%;
+  src:url('./assets/fonts/silkscreen-700.woff2') format('woff2');
+  unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'Silkscreen';font-style:normal;font-weight:700;font-display:swap;size-adjust:85%;
+  src:url('./assets/fonts/silkscreen-700-ext.woff2') format('woff2');
+  unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;
+  src:url('./assets/fonts/vt323-400.woff2') format('woff2');
+  unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;
+  src:url('./assets/fonts/vt323-400-ext.woff2') format('woff2');
+  unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+
+
 /* ---------------- terminal ANSI colors (xterm) ----------------
    xterm's built-in 16-color set assumes a dark canvas (bright white,
    pale yellow, pastel green), so on light backgrounds colored output
@@ -1625,6 +1655,26 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.dark.palette-pi-web .diff-line .code .syn-fn   { color:#b7a2ff }
 :root.dark.palette-pi-web .diff-line .code .syn-type { color:#00f0d8 }
 
+/* pixelated: cool pastel syntax, darkened just enough to clear AA on the
+   light canvas (4.5:1+) while staying pastel-bright on the dark one */
+:root.palette-pixelated .diff-line .code .syn-kw   { color:#5F6FAC }
+:root.palette-pixelated .diff-line .code .syn-str  { color:#4E7A68 }
+:root.palette-pixelated .diff-line .code .syn-num  { color:#9A6A40 }
+:root.palette-pixelated .diff-line .code .syn-fn   { color:#4A6AA0 }
+:root.palette-pixelated .diff-line .code .syn-type { color:#8A6285 }
+:root.dark.palette-pixelated .diff-line .code .syn-kw   { color:#B0BCE8 }
+:root.dark.palette-pixelated .diff-line .code .syn-str  { color:#9DCFBB }
+:root.dark.palette-pixelated .diff-line .code .syn-num  { color:#E2BC90 }
+:root.dark.palette-pixelated .diff-line .code .syn-fn   { color:#A8C2EC }
+:root.dark.palette-pixelated .diff-line .code .syn-type { color:#D3AED0 }
+
+/* VT323 on the code surfaces: the bundled pixel mono finally has a job.
+   Scoped to diff/editor text and never the terminal — it has no box-drawing
+   glyphs, and the terminal needs them. */
+:root.palette-pixelated .diff-line .code,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor{font-family:'VT323',var(--mono)}
+
 /* ---------------- Changes pill (titlebar window action) ----------------
    Sits in the right cluster of the titlebar, just before the dark-mode
    toggle, so it stays visible regardless of whether the left sidebar or
@@ -1787,6 +1837,127 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
   background-size:4px 4px;
 }
 
+/* ---------------- pixelated: pixel-art personality ----------------
+   The structural layer, independent of hue: Silkscreen on the chrome, hard
+   2px edges, and square corners throughout — arcade, not the rounded cozy
+   look pastel-pixel goes for. Buttons depress into their own shadow, and the
+   large chrome surfaces carry a faint dot-matrix grid rather than a checker
+   dither, so the two pixel palettes do not read as the same skin. Terminals
+   keep their 1px border and their own font on purpose: xterm only refits on
+   resize, so a border-width change here could clip glyphs until the next
+   fit, and neither bundled pixel face has box-drawing glyphs. The --px-*
+   tokens live in the palette block above. */
+
+:root.palette-pixelated .btn,
+:root.dark.palette-pixelated .btn{
+  border-width:2px;border-radius:0;
+  box-shadow:2px 2px 0 0 var(--px-shadow);
+}
+:root.palette-pixelated .btn.ghost,
+:root.palette-pixelated .btn.danger{border-width:1px;box-shadow:none}
+:root.palette-pixelated .btn:not(.ghost):not(.danger):active{
+  transform:translate(2px,2px);
+  box-shadow:0 0 0 0 var(--px-shadow);
+}
+/* a darker outline than the fill is the pixel button tell */
+:root.palette-pixelated .btn.primary,
+:root.dark.palette-pixelated .btn.primary{
+  border-color:color-mix(in srgb,var(--accent) 68%,var(--ink));
+}
+:root.palette-pixelated .welcome-step-num{border-radius:0;color:var(--surface)}
+
+/* cards and popovers carry the same hard shadow */
+:root.palette-pixelated .card,
+:root.palette-pixelated .agent-card,
+:root.palette-pixelated .palette-card,
+:root.palette-pixelated .widget-card,
+:root.palette-pixelated .plugin-row{box-shadow:2px 2px 0 0 var(--px-shadow)}
+:root.palette-pixelated .card.selected{box-shadow:0 0 0 1px var(--accent),2px 2px 0 0 var(--px-shadow)}
+
+:root.palette-pixelated .dialog,
+:root.palette-pixelated .ctx-menu,
+:root.palette-pixelated .remote-pop,
+:root.palette-pixelated .update-banner{
+  border-width:2px;
+  box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(60,56,53,.12);
+}
+
+/* inputs and small chips get the chunky edge too */
+:root.palette-pixelated .field input,
+:root.palette-pixelated .field select,
+:root.palette-pixelated .field textarea,
+:root.palette-pixelated .search-palette-input,
+:root.palette-pixelated .chatbar textarea,
+:root.palette-pixelated .git-commit textarea,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor,
+:root.palette-pixelated .key-chip{border-width:2px}
+
+/* status pixels and scrollbar thumbs are square */
+:root.palette-pixelated .thinking i,
+:root.palette-pixelated .dock-dot,
+:root.palette-pixelated .nav-item .dot,
+:root.palette-pixelated .agent-status::before{border-radius:1px}
+:root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
+
+/* soft dim under modals */
+:root.palette-pixelated .overlay{background:rgba(60,56,53,.30)}
+:root.dark.palette-pixelated .overlay{background:rgba(0,0,0,.55)}
+
+/* square chrome: inputs, chips, cards, menus, tabs and the round bits
+   (dots, status pips) all drop their radius */
+:root.palette-pixelated .field input,
+:root.palette-pixelated .field select,
+:root.palette-pixelated .field textarea,
+:root.palette-pixelated .search-palette-input,
+:root.palette-pixelated .chatbar textarea,
+:root.palette-pixelated .git-commit textarea,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor,
+:root.palette-pixelated .key-chip,
+:root.palette-pixelated .card,
+:root.palette-pixelated .agent-card,
+:root.palette-pixelated .palette-card,
+:root.palette-pixelated .widget-card,
+:root.palette-pixelated .plugin-row,
+:root.palette-pixelated .ctx-menu,
+:root.palette-pixelated .dialog,
+:root.palette-pixelated .tab,
+:root.palette-pixelated .chip,
+:root.palette-pixelated .palette-select,
+:root.palette-pixelated .git-pill,
+:root.palette-pixelated .seg,
+:root.palette-pixelated .seg button{border-radius:0}
+:root.palette-pixelated .thinking i,
+:root.palette-pixelated .dock-dot,
+:root.palette-pixelated .nav-item .dot,
+:root.palette-pixelated .agent-status::before{border-radius:1px}
+:root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
+
+/* Silkscreen is a small-caps bitmap face: it needs the extra tracking and
+   slightly larger optical size to stay legible, and it must not be asked to
+   synthesize a weight it does not have */
+:root.palette-pixelated .btn,
+:root.palette-pixelated .tab,
+:root.palette-pixelated .nav-item,
+:root.palette-pixelated .palette-name,
+:root.palette-pixelated .settings-section-title,
+:root.palette-pixelated .titlebar{letter-spacing:.02em}
+
+/* faint dot-matrix grid on the large empty chrome surfaces */
+:root.palette-pixelated .sidebar,
+:root.palette-pixelated .titlebar,
+:root.palette-pixelated .right-sidebar,
+:root.palette-pixelated .closed,
+:root.palette-pixelated .welcome-page,
+:root.dark.palette-pixelated .sidebar,
+:root.dark.palette-pixelated .titlebar,
+:root.dark.palette-pixelated .right-sidebar,
+:root.dark.palette-pixelated .closed,
+:root.dark.palette-pixelated .welcome-page{
+  background-image:radial-gradient(var(--px-tex) 1px,transparent 1px);
+  background-size:3px 3px;
+}
 
 /* ---------------- welcome page ---------------- */
 .welcome-page{display:flex;align-items:center;justify-content:center;min-height:100%}

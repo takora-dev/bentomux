@@ -55,6 +55,7 @@ const PALETTE_LABELS: Record<PaletteName, string> = {
   'tokyo-night': 'Tokyo Night',
   'pastel-pixel': 'Pastel Pixel',
   'pi-web': 'Pi Web',
+  pixelated: 'Pixelated',
   custom: 'Custom',
 };
 
@@ -75,6 +76,7 @@ const PALETTE_SWATCH: Record<PaletteName, [string, string, string]> = {
   'tokyo-night': ['#eceef2', '#2e7de9', '#34355a'],
   'pastel-pixel': ['#fdf9f0', '#e5944f', '#5c4a3d'],
   'pi-web': ['#fff9ee', '#6430d8', '#15131b'],
+  pixelated: ['#F8F9FC', '#9AA7D4', '#4C5163'],
   custom: ['#11161d', '#58a6ff', '#e6edf3'],
 };
 
