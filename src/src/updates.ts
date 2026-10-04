@@ -27,7 +27,7 @@ export interface UpdateStatus {
   releaseUrl: string;    // fallback link to GitHub release
 }
 
-const REPO = 'https://github.com/takora-dev/bentomux-v2';
+const REPO = 'https://github.com/takora-dev/bentomux';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 h
 
 export const updateStatus: UpdateStatus = {

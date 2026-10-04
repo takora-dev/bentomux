@@ -1,7 +1,7 @@
 #!/bin/sh
 # Bentomux installer for macOS and Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/takora-dev/bentomux-v2/master/installers/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/takora-dev/bentomux/master/installers/install.sh | sh
 #
 # Reads the release manifest published by CI, downloads the build for this
 # platform, verifies its SHA-256 and installs it:
@@ -13,7 +13,7 @@
 # Env: BENTOMUX_INSTALL_DIR, BENTOMUX_MANIFEST_URL, BENTOMUX_TARGET, BENTOMUX_DRY_RUN
 set -eu
 
-REPO="${BENTOMUX_REPO:-takora-dev/bentomux-v2}"
+REPO="${BENTOMUX_REPO:-takora-dev/bentomux}"
 MANIFEST_URL="${BENTOMUX_MANIFEST_URL:-https://github.com/${REPO}/releases/latest/download/latest.json}"
 INSTALL_DIR="${BENTOMUX_INSTALL_DIR:-$HOME/.local/bin}"
 TARGET="${BENTOMUX_TARGET:-}"

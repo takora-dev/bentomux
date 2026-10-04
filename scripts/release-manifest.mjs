@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { glob } from 'node:fs/promises';
 
-const REPO = 'takora-dev/bentomux-v2';
+const REPO = 'takora-dev/bentomux';
 const SCHEMA_VERSION = 1;
 const PRODUCT = 'Bentomux';
 const DESCRIPTION = 'Calm desktop for AI agent runtime workspaces';
@@ -174,7 +174,7 @@ function selftest() {
   ]);
   assert.equal(
     manifest.assets['linux-x86_64'].url,
-    'https://github.com/takora-dev/bentomux-v2/releases/download/v0.1.0/Bentomux_0.1.0_amd64.AppImage',
+    'https://github.com/takora-dev/bentomux/releases/download/v0.1.0/Bentomux_0.1.0_amd64.AppImage',
   );
 
   /* install.sh must recover every asset from the emitted JSON alone. */

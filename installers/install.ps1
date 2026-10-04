@@ -11,7 +11,7 @@
     Run it directly, or through the bootstrap that survives environments where
     `irm | iex` is blocked:
 
-        powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/takora-dev/bentomux-v2/master/installers/install.ps1 | iex"
+        powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/takora-dev/bentomux/master/installers/install.ps1 | iex"
 
 .PARAMETER ManifestUrl
     Release manifest to read. Defaults to the newest GitHub release. A non-HTTPS
@@ -46,7 +46,7 @@ function Fail([string]$Message) {
     exit 1
 }
 
-$Repo = if ($env:BENTOMUX_REPO) { $env:BENTOMUX_REPO } else { 'takora-dev/bentomux-v2' }
+$Repo = if ($env:BENTOMUX_REPO) { $env:BENTOMUX_REPO } else { 'takora-dev/bentomux' }
 if (-not $ManifestUrl) {
     $ManifestUrl = "https://github.com/$Repo/releases/latest/download/latest.json"
 }

@@ -27,7 +27,7 @@ function New-Manifest([string]$Name) {
         --checksums (Join-Path $temp 'checksums.sha256') --out $manifest | Out-Null
     if ($LASTEXITCODE -ne 0) { Fail 'the fixture manifest could not be generated' }
     $dirUri = ([Uri]("$temp" + [IO.Path]::DirectorySeparatorChar)).AbsoluteUri
-    $json = (Get-Content $manifest -Raw).Replace('https://github.com/takora-dev/bentomux-v2/releases/download/v0.1.0/', $dirUri)
+    $json = (Get-Content $manifest -Raw).Replace('https://github.com/takora-dev/bentomux/releases/download/v0.1.0/', $dirUri)
     Set-Content -Path $manifest -Value $json -Encoding utf8
     return $manifest
 }

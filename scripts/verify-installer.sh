@@ -38,7 +38,7 @@ node -e '
 const { readFileSync, writeFileSync } = require("node:fs");
 const [file, from, to] = process.argv.slice(1);
 writeFileSync(file, readFileSync(file, "utf8").replaceAll(from, to));
-' "$tmp/serve/latest.json" "https://github.com/takora-dev/bentomux-v2/releases/download/v0.1.0/" "file://$tmp/serve/"
+' "$tmp/serve/latest.json" "https://github.com/takora-dev/bentomux/releases/download/v0.1.0/" "file://$tmp/serve/"
 
 base="file://$tmp/serve"
 install_env="BENTOMUX_MANIFEST_URL=$base/latest.json BENTOMUX_TARGET=linux-x86_64 BENTOMUX_INSTALL_DIR=$tmp/home/.local/bin"
