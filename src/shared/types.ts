@@ -17,6 +17,7 @@ import type {
   PluginManifest,
   PluginRecord,
   ValidationReport,
+  MarketplaceCatalog,
 } from '../src/plugin/types';
 export type {
   PluginIcon,
@@ -29,6 +30,8 @@ export type {
   PluginRecord,
   ValidationIssue,
   ValidationReport,
+  MarketplacePlugin,
+  MarketplaceCatalog,
 } from '../src/plugin/types';
 export { ALL_PERMISSIONS, CONTRIBUTION_KINDS, BACKEND_ALLOWLIST } from '../src/plugin/types';
 
@@ -602,6 +605,20 @@ export interface BentomuxApi {
   pluginInstallFolder(path: string): Promise<PluginRecord>;
   pluginInstallZip(path: string): Promise<PluginRecord>;
   pluginInstallUrl(url: string, sha256: string): Promise<PluginRecord>;
+  /** Fetch the marketplace catalog from GitHub (docs/PLUGIN_MARKETPLACE.md).
+      `force` skips the on-disk cache and re-sweeps. */
+  pluginMarketplaceIndex(force?: boolean): Promise<MarketplaceCatalog>;
+  /** Download a release asset to a temp file and return its path, so the
+      normal validate → review → install flow can run over it. */
+  pluginFetchUrl(url: string, sha256: string): Promise<string>;
+  /** The plugin's README at its release tag, as plain text. */
+  pluginMarketplaceReadme(repo: string, gitRef: string): Promise<string>;
+  /** Install a plugin picked from the marketplace, recording its GitHub repo
+      so later releases can be matched to it. */
+  pluginMarketplaceInstall(path: string, repo: string, url: string): Promise<PluginRecord>;
+  /** Update to the marketplace's latest release. Refuses a version that is not
+      strictly newer, so the rollback target survives. */
+  pluginMarketplaceUpdate(path: string, sha256: string, repo: string, url: string): Promise<PluginRecord>;
   pluginSetEnabled(id: string, enabled: boolean): Promise<AppState>;
   pluginUpdate(path: string): Promise<PluginRecord>;
   pluginRollback(id: string): Promise<PluginRecord>;

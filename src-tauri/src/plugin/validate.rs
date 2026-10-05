@@ -136,6 +136,48 @@ enum ManifestRead {
     Unreadable(Vec<Issue>),
 }
 
+/**
+ * Validate a plugin folder *or* a packaged `.zip`.
+ *
+ * `validate_dir_with` only understands directories, so handing it a zip always
+ * came back `manifest-missing` — an archive that installs perfectly well
+ * reported as having no plugin in it. That is the worst kind of disagreement:
+ * the review screen refuses exactly the thing the installer would accept.
+ *
+ * A zip is unpacked to a throwaway directory, validated there, and deleted.
+ * The caller never sees it and nothing is installed.
+ */
+pub fn validate_path_with(path: &Path, opts: &ValidateOptions) -> ValidationReport {
+    if path.is_dir() {
+        return validate_dir_with(path, opts);
+    }
+
+    let Ok(staging) = crate::plugin::registry::unpack_to(&crate::plugin::registry::PluginPaths::new(
+        &std::env::temp_dir().join("bentomux-validate"),
+    ), path) else {
+        /* not a directory and not a readable archive: report it as the
+           packaging failure it is, rather than as a missing manifest */
+        let mut report = ValidationReport::empty();
+        report.errors.push(Issue::new(
+            codes::MANIFEST_UNREADABLE,
+            format!(
+                "{} is neither a plugin folder nor a readable plugin package (.zip)",
+                path.display()
+            ),
+        ));
+        return report.finish();
+    };
+
+    let report = validate_dir_with(&staging, opts);
+    let _ = std::fs::remove_dir_all(&staging);
+    report
+}
+
+/// Validate a plugin folder or package. Convenience over the default options.
+pub fn validate_path(path: &Path) -> ValidationReport {
+    validate_path_with(path, &ValidateOptions::default())
+}
+
 pub fn validate_dir_with(root: &Path, opts: &ValidateOptions) -> ValidationReport {
     let mut report = ValidationReport::empty();
 
@@ -909,6 +951,156 @@ mod tests {
             r.warnings
         );
         assert_eq!(r.manifest.unwrap().id, "acme.habit-tracker");
+    }
+
+    #[test]
+    fn a_packaged_zip_validates_instead_of_reporting_a_missing_manifest() {
+        /* the bug this covers: Studio's review step handed the validator a zip
+           path, `validate_dir_with` looked for plugin.json inside the .zip, and
+           every packaged plugin came back `manifest-missing` */
+        let root = std::env::temp_dir().join(format!("bentomux-vz-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+
+        let archive = root.join("acme.t-1.0.0.zip");
+        let file = std::fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        w.start_file("plugin.json", opts).unwrap();
+        std::io::Write::write_all(
+            &mut w,
+            br#"{"id":"acme.t","name":"T","version":"1.0.0","apiVersion":1,
+                "entry":"index.js","contributes":{"commands":[{"id":"acme.t.go","title":"Go"}]}}"#,
+        )
+        .unwrap();
+        w.start_file("index.js", opts).unwrap();
+        std::io::Write::write_all(&mut w, b"export function activate() {}").unwrap();
+        w.finish().unwrap();
+
+        let report = validate_path(&archive);
+        assert!(report.ok, "zip reported: {:?}", report.errors);
+        assert_eq!(report.manifest.as_ref().unwrap().id, "acme.t");
+
+        /* and the folder form still works — the two shapes must not diverge */
+        let folder = root.join("folder");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("plugin.json"), std::fs::read_dir(&root)
+            .map(|_| r#"{"id":"acme.t","name":"T","version":"1.0.0","apiVersion":1,"entry":"index.js"}"#).unwrap_or("")).unwrap();
+        std::fs::write(folder.join("index.js"), "export function activate() {}").unwrap();
+        assert!(validate_path(&folder).ok);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_zip_with_no_manifest_reports_a_missing_manifest_not_a_crash() {
+        let root = std::env::temp_dir().join(format!("bentomux-vz-bad-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let archive = root.join("empty.zip");
+        let file = std::fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        w.start_file("notes.txt", opts).unwrap();
+        std::io::Write::write_all(&mut w, b"no plugin in here").unwrap();
+        w.finish().unwrap();
+
+        let report = validate_path(&archive);
+        assert!(!report.ok);
+        assert_eq!(report.errors[0].code, codes::MANIFEST_MISSING);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn something_that_is_neither_a_folder_nor_a_zip_says_so() {
+        let root = std::env::temp_dir().join(format!("bentomux-vz-junk-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let junk = root.join("plugin.zip");
+        std::fs::write(&junk, b"this is not a zip file").unwrap();
+
+        let report = validate_path(&junk);
+        assert!(!report.ok);
+        /* the packaging failure is named, instead of blaming the manifest */
+        assert!(
+            report.errors[0].message.contains("plugin folder nor a readable"),
+            "{:?}",
+            report.errors[0]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_deflate_bomb_is_refused_before_a_byte_is_written() {
+        /* 6 MB of zeros through deflate is a ~6 KB file that DECLARES 6 MB
+           uncompressed, over the 5 MB cap. This is the real attack, and the
+           point of checking the declared total is that the cheap file never
+           gets expanded at all. */
+        let root = std::env::temp_dir().join(format!("bentomux-vz-bomb-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let archive = root.join("bomb.zip");
+        let file = std::fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        w.start_file("huge.bin", opts).unwrap();
+        std::io::Write::write_all(&mut w, &vec![0u8; 6 * 1024 * 1024]).unwrap();
+        w.finish().unwrap();
+
+        let on_disk = std::fs::metadata(&archive).unwrap().len();
+        assert!(on_disk < 100_000, "the bomb file itself should be tiny, was {}", on_disk);
+
+        let paths = super::super::registry::PluginPaths::new(&root.join("code"));
+        std::fs::create_dir_all(&paths.code_root).unwrap();
+        let err = super::super::registry::unpack_to(&paths, &archive).unwrap_err();
+        assert!(err.to_string().contains("cap"), "{}", err);
+
+        /* nothing was extracted: no staging directory survives a refusal */
+        let leftovers: Vec<_> = std::fs::read_dir(&paths.code_root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with(".unpack-"))
+            .collect();
+        assert!(leftovers.is_empty(), "a refused archive left a staging dir");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_failed_validation_leaves_no_staging_directory_behind() {
+        /* the other half of the same fix: an archive that unpacks but fails
+           validation used to leave a .unpack-* folder in the code root that
+           nothing ever cleaned up */
+        let root = std::env::temp_dir().join(format!("bentomux-vz-leak-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let archive = root.join("bad.zip");
+        let file = std::fs::File::create(&archive).unwrap();
+        let mut w = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        /* a reserved publisher is refused for third-party installs */
+        w.start_file("plugin.json", opts).unwrap();
+        std::io::Write::write_all(
+            &mut w,
+            br#"{"id":"bentomux.sneaky","name":"S","version":"1.0.0","apiVersion":1,"entry":"index.js"}"#,
+        )
+        .unwrap();
+        w.start_file("index.js", opts).unwrap();
+        std::io::Write::write_all(&mut w, b"export function activate() {}").unwrap();
+        w.finish().unwrap();
+
+        let paths = super::super::registry::PluginPaths::new(&root.join("code"));
+        std::fs::create_dir_all(&paths.code_root).unwrap();
+        assert!(super::super::registry::install_from_zip(&paths, &archive).is_err());
+
+        let leftovers: Vec<_> = std::fs::read_dir(&paths.code_root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with(".unpack-"))
+            .collect();
+        assert!(leftovers.is_empty(), "left behind: {:?}", leftovers);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

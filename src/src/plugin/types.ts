@@ -151,6 +151,52 @@ export interface PluginRecord {
   installedAt: number;
 }
 
+/* ---------------- marketplace catalog ----------------
+   Mirror of src-tauri/src/plugin/marketplace.rs. Spec:
+   docs/PLUGIN_MARKETPLACE.md.
+
+   Fields here come from GitHub's repo metadata and latest release, not from
+   the plugin's manifest — they are for the browsing list. The real manifest
+   arrives with the downloaded archive and is what the install review reads,
+   so a catalog row can misdescribe a plugin but cannot grant it permissions. */
+
+export interface MarketplacePlugin {
+  /** `owner/name` on GitHub. */
+  repo: string;
+  name: string;
+  description?: string;
+  stars: number;
+  /** GitHub's download count for the release asset, not Bentomux installs. */
+  downloads: number;
+  /** Release tag. */
+  version: string;
+  publishedAt?: string;
+  htmlUrl: string;
+  assetName: string;
+  downloadUrl: string;
+  /** sha256 of the asset bytes, as GitHub computed it at upload. */
+  sha256: string;
+  size: number;
+  installable: boolean;
+  /** Why it is not installable, or an empty string. */
+  note: string;
+  /** A plugin from this repo is installed. Computed by the backend. */
+  installed: boolean;
+  /** Its installed manifest version; empty when not installed. */
+  installedVersion: string;
+  /** The release is strictly newer than what is installed. */
+  updateAvailable: boolean;
+}
+
+export interface MarketplaceCatalog {
+  /** Epoch millis of the sweep that produced this list. */
+  fetchedAt: number;
+  /** True when a refresh failed and this is the saved copy. */
+  stale: boolean;
+  staleReason: string;
+  plugins: MarketplacePlugin[];
+}
+
 /* ---------------- validation report ---------------- */
 
 export interface ValidationIssue {

@@ -16,6 +16,7 @@
 
 import { h } from '../dom';
 import api from '../../preload/bentomux';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { openModal } from '../components/modal';
 import {
   pluginStatuses,
@@ -30,9 +31,13 @@ import { restartApp } from '../updates';
 import type {
   PluginManifest,
   PluginPermission,
+  PluginRecord,
   ValidationReport,
+  MarketplacePlugin,
+  MarketplaceCatalog,
 } from '../plugin/types';
 import { CONTRIBUTION_KINDS } from '../plugin/types';
+import { filterPlugins, paginate } from '../../shared/marketplace';
 
 /* ---------------- section entry point ---------------- */
 
@@ -88,19 +93,18 @@ function studioHeader(rerender: () => void): HTMLElement {
     h('button', {
       class: 'btn',
       type: 'button',
+      title: 'Browse plugins published to the Bentomux catalog',
+      onclick: () => void marketplaceFlow(rerender),
+    }, 'Browse marketplace…'),
+    h('button', {
+      class: 'btn',
+      type: 'button',
       title: 'Install the bentomux-plugin-author skill into your agent so it can write plugins for you',
       onclick: () => void installSkillFlow(),
     }, 'Install authoring skill…'),
   );
 }
 
-/**
- * Copy the authoring skill into an agent's skills directory.
- *
- * This is the half of the platform the app cannot do itself: the app
- * scaffolds, validates, and packages; the intelligence is the user's
- * agent. Handing it the skill is what closes that loop.
- */
 async function installSkillFlow(): Promise<void> {
   let targets: Awaited<ReturnType<typeof api.pluginSkillTargets>>;
   try {
@@ -202,8 +206,11 @@ function chooseSource(): Promise<'folder' | 'zip' | null> {
  */
 async function reviewAndInstall(
   path: string,
-  kind: 'folder' | 'zip',
+  kind: 'folder' | 'zip' | 'marketplace',
   rerender: () => void,
+  /** Provenance for `marketplace`: the GitHub repo the install came from.
+      Omitted for the hand-picked sources, which have none. */
+  source?: { repo: string; url: string },
 ): Promise<void> {
   let report: ValidationReport;
   try {
@@ -229,9 +236,17 @@ async function reviewAndInstall(
 
   const knownBefore = new Set(pluginStatuses().map(p => p.id));
   try {
-    const record = kind === 'folder'
-      ? await api.pluginInstallFolder(path)
-      : await api.pluginInstallZip(path);
+    let record: PluginRecord;
+    if (kind === 'folder') {
+      record = await api.pluginInstallFolder(path);
+    } else if (kind === 'zip') {
+      record = await api.pluginInstallZip(path);
+    } else {
+      /* the marketplace command exists only to record the repo, which is what
+         makes later releases matchable to this install */
+      if (!source) throw new Error('a marketplace install needs its repo');
+      record = await api.pluginMarketplaceInstall(path, source.repo, source.url);
+    }
     await reloadPlugin(record.id);
     rerender();
     /* a plugin the host already knows reloads in place; a brand-new one only
@@ -240,6 +255,413 @@ async function reviewAndInstall(
   } catch (e) {
     showError('Install failed', readableError(e));
   }
+}
+
+/* ---------------- marketplace ---------------- */
+
+/**
+ * Browse the marketplace.
+ *
+ * GitHub is the catalog: every repo tagged `bentomux-plugin` shows up, sorted
+ * by stars, and installing takes its release asset. There is no server and no
+ * submission step — push a repo with the topic and a release with a `.zip`, and
+ * the plugin is listed.
+ *
+ * A modal rather than a Studio tab, because this is a browsing surface with
+ * nothing to do until the user picks something — the same reason the existing
+ * install flow opens modals instead of swapping views.
+ *
+ * Installing from here runs the ordinary flow unchanged: download to a temp
+ * file with the published digest checked, then `reviewAndInstall` over that
+ * path. Validation, the permissions/contributions review, and the restart
+ * notice are the same code the folder and zip paths already use, so a
+ * marketplace install gets no shortcut and no extra trust.
+ */
+async function marketplaceFlow(rerender: () => void): Promise<void> {
+  const body = h('div', { class: 'plugin-market' }, loadingRow());
+
+  const modal = openModal({
+    title: 'Plugin marketplace',
+    size: 'wide',
+    body,
+    footer: h('div', { class: 'plugin-review-foot' },
+      h('button', { class: 'btn', type: 'button', onclick: () => modal.close() }, 'Close'),
+    ),
+  });
+  const close = (): void => modal.close();
+
+  await loadCatalog(body, rerender, close);
+}
+
+/**
+ * Fetch the catalog and paint it, optionally forcing a fresh sweep.
+ *
+ * The response is re-read after every install and update, because the backend
+ * joins it against the app's own registry — so a plugin that just landed shows
+ * as installed without this side guessing anything from the repo name.
+ */
+async function loadCatalog(
+  body: HTMLElement,
+  rerender: () => void,
+  close: () => void,
+  force = false,
+): Promise<void> {
+  replaceBody(body, loadingRow());
+  try {
+    const catalog = await api.pluginMarketplaceIndex(force);
+    renderCatalog(body, catalog, rerender, close, () => loadCatalog(body, rerender, close, true));
+  } catch (e) {
+    replaceBody(body, h('p', { class: 'plugin-empty' }, readableError(e)));
+  }
+}
+
+/**
+ * Paint the catalog.
+ *
+ * The toolbar is built once and never replaced; only the list and the pager
+ * are repainted. That split exists for the search field: replacing the input
+ * node on every keystroke drops focus and eats the second half of the word.
+ *
+ * Filtering and slicing live in `shared/marketplace` because the clamping and
+ * boundary cases are easy to get wrong and easy to test there.
+ */
+function renderCatalog(
+  body: HTMLElement,
+  catalog: MarketplaceCatalog,
+  rerender: () => void,
+  close: () => void,
+  reload: () => Promise<void>,
+): void {
+  const state = { query: '', page: 0 };
+  const list = h('div', { class: 'plugin-market-list' });
+  const pager = h('div', { class: 'plugin-market-pager' });
+
+  const paint = (): void => {
+    const found = filterPlugins(catalog.plugins, state.query);
+    const view = paginate(found, state.page);
+    state.page = view.page;
+
+    const rows: (HTMLElement | null)[] = [];
+    if (!view.total) {
+      const q = state.query.trim();
+      rows.push(h('p', { class: 'plugin-empty' },
+        q
+          ? `Nothing matches “${q}”.`
+          : 'No plugins published yet. Add the topic "bentomux-plugin" to your ' +
+            'repo and publish a release with a .zip asset.'));
+      if (q) {
+        rows.push(h('button', {
+          class: 'btn',
+          type: 'button',
+          onclick: () => { state.query = ''; state.page = 0; field.value = ''; paint(); },
+        }, 'Clear search'));
+      }
+    } else {
+      for (const plugin of view.items) rows.push(marketplaceRow(plugin, rerender, close));
+    }
+    replaceBody(list, rows);
+
+    replaceBody(pager, view.pages > 1
+      ? [
+          h('button', {
+            class: 'btn',
+            type: 'button',
+            disabled: view.page === 0,
+            onclick: () => { state.page -= 1; paint(); },
+          }, '‹ Previous'),
+          h('span', { class: 'plugin-market-page' },
+            `Page ${view.page + 1} of ${view.pages}`),
+          h('button', {
+            class: 'btn',
+            type: 'button',
+            disabled: view.page >= view.pages - 1,
+            onclick: () => { state.page += 1; paint(); },
+          }, 'Next ›'),
+        ]
+      : []);
+  };
+
+  const field = h('input', {
+    class: 'plugin-market-search',
+    type: 'search',
+    placeholder: 'Search plugins',
+    'aria-label': 'Search plugins',
+    oninput: (e: Event) => {
+      state.query = (e.target as HTMLInputElement).value;
+      state.page = 0;
+      paint();
+    },
+  }) as HTMLInputElement;
+
+  paint();
+  replaceBody(body, [
+    catalogLine(catalog, reload),
+    h('div', { class: 'plugin-market-bar' },
+      h('label', { class: 'plugin-market-search-wrap' },
+        h('span', { class: 'plugin-market-search-icon', 'aria-hidden': 'true' }, '⌕'),
+        field,
+      ),
+      h('span', { class: 'plugin-market-count' },
+        `${catalog.plugins.length} in catalog`),
+    ),
+    list,
+    pager,
+  ]);
+}
+
+/**
+ * The freshness line and the refresh control.
+ *
+ * A stale catalog says so and says why. Showing six-hour-old stars as if they
+ * were live would be a small lie, and it is exactly the lie that makes a user
+ * distrust a "Downloads: 12" figure.
+ *
+ * Refresh is disabled while it runs, and that is not polish. One forced sweep
+ * costs one search plus one release call per repo — up to 31 of GitHub's 60
+ * unauthenticated requests an hour. A double-click would spend half the day's
+ * budget and leave the marketplace stale for the next six hours.
+ */
+function catalogLine(catalog: MarketplaceCatalog, reload: () => Promise<void>): HTMLElement {
+  const when = catalog.fetchedAt
+    ? new Date(catalog.fetchedAt).toLocaleString()
+    : 'never';
+
+  const button = h('button', {
+    class: 'btn plugin-market-refresh',
+    type: 'button',
+    title: 'Re-check GitHub now',
+  }, '↻ Refresh') as HTMLButtonElement;
+
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    button.textContent = '↻ Refreshing…';
+    void reload();
+  });
+
+  return h('div', { class: 'plugin-market-line' },
+    h('span', { class: 'plugin-market-when' }, `Updated ${when}`),
+    catalog.stale
+      ? h('span', { class: 'plugin-badge', title: catalog.staleReason },
+          catalog.staleReason ? 'saved copy — ' + firstLine(catalog.staleReason) : 'saved copy')
+      : null,
+    button,
+  );
+}
+
+function marketplaceRow(
+  plugin: MarketplacePlugin,
+  rerender: () => void,
+  close: () => void,
+): HTMLElement {
+  /** Download and verify, so the review screen runs over real bytes. */
+  const download = async (): Promise<string | null> => {
+    try {
+      return await api.pluginFetchUrl(plugin.downloadUrl, plugin.sha256);
+    } catch (e) {
+      showError('Download failed', readableError(e));
+      return null;
+    }
+  };
+
+  /**
+   * A first install goes through the ordinary review screen. An update does
+   * too: new code can ask for permissions the old code did not, and the user
+   * should see that before it runs, not after.
+   */
+  const install = async (): Promise<void> => {
+    close();
+    const path = await download();
+    if (!path) return;
+    /* 'zip': the temp file is a zip, and going through reviewAndInstall is
+       the point — the review screen is what makes a remote install
+       trustworthy. `source` is what records the repo. */
+    await reviewAndInstall(path, 'marketplace', rerender, {
+      repo: plugin.repo,
+      url: plugin.downloadUrl,
+    });
+  };
+
+  const update = async (): Promise<void> => {
+    close();
+    const path = await download();
+    if (!path) return;
+
+    let manifest: PluginManifest;
+    let report: ValidationReport;
+    try {
+      report = await api.pluginValidate(path, false);
+      if (!report.ok || !report.manifest) {
+        showValidationReport(report);
+        return;
+      }
+      manifest = report.manifest;
+    } catch (e) {
+      showError('Could not read that release', String(e));
+      return;
+    }
+
+    if (!await confirmInstall(manifest, report, 'Update')) return;
+
+    try {
+      const record = await api.pluginMarketplaceUpdate(
+        path, plugin.sha256, plugin.repo, plugin.downloadUrl,
+      );
+      await reloadPlugin(record.id);
+      rerender();
+      /* Update keeps the previous version as the rollback target, so the row
+         now offers a way back that the plugin did not have before. */
+      showUpdated(manifest.name, record.previousVersion ?? null);
+    } catch (e) {
+      showError('Update failed', readableError(e));
+    }
+  };
+
+  const label = plugin.updateAvailable
+    ? `Update to ${plugin.version}`
+    : plugin.installed ? 'Reinstall' : 'Install';
+
+  return h('div', { class: 'plugin-row' },
+    h('div', { class: 'plugin-row-head' },
+      h('span', { class: 'plugin-name' }, plugin.name),
+      plugin.version ? h('span', { class: 'plugin-version' }, plugin.version) : null,
+      plugin.installed
+        ? h('span', { class: 'plugin-badge' }, 'v' + plugin.installedVersion + ' installed')
+        : null,
+      plugin.updateAvailable
+        ? h('span', { class: 'plugin-status status-active' }, 'update available')
+        : null,
+    ),
+    plugin.description ? h('p', { class: 'plugin-review-desc' }, plugin.description) : null,
+    h('div', { class: 'plugin-market-stats' },
+      h('span', { title: 'GitHub stars' }, `★ ${plugin.stars.toLocaleString()}`),
+      h('span', { title: 'GitHub downloads of the release asset' },
+        `↓ ${plugin.downloads.toLocaleString()}`),
+      h('span', { class: 'plugin-row-id' }, plugin.repo),
+    ),
+    plugin.installable
+      ? null
+      : h('p', { class: 'plugin-market-note' }, plugin.note),
+    h('div', { class: 'plugin-row-actions' },
+      h('button', {
+        class: 'btn primary',
+        type: 'button',
+        disabled: !plugin.installable,
+        onclick: () => void (plugin.updateAvailable ? update() : install()),
+      }, label),
+      h('button', {
+        class: 'btn',
+        type: 'button',
+        onclick: () => showPluginDetails(plugin),
+      }, 'Details & README'),
+      h('button', {
+        class: 'btn',
+        type: 'button',
+        title: 'Open the repository on GitHub',
+        onclick: () => void openUrl(plugin.htmlUrl).catch((e: unknown) => {
+          showError('Could not open GitHub', readableError(e));
+        }),
+      }, 'GitHub'),
+    ),
+  );
+}
+
+/**
+ * Say the plugin updated, and name the way back.
+ *
+ * `commit_update` keeps exactly one previous version on disk, so this is the
+ * only moment the user is told the escape hatch exists. After a third version
+ * arrives the older directory is garbage-collected, and the Roll back button in
+ * the plugin list becomes the only route.
+ */
+function showUpdated(pluginName: string, previousVersion: string | null): void {
+  openModal({
+    title: 'Updated ' + pluginName,
+    body: h('div', { class: 'plugin-review' },
+      h('p', {},
+        pluginName + ' is updated and reloaded. Any open tab it owns was torn ' +
+        'down and rebuilt by the reload.'),
+      previousVersion
+        ? h('p', { class: 'plugin-review-note' },
+            `v${previousVersion} is kept on disk as your rollback target. Roll back from the ` +
+            'plugin list in Settings → Plugins if the new version misbehaves.')
+        : h('p', { class: 'plugin-review-note' }, 'No earlier version was on disk to roll back to.'),
+    ),
+  });
+}
+
+/* ---------------- plugin details ---------------- */
+
+/**
+ * The details view: what GitHub reports, plus the plugin's README.
+ *
+ * The README is fetched here rather than during the sweep — one README per
+ * plugin would double the GitHub request count for text nobody opened yet. It
+ * is shown as plain text in a scrollable block, not rendered: `dom.ts`
+ * reserves `innerHTML` for compile-time constants and forbids file content, so
+ * rendering a third-party README to HTML would mean writing an HTML sanitizer
+ * to make it safe. Plain text is the whole fix.
+ */
+async function showPluginDetails(plugin: MarketplacePlugin): Promise<void> {
+  /* The catalog list stays open behind this one: a README is a peek, and
+     closing the list to read it then making the user reopen it would be
+     worse than two stacked overlays. openModal appends, so the details
+     dialog sits on top and its own close() is safe to call twice. */
+  const readmeBlock = h('pre', { class: 'plugin-readme' }, 'Loading README…');
+  const modal = openModal({
+    title: plugin.name,
+    body: h('div', { class: 'plugin-review' },
+      h('div', { class: 'plugin-review-id' }, plugin.repo + (plugin.version ? ' · ' + plugin.version : '')),
+      plugin.description ? h('p', { class: 'plugin-review-desc' }, plugin.description) : null,
+      h('div', { class: 'plugin-review-block' },
+        h('div', { class: 'plugin-review-label' }, 'GitHub'),
+        h('p', { class: 'plugin-review-none' },
+          `★ ${plugin.stars.toLocaleString()} stars · ` +
+          `↓ ${plugin.downloads.toLocaleString()} downloads of ${plugin.assetName || 'the asset'}`),
+      ),
+      plugin.installable
+        ? h('div', { class: 'plugin-review-block' },
+            h('div', { class: 'plugin-review-label' }, 'sha256'),
+            h('div', { class: 'plugin-review-id' }, plugin.sha256),
+          )
+        : h('p', { class: 'plugin-market-note' }, plugin.note),
+      h('div', { class: 'plugin-review-block' },
+        h('div', { class: 'plugin-review-label' }, 'README'),
+        readmeBlock,
+      ),
+      h('p', { class: 'plugin-review-note' },
+        'Permissions and contributions are read from the plugin’s own manifest when you ' +
+        'install, not from this page — the review screen shows them before anything runs.'),
+    ),
+    footer: h('div', { class: 'plugin-review-foot' },
+      h('button', { class: 'btn', type: 'button', onclick: () => modal.close() }, 'Close'),
+    ),
+  });
+
+  try {
+    const text = await api.pluginMarketplaceReadme(plugin.repo, plugin.version);
+    readmeBlock.textContent = text.trim() || '(this repo has no README.md)';
+  } catch (e) {
+    readmeBlock.textContent = 'Could not load the README: ' + readableError(e);
+  }
+}
+
+/* ---------------- small helpers ---------------- */
+
+function loadingRow(): HTMLElement {
+  return h('p', { class: 'plugin-empty' }, 'Loading plugins from GitHub…');
+}
+
+function replaceBody(body: HTMLElement, kids: HTMLElement | (HTMLElement | null)[]): void {
+  body.replaceChildren(...(Array.isArray(kids) ? kids : [kids]).filter(
+    (k): k is HTMLElement => k !== null,
+  ));
+}
+
+/** First line of a Rust error string, trimmed of the `{"code":…}` wrapper. */
+function firstLine(s: string): string {
+  const text = s.replace(/\{"code":"[^"]*","message":"/, '').replace(/"\}\s*$/, '');
+  const cut = text.indexOf('. ');
+  return (cut > 0 ? text.slice(0, cut + 1) : text).slice(0, 90);
 }
 
 /* ---------------- restart notice ---------------- */
@@ -284,7 +706,11 @@ export function showRestartNotice(pluginName: string): void {
   });
 }
 
-function confirmInstall(manifest: PluginManifest, report: ValidationReport): Promise<boolean> {
+function confirmInstall(
+  manifest: PluginManifest,
+  report: ValidationReport,
+  verb = 'Install',
+): Promise<boolean> {
   return new Promise(resolve => {
     let settled = false;
     const finish = (v: boolean): void => {
@@ -295,7 +721,7 @@ function confirmInstall(manifest: PluginManifest, report: ValidationReport): Pro
     };
 
     const modal = openModal({
-      title: 'Install ' + manifest.name + '?',
+      title: verb + ' ' + manifest.name + '?',
       body: h('div', { class: 'plugin-review' },
         h('div', { class: 'plugin-review-id' }, manifest.id + ' · v' + manifest.version),
         manifest.description ? h('p', { class: 'plugin-review-desc' }, manifest.description) : null,
@@ -306,7 +732,7 @@ function confirmInstall(manifest: PluginManifest, report: ValidationReport): Pro
       ),
       footer: h('div', { class: 'plugin-review-foot' },
         h('button', { class: 'btn', type: 'button', onclick: () => finish(false) }, 'Cancel'),
-        h('button', { class: 'btn primary', type: 'button', onclick: () => finish(true) }, 'Install'),
+        h('button', { class: 'btn primary', type: 'button', onclick: () => finish(true) }, verb),
       ),
       onClose: () => finish(false),
     });

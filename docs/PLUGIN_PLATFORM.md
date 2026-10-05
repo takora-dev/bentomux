@@ -2,7 +2,7 @@
 
 Governing spec for the "everything is a plugin" workstream. It supersedes the Non-Goals clause of `MIGRATION_TO_TAURI.md` for this workstream only (see `docs/adr/0002-parity-rule-amended.md`). Vocabulary is fixed in `CONTEXT.md` — read that first; the terms **Plugin**, **Contribution**, **Plugin Context**, and **Plugin Skill** have specific meanings here.
 
-**Status:** designed, not built. Execution order lives in `.zcode/plans/plan-plugin-platform.md`.
+**Status:** built. Execution order lives in `.zcode/plans/plan-plugin-platform.md`. v1 shipped; the marketplace is v2 and is specified in `docs/PLUGIN_MARKETPLACE.md`.
 
 ---
 
@@ -10,7 +10,7 @@ Governing spec for the "everything is a plugin" workstream. It supersedes the No
 
 **v1 delivers:** import and install from a folder or an HTTPS URL; enable, disable, update, roll back, uninstall; seven templates plus the Creator wizard; a static Validator with a CLI and an in-app surface; the `bentomux-plugin-author` Plugin Skill; a `--safe-mode` escape hatch.
 
-**v1 does not deliver:** backend (Rust) contributions from plugins, a hosted registry, process isolation, theme/palette contributions, right-panel panels, or plugin-declared keyboard shortcuts. See §14.
+**v1 does not deliver:** backend (Rust) contributions from plugins, a hosted registry, process isolation, theme/palette contributions, right-panel panels, or plugin-declared keyboard shortcuts. See §14. *(The registry landed as v2 in `PLUGIN_MARKETPLACE.md`: GitHub is the catalog — a repo with the `bentomux-plugin` topic and a release with a `.zip` asset. No server is operated. Installing and updating from it both work.)*
 
 ---
 
@@ -245,7 +245,9 @@ A plugin that reaches an outside website declares it in `plugin.json` under `net
 
 ## 11. Validation
 
-The Validator is implemented once in Rust with two surfaces: an IPC command for the app, and `bentomux --plugin-validate <dir> [--json]` using the same self-exec pattern as the pty host, so an agent can run it from a terminal without opening the app. Exit codes: `0` ok, `1` errors found, `2` usage.
+The Validator is implemented once in Rust with two surfaces: an IPC command for the app, and `bentomux --plugin-validate <dir-or-zip> [--json]` using the same self-exec pattern as the pty host, so an agent can run it from a terminal without opening the app. Exit codes: `0` ok, `1` errors found, `2` usage.
+
+**It accepts a folder or a packaged `.zip`.** Plugin Studio's review step runs before install, and a release asset or a hand-picked package is an archive, so a directory-only validator would report every packaged plugin as having no manifest — refusing exactly what the installer accepts. A zip is unpacked to a throwaway directory, validated there, and deleted; nothing is installed and no staging directory survives, including on failure.
 
 **Static checks — no code is executed:**
 
@@ -315,7 +317,7 @@ Templates live at `resources/plugin-templates/<name>/` and ship as bundle resour
 ## 14. Non-goals for v1
 
 - **Backend contributions.** No Rust from plugins; the sidecar pattern (a child process speaking a JSON-line protocol, as `pty_host` does) is the deferred escape hatch for work that must outlive the window or run in another language.
-- **A hosted registry.** Install-from-URL with a pinned sha256 covers distribution. A static `plugins.json` in a release asset is a credible v2 registry with no server to run.
+- **A hosted registry.** Install-from-URL with a pinned sha256 covers distribution. A static `plugins.json` in a release asset is a credible v2 registry with no server to run. *(Superseded: v2 shipped as a GitHub topic search in `PLUGIN_MARKETPLACE.md`, which needs no catalog file either. GitHub publishes a sha256 `digest` per release asset, which is the digest the installer enforces.)*
 - **Isolation.** See ADR-0001's "What we gave up".
 - **Theme and palette contributions.** `PALETTES` is a build-time enum; making it dynamic is a separate design.
 - **Right-panel panels.** The Git panel slot stays hardcoded; widgets live on the welcome page instead.

@@ -73,12 +73,15 @@ pub fn run_validate(args: &[String]) -> i32 {
         return usage(std::io::stderr());
     };
     let path = Path::new(dir);
-    if !path.is_dir() {
-        eprintln!("not a directory: {}", dir);
+    /* a folder, or a packaged .zip — the same two shapes the Studio review
+       screen accepts, so an agent validating a release asset is checking the
+       exact thing a user would install */
+    if !path.is_dir() && !path.is_file() {
+        eprintln!("not a plugin folder or package: {}", dir);
         return EXIT_USAGE;
     }
 
-    let report = validate::validate_dir_with(path, &ValidateOptions { bundled });
+    let report = validate::validate_path_with(path, &ValidateOptions { bundled });
 
     if json {
         match serde_json::to_string_pretty(&report) {

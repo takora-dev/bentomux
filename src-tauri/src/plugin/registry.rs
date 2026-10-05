@@ -163,29 +163,65 @@ pub fn install_from_folder(paths: &PluginPaths, source: &Path) -> PluginResult<P
 /// Install from a zip archive already on disk (the CLI path, and what the
 /// download path produces before this is called).
 pub fn install_from_zip(paths: &PluginPaths, archive: &Path) -> PluginResult<PluginRecord> {
+    let staging_root = unpack_to(paths, archive)?;
+
+    /* validate before moving anything into place: a bad archive must not
+    leave a version directory behind for the registry to trip over */
+    let result = (|| -> PluginResult<PluginRecord> {
+        let manifest = validate::validate_for_install(&staging_root, &ValidateOptions::default())?;
+        let dest = stage_dir(paths, &manifest.id, &manifest.version)?;
+        copy_tree(&staging_root, &dest)?;
+        finalize_install(
+            paths,
+            &manifest,
+            dest,
+            PluginSource::Folder {
+                path: archive.to_string_lossy().to_string(),
+            },
+        )
+    })();
+
+    /* every exit, including a validation failure, takes the staging dir with
+       it: an abandoned `.unpack-*` folder is dead weight in the code root that
+       nothing ever cleans up */
+    fs::remove_dir_all(&staging_root).ok();
+    result
+}
+
+/// Unpack a plugin zip into a staging directory the caller must delete.
+pub fn unpack_to(paths: &PluginPaths, archive: &Path) -> PluginResult<PathBuf> {
     let file = fs::File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file)
         .map_err(|e| PluginError::Manifest(format!("not a readable zip: {}", e)))?;
 
+    /* checked before a byte is written: a 400 KB zip can expand to gigabytes,
+       and a plugin is code the app loads into its own realm, so unbounded
+       extraction is a denial of service on the shell */
+    /* the names are collected first because `by_name` borrows the archive
+       mutably and `file_names` immutably */
+    let names: Vec<String> = zip.file_names().map(str::to_string).collect();
+    let mut declared: u64 = 0;
+    for name in &names {
+        if let Ok(entry) = zip.by_name(name) {
+            if !entry.is_dir() {
+                declared = declared.saturating_add(entry.size());
+            }
+        }
+    }
+    if declared > MAX_PLUGIN_BYTES {
+        return Err(PluginError::Conflict(format!(
+            "the archive expands to {} bytes, over the {} byte cap",
+            declared, MAX_PLUGIN_BYTES
+        )));
+    }
+
     let staging_root = temp_staging(paths)?;
     zip.extract_unwrapped_root_dir(&staging_root, zip::read::root_dir_common_filter)
-        .map_err(|e| PluginError::Io(format!("extract failed: {}", e)))?;
-
-    /* validate before moving anything into place: a bad archive must not
-    leave a version directory behind for the registry to trip over */
-    let manifest = validate::validate_for_install(&staging_root, &ValidateOptions::default())?;
-    let dest = stage_dir(paths, &manifest.id, &manifest.version)?;
-    copy_tree(&staging_root, &dest)?;
-    fs::remove_dir_all(&staging_root).ok();
-
-    finalize_install(
-        paths,
-        &manifest,
-        dest,
-        PluginSource::Folder {
-            path: archive.to_string_lossy().to_string(),
-        },
-    )
+        .map_err(|e| {
+            let _ = fs::remove_dir_all(&staging_root);
+            PluginError::Io(format!("extract failed: {}", e))
+        })?;
+    Ok(staging_root)
 }
 
 /// Install a plugin that ships inside the app. Bundled plugins may use the
@@ -237,11 +273,15 @@ pub fn install_from_url(
     let mut record = result?;
     record.source = PluginSource::Url {
         url: url.to_string(),
+        /* a bare install has no catalog row behind it, so nothing to join on */
+        repo: None,
     };
     Ok(record)
 }
 
-fn download(url: &str) -> PluginResult<Vec<u8>> {
+/// Fetch bytes over HTTPS. Shared with `marketplace` so a catalog and a plugin
+/// payload can never arrive over different rules.
+pub(crate) fn download(url: &str) -> PluginResult<Vec<u8>> {
     if !url.starts_with("https://") {
         return Err(PluginError::Unsupported(
             "plugin installs must come from an https:// URL".into(),
@@ -600,6 +640,80 @@ mod tests {
     fn paths(tag: &str) -> (PluginPaths, PathBuf) {
         let root = tmp(tag);
         (PluginPaths::new(&root), root)
+    }
+
+    /// Build a zip the way docs/PLUGIN_MARKETPLACE.md tells an author to: the
+    /// plugin files sit at the archive root, with no wrapper directory.
+    fn zip_flat(id: &str, version: &str, root: &Path) -> PathBuf {
+        let archive = root.join(format!("{}-{}.zip", id, version));
+        let file = fs::File::create(&archive).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        for (name, body) in [
+            (
+                "plugin.json",
+                format!(
+                    r#"{{
+                        "id": "{}", "name": "T", "version": "{}", "apiVersion": 1,
+                        "entry": "index.js",
+                        "contributes": {{ "commands": [{{ "id": "{}.go", "title": "Go" }}] }}
+                    }}"#,
+                    id, version, id
+                ),
+            ),
+            (
+                "index.js",
+                "export function activate() {}".to_string(),
+            ),
+        ] {
+            writer.start_file(name, opts).unwrap();
+            std::io::Write::write_all(&mut writer, body.as_bytes()).unwrap();
+        }
+        writer.finish().unwrap();
+        archive
+    }
+
+    #[test]
+    fn a_flat_zip_from_the_documented_recipe_installs() {
+        /* the marketplace hands authors a `zip -r x.zip .` command, so this
+           shape has to install, not just the nicer wrapped-directory one */
+        let (p, root) = paths("flat-zip");
+        let archive = zip_flat("acme.t", "1.0.0", &root);
+
+        let rec = install_from_zip(&p, &archive).unwrap();
+        assert_eq!(rec.id, "acme.t");
+        assert_eq!(rec.version, "1.0.0");
+        /* the entry module really landed, so the plugin:// URL will resolve */
+        let entry = p
+            .version_dir("acme.t", "1.0.0")
+            .join("index.js");
+        assert!(entry.is_file(), "index.js missing at {}", entry.display());
+    }
+
+    #[test]
+    fn a_wrapped_zip_also_installs() {
+        /* GitHub's own source archives have a wrapper dir, so both shapes have
+           to work or authors will hit this the moment they zip the repo */
+        let (p, root) = paths("wrapped-zip");
+        let archive = root.join("wrapped.zip");
+        let file = fs::File::create(&archive).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        writer.start_file("acme.t/plugin.json", opts).unwrap();
+        std::io::Write::write_all(
+            &mut writer,
+            br#"{"id":"acme.t","name":"T","version":"1.0.0","apiVersion":1,"entry":"index.js"}"#,
+        )
+        .unwrap();
+        writer.start_file("acme.t/index.js", opts).unwrap();
+        std::io::Write::write_all(&mut writer, b"export function activate() {}").unwrap();
+        writer.finish().unwrap();
+
+        let rec = install_from_zip(&p, &archive).unwrap();
+        assert_eq!(rec.id, "acme.t");
+        assert!(p.version_dir("acme.t", "1.0.0").join("plugin.json").is_file());
     }
 
     #[test]

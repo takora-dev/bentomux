@@ -11,9 +11,11 @@ export interface Modal {
 
 export let currentModal: Modal | null = null;
 
-export function openModal(opts: { title?: string; body?: HTMLElement | Kid[]; footer?: HTMLElement; onClose?: () => void }): Modal {
+export function openModal(opts: { title?: string; body?: HTMLElement | Kid[]; footer?: HTMLElement; onClose?: () => void; size?: 'wide' }): Modal {
   const overlay = h('div', { class: 'overlay' });
-  const dialog = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title || '' });
+  /* `wide` for browsing surfaces — a catalog list or a settings form needs
+     room a 440px confirm dialog cannot give. The default stays narrow. */
+  const dialog = h('div', { class: 'dialog' + (opts.size === 'wide' ? ' dialog-wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title || '' });
   if (opts.title) dialog.append(h('div', { class: 'dialog-h' }, opts.title));
   const bodyEl = h('div', { class: 'dialog-b' });
   if (opts.body) {

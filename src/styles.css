@@ -720,6 +720,11 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
   box-shadow:0 16px 40px rgba(32,29,25,.16);
   animation:tk-pop .13s ease-out;
 }
+/* A browsing surface — the plugin marketplace catalog — needs a real width to
+   lay a search field and three buttons on one row. The narrow dialog is 440px,
+   which leaves 408px after .dialog-b padding, so a body child must never ask
+   for more than that or it spills past the panel instead of wrapping. */
+.dialog-wide{width:min(680px,100%)}
 .dialog-h{padding:14px 16px 2px;font-size:13.5px;font-weight:650;display:flex;align-items:center;gap:8px}
 .dialog-h-icon{
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
@@ -2031,6 +2036,37 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .plugin-row-id{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
 .plugin-error{font-size:12px;color:var(--danger);line-height:1.4;overflow-wrap:anywhere}
 .plugin-row-actions{display:flex;gap:6px;margin-top:4px}
+
+/* marketplace catalog list (docs/PLUGIN_MARKETPLACE.md) */
+/* Width is the dialog's business (see .dialog-wide), not the list's: no
+   min-width here, so a content row can never outgrow the panel it sits in. */
+.plugin-market{display:flex;flex-direction:column;gap:10px;min-width:0}
+/* The freshness line is a caption for the catalog, not a control bar: quiet
+   text on the left, one clearly-a-button control on the right. */
+.plugin-market-line{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-3);padding-bottom:8px;border-bottom:1px solid var(--line)}
+.plugin-market-when{font-variant-numeric:tabular-nums}
+/* Pinned to the far right instead of riding on `margin-left:auto`, so the
+   stale badge can grow without shoving the button around. */
+.plugin-market-refresh{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px}
+.plugin-market-refresh:disabled{opacity:.55;cursor:default}
+/* Search and result count share one row; the field flexes, the count does not. */
+.plugin-market-bar{display:flex;align-items:center;gap:8px}
+.plugin-market-search-wrap{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;padding:0 9px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.plugin-market-search-wrap:focus-within{border-color:var(--accent)}
+.plugin-market-search-icon{flex:0 0 auto;color:var(--ink-3);font-size:13px;line-height:1}
+.plugin-market-search{flex:1 1 auto;min-width:0;padding:6px 0;font:inherit;font-size:12px;color:var(--ink);background:none;border:0}
+.plugin-market-search:focus{outline:none}
+.plugin-market-search::-webkit-search-cancel-button{cursor:pointer}
+.plugin-market-count{flex:0 0 auto;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.plugin-market-list{display:flex;flex-direction:column;gap:10px}
+/* Pager only appears past one page, so the single-page case has no furniture.
+   `:empty` outranks the bare class, so the rule order here is cosmetic only. */
+.plugin-market-pager{display:flex;align-items:center;justify-content:center;gap:10px;padding-top:10px;border-top:1px solid var(--line)}
+.plugin-market-pager:empty{display:none}
+.plugin-market-page{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.plugin-market-stats{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ink-3)}
+.plugin-market-note{margin:0;font-size:11px;color:var(--ink-3);line-height:1.45}
+.plugin-readme{margin:0;padding:8px 10px;max-height:280px;overflow:auto;background:var(--tint);border-radius:8px;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Plugin Studio: install review, validation report, uninstall */
 .plugin-studio-head{display:flex;gap:8px;margin-bottom:4px}

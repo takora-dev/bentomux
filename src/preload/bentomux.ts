@@ -57,6 +57,7 @@ import type {
   PluginManifest,
   PluginRecord,
   ValidationReport,
+  MarketplaceCatalog,
 } from '../src/plugin/types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -273,6 +274,16 @@ const api = {
   pluginInstallZip: (path: string) => invoke<PluginRecord>('plugin_install_zip', { path }),
   pluginInstallUrl: (url: string, sha256: string) =>
     invoke<PluginRecord>('plugin_install_url', { url, sha256 }),
+  pluginMarketplaceIndex: (force?: boolean) =>
+    invoke<MarketplaceCatalog>('plugin_marketplace_index', { force }),
+  pluginFetchUrl: (url: string, sha256: string) =>
+    invoke<string>('plugin_fetch_url', { url, sha256 }),
+  pluginMarketplaceReadme: (repo: string, gitRef: string) =>
+    invoke<string>('plugin_marketplace_readme', { repo, gitRef }),
+  pluginMarketplaceInstall: (path: string, repo: string, url: string) =>
+    invoke<PluginRecord>('plugin_marketplace_install', { path, repo, url }),
+  pluginMarketplaceUpdate: (path: string, sha256: string, repo: string, url: string) =>
+    invoke<PluginRecord>('plugin_marketplace_update', { path, sha256, repo, url }),
   pluginSetEnabled: (id: string, enabled: boolean) =>
     invoke<AppState>('plugin_set_enabled', { id, enabled }),
   pluginUpdate: (path: string) => invoke<PluginRecord>('plugin_update', { path }),

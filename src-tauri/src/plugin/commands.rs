@@ -10,9 +10,10 @@ use tauri::{Manager, State};
 
 use crate::plugin::boot;
 use crate::plugin::data;
+use crate::plugin::marketplace;
 use crate::plugin::registry;
 use crate::plugin::validate::{self, ValidateOptions, ValidationReport};
-use crate::plugin::{PluginError, PluginRecord, PluginResult};
+use crate::plugin::{PluginError, PluginRecord, PluginResult, PluginSource};
 use crate::state::{AppState, AppStateManager};
 
 /* ---------------- errors on the wire ---------------- */
@@ -364,14 +365,14 @@ pub fn plugin_install_skill(agent_id: String, app: tauri::AppHandle) -> Result<S
     Ok(dest.to_string_lossy().to_string())
 }
 
-/// Validate a folder the user picked, without installing it. This is what
-/// Plugin Studio calls before showing the "Install" button.
+/// Validate a folder or a packaged `.zip` the user picked, without installing
+/// it. This is what Plugin Studio calls before showing the "Install" button.
 #[tauri::command]
 pub fn plugin_validate(path: String, bundled: Option<bool>) -> ValidationReport {
     let opts = ValidateOptions {
         bundled: bundled.unwrap_or(false),
     };
-    validate::validate_dir_with(std::path::Path::new(&path), &opts)
+    validate::validate_path_with(std::path::Path::new(&path), &opts)
 }
 
 /// Read a manifest from an installed plugin, for the Studio detail screen.
@@ -453,6 +454,287 @@ pub async fn plugin_install_url(
         s.plugins.push(record.clone());
     });
     Ok(record)
+}
+
+/* ---------------- marketplace ---------------- */
+
+/// Where the saved catalog lives. GitHub's unauthenticated limit is 60 requests
+/// per hour per IP, so the sweep is cached and reused rather than repeated on
+/// every open of the marketplace.
+fn marketplace_cache(app: &tauri::AppHandle) -> PluginResult<std::path::PathBuf> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| PluginError::Io(format!("app data dir unavailable: {}", e)))?;
+    Ok(base.join("plugin-marketplace.json"))
+}
+
+/**
+ * The plugin marketplace, served from GitHub.
+ *
+ * Cache first: a fresh catalog comes back without touching the network at all,
+ * which is both the common case and the only way this fits inside the
+ * unauthenticated rate limit. A failed sweep falls back to the saved catalog
+ * marked stale — an empty list with no explanation is worse than yesterday's
+ * data labelled as yesterday's.
+ *
+ * `force` backs the Refresh button.
+ */
+#[tauri::command]
+pub async fn plugin_marketplace_index(
+    app: tauri::AppHandle,
+    state: State<'_, AppStateManager>,
+    force: Option<bool>,
+) -> Result<marketplace::Catalog, String> {
+    let cache = marketplace_cache(&app).map_err(String::from)?;
+    let records = state.get_state().plugins;
+
+    if !force.unwrap_or(false) {
+        if let Some(mut cached) = marketplace::read_cache(&cache) {
+            if !marketplace::is_stale(&cached, super::now_millis()) {
+                marketplace::annotate(&mut cached.plugins, &records);
+                return Ok(cached);
+            }
+        }
+    }
+
+    let sweep_cache = cache.clone();
+    let swept = tauri::async_runtime::spawn_blocking(move || {
+        let plugins = marketplace::sweep()?;
+        marketplace::write_cache(&sweep_cache, plugins, super::now_millis())
+    })
+    .await
+    .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e));
+
+    let mut catalog = match swept {
+        Ok(Ok(())) => marketplace::read_cache(&cache).unwrap_or_default(),
+        Ok(Err(e)) => stale_or_fail(&cache, e.to_string())?,
+        Err(json) => stale_or_fail(&cache, json)?,
+    };
+    /* The sweep knows nothing about this machine's installs, so the join is
+       done here, on every response — cached or fresh. Doing it inside the
+       sweep would bake one user's installed set into a file another user reads. */
+    marketplace::annotate(&mut catalog.plugins, &records);
+    Ok(catalog)
+}
+
+/// Serve the saved catalog with the reason it is out of date, or report the
+/// failure outright when there is nothing saved to fall back on.
+fn stale_or_fail(cache: &std::path::Path, reason: String) -> Result<marketplace::Catalog, String> {
+    match marketplace::read_cache(cache) {
+        Some(mut cached) => {
+            cached.stale = true;
+            cached.stale_reason = reason;
+            Ok(cached)
+        }
+        None => Err(reason),
+    }
+}
+
+/**
+ * Install a plugin the user picked out of the marketplace.
+ *
+ * Separate from `plugin_install_zip` for one reason: it records the GitHub repo
+ * on the install, and that repo is the only reliable join between a catalog row
+ * and an installed plugin. A hand-picked zip has no repo and therefore never
+ * matches a row — it shows no update, which is the honest answer for a plugin
+ * the app cannot trace.
+ */
+/**
+ * Install a plugin the user picked out of the marketplace.
+ *
+ * Separate from `plugin_install_zip` for one reason: it records the GitHub repo
+ * on the install, and that repo is the only reliable join between a catalog row
+ * and an installed plugin. A hand-picked zip has no repo and therefore never
+ * matches a row — it shows no update, which is the honest answer for a plugin
+ * the app cannot trace.
+ *
+ * The body lives in `install_from_marketplace` so it can be tested without a
+ * running Tauri app; this wrapper only unwraps the command arguments.
+ */
+#[tauri::command]
+pub fn plugin_marketplace_install(
+    path: String,
+    repo: String,
+    url: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppStateManager>,
+) -> Result<PluginRecord, String> {
+    let paths = plugin_paths(&app).map_err(String::from)?;
+    install_from_marketplace(&paths, &state, &path, &repo, &url).map_err(String::from)
+}
+
+/**
+ * `patch_state_sync`, not `patch_state`: an install has already copied code to
+ * disk, so a debounced record write that never lands leaves version directories
+ * with no registry entry pointing at them. A human clicks this once, so the
+ * "coalesce rapid bursts" argument for debouncing does not apply.
+ */
+fn install_from_marketplace(
+    paths: &registry::PluginPaths,
+    state: &AppStateManager,
+    path: &str,
+    repo: &str,
+    url: &str,
+) -> PluginResult<PluginRecord> {
+    let mut record = registry::install_from_zip(paths, std::path::Path::new(path))?;
+    record.source = PluginSource::Url {
+        url: url.to_string(),
+        repo: Some(repo.to_string()),
+    };
+
+    state.patch_state_sync(|s| {
+        /* installing over an existing id is an update by another name; one
+           record per plugin keeps the list and the rollback target sane */
+        s.plugins.retain(|r| r.id != record.id);
+        s.plugins.push(record.clone());
+    });
+    Ok(record)
+}
+
+/**
+ * Update an installed plugin to the marketplace's latest release.
+ */
+#[tauri::command]
+pub fn plugin_marketplace_update(
+    path: String,
+    sha256: String,
+    repo: String,
+    url: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppStateManager>,
+) -> Result<PluginRecord, String> {
+    let paths = plugin_paths(&app).map_err(String::from)?;
+    update_from_marketplace(&paths, &state, &path, &sha256, &repo, &url).map_err(String::from)
+}
+
+/// The update body. Three checks before anything touches the registry, in order
+/// of what they protect the user from:
+///
+/// 1. **The digest, re-verified.** The renderer downloaded this file and
+///    already checked it, but the decision is made across two IPC calls, so the
+///    bytes are hashed again here rather than trusted from a path.
+/// 2. **The manifest, read without installing.** It comes out of the archive,
+///    not out of the catalog, so a repo cannot claim a version it does not ship.
+/// 3. **Strictly newer.** Refused *before* `commit_update`, because committing
+///    an equal or older version would set the rollback target to the version
+///    already on disk — quietly destroying the only way back.
+fn update_from_marketplace(
+    paths: &registry::PluginPaths,
+    state: &AppStateManager,
+    path: &str,
+    sha256: &str,
+    repo: &str,
+    url: &str,
+) -> PluginResult<PluginRecord> {
+    let archive = std::path::Path::new(path);
+    let bytes = std::fs::read(archive)
+        .map_err(|e| PluginError::Io(format!("reading the download: {}", e)))?;
+    marketplace::verify_payload(sha256, &bytes)?;
+
+    let fresh = peek_manifest(&bytes)?;
+
+    let current = state
+        .get_state()
+        .plugins
+        .into_iter()
+        .find(|r| matches!(&r.source, PluginSource::Url { repo: Some(x), .. } if x == repo))
+        .ok_or_else(|| {
+            PluginError::NotFound(format!("{} is not installed from this repository", repo))
+        })?;
+
+    if fresh.id != current.id {
+        return Err(PluginError::Conflict(format!(
+            "this release is {} but the installed plugin is {}",
+            fresh.id, current.id
+        )));
+    }
+    if !marketplace::is_newer(&fresh.version, &current.version) {
+        return Err(PluginError::Conflict(format!(
+            "{} is already installed; this release is {}, which is not newer",
+            current.id, fresh.version
+        )));
+    }
+
+    let installed = registry::install_from_zip(paths, archive)?;
+
+    let mut out: Option<PluginRecord> = None;
+    state.patch_state_sync(|s| {
+        if let Some(existing) = s.plugins.iter_mut().find(|r| r.id == installed.id) {
+            registry::commit_update(paths, existing, &installed.version, installed.sha256.clone());
+            /* keep the repo, or the next sweep forgets where this came from and
+               the plugin silently stops being offered updates */
+            existing.source = PluginSource::Url {
+                url: url.to_string(),
+                repo: Some(repo.to_string()),
+            };
+            out = Some(existing.clone());
+        }
+    });
+    out.ok_or_else(|| PluginError::NotFound(installed.id))
+}
+
+/// Read the manifest out of a downloaded archive without installing it.
+///
+/// This is the one place an archive is opened twice — the peek cannot be
+/// skipped without trusting the catalog's version claim, which is the very
+/// thing under test. It unpacks a throwaway copy of bytes already on disk, into
+/// a directory no other Bentomux on this machine will collide with.
+fn peek_manifest(bytes: &[u8]) -> PluginResult<crate::plugin::PluginManifest> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let root = std::env::temp_dir().join(format!("bentomux-mp-peek-{}", stamp));
+    let zip_path = root.with_extension("zip");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root)?;
+
+    let result = (|| -> PluginResult<crate::plugin::PluginManifest> {
+        std::fs::write(&zip_path, bytes)?;
+        let file = std::fs::File::open(&zip_path)?;
+        let mut zip = zip::ZipArchive::new(file)
+            .map_err(|e| PluginError::Manifest(format!("not a readable zip: {}", e)))?;
+        zip.extract_unwrapped_root_dir(&root, zip::read::root_dir_common_filter)
+            .map_err(|e| PluginError::Io(format!("extract failed: {}", e)))?;
+        validate::validate_for_install(&root, &ValidateOptions::default())
+    })();
+
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_file(&zip_path);
+    result
+}
+
+/**
+ * Download a release asset to a temp file, digest checked, and return its
+ * path. The renderer then runs the ordinary `plugin_validate` → review →
+ * `plugin_install_zip` sequence over it, so a marketplace install lands in
+ * exactly the same audited flow as a zip the user picked by hand.
+ */
+#[tauri::command]
+pub async fn plugin_fetch_url(url: String, sha256: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        marketplace::fetch_to_temp(&url, &sha256)
+    })
+    .await
+    .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?
+    .map_err(String::from)
+    .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// A plugin's README at its release tag, as plain text.
+///
+/// Fetched on demand rather than during the sweep: one README per plugin would
+/// double the request count for text the user has not asked to see yet.
+#[tauri::command]
+pub async fn plugin_marketplace_readme(
+    repo: String,
+    git_ref: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || marketplace::readme(&repo, &git_ref))
+        .await
+        .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?
+        .map_err(String::from)
 }
 
 /* ---------------- enable / disable ---------------- */
@@ -638,12 +920,213 @@ pub fn plugin_leave_safe_mode(
 mod tests {
     use super::*;
 
+    /* ---------------- marketplace update ---------------- */
+
     fn tmp(tag: &str) -> std::path::PathBuf {
         let dir =
             std::env::temp_dir().join(format!("bentomux-scaffold-{}-{}", tag, std::process::id()));
         std::fs::remove_dir_all(&dir).ok();
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// A release zip of `id` at `version`, plus the digest the catalog would
+    /// publish for it. Both come from one zip, which is the only way the two
+    /// ever agree — exactly as they do for a real `gh release create`.
+    fn release(root: &std::path::Path, id: &str, version: &str) -> (std::path::PathBuf, String) {
+        let archive = root.join(format!("{}-{}.zip", id, version));
+        let file = std::fs::File::create(&archive).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        writer.start_file("plugin.json", opts).unwrap();
+        std::io::Write::write_all(
+            &mut writer,
+            format!(
+                r#"{{"id":"{}","name":"T","version":"{}","apiVersion":1,"entry":"index.js",
+                    "contributes":{{"commands":[{{"id":"{}.go","title":"Go"}}]}}}}"#,
+                id, version, id
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        writer.start_file("index.js", opts).unwrap();
+        std::io::Write::write_all(&mut writer, b"export function activate() {}").unwrap();
+        writer.finish().unwrap();
+
+        let digest = crate::plugin::registry::sha256_bytes(&std::fs::read(&archive).unwrap());
+        (archive, digest)
+    }
+
+    /// A stand-in for the release asset URL the catalog would carry.
+    const ASSET: &str = "https://github.com/acme/t/releases/download/v2.0.0/t.zip";
+
+    fn manager(root: &std::path::Path, tag: &str) -> AppStateManager {
+        AppStateManager::new(root.join(format!("{}.json", tag)))
+    }
+
+    #[test]
+    fn an_update_bumps_the_version_and_keeps_the_old_one_as_the_rollback_target() {
+        let root = tmp("mp-update");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "update");
+        let repo = "acme/t";
+
+        let (v1, _) = release(&root, "acme.t", "1.0.0");
+        install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), repo, ASSET).unwrap();
+
+        let (v2, d2) = release(&root, "acme.t", "1.1.0");
+        let out = update_from_marketplace(
+            &paths,
+            &mgr,
+            &v2.to_string_lossy(),
+            &d2,
+            repo,
+            ASSET,
+        )
+        .unwrap();
+
+        assert_eq!(out.version, "1.1.0");
+        /* the whole point of commit_update: the way back is intact */
+        assert_eq!(out.previous_version.as_deref(), Some("1.0.0"));
+        assert!(paths.version_dir("acme.t", "1.0.0").is_dir());
+        assert!(paths.version_dir("acme.t", "1.1.0").is_dir());
+
+        /* and the provenance survives, or the next sweep offers no
+           further update and the user cannot tell where the code came from */
+        assert!(matches!(
+            &out.source,
+            PluginSource::Url { repo: Some(r), url } if r == repo && url == ASSET
+        ));
+        assert_eq!(v1.exists(), true, "sanity: the old zip is still on disk");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn an_update_to_the_same_version_is_refused_so_the_rollback_target_survives() {
+        let root = tmp("mp-same");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "same");
+        let repo = "acme/t";
+
+        let (v1, _) = release(&root, "acme.t", "1.0.0");
+        install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), repo, ASSET).unwrap();
+
+        let (v1_again, d) = release(&root, "acme.t", "1.0.0");
+        let err = update_from_marketplace(
+            &paths,
+            &mgr,
+            &v1_again.to_string_lossy(),
+            &d,
+            repo,
+            ASSET,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("not newer"), "{}", err);
+
+        /* unchanged on disk, and still no phantom rollback target */
+        let record = mgr.get_state().plugins.into_iter().next().unwrap();
+        assert_eq!(record.version, "1.0.0");
+        assert_eq!(record.previous_version, None);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn a_downgrade_through_update_is_refused() {
+        let root = tmp("mp-down");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "down");
+        let repo = "acme/t";
+
+        let (v2, _) = release(&root, "acme.t", "2.0.0");
+        install_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), repo, ASSET).unwrap();
+
+        let (v1, d) = release(&root, "acme.t", "1.0.0");
+        let err = update_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), &d, repo, ASSET)
+            .unwrap_err();
+        assert!(err.to_string().contains("not newer"), "{}", err);
+        assert_eq!(mgr.get_state().plugins[0].version, "2.0.0");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn a_release_that_is_a_different_plugin_is_refused() {
+        let root = tmp("mp-id");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "id");
+
+        let (mine, _) = release(&root, "acme.t", "1.0.0");
+        install_from_marketplace(&paths, &mgr, &mine.to_string_lossy(), "acme/t", ASSET).unwrap();
+
+        /* a repo whose release swaps the plugin id inside the archive: the
+           catalog cannot reach this, but the archive must still be believed */
+        let (theirs, d) = release(&root, "evil.t", "9.9.9");
+        let err = update_from_marketplace(&paths, &mgr, &theirs.to_string_lossy(), &d, "acme/t", ASSET)
+            .unwrap_err();
+        assert!(err.to_string().contains("installed plugin is"), "{}", err);
+        assert_eq!(mgr.get_state().plugins.len(), 1);
+        assert_eq!(mgr.get_state().plugins[0].id, "acme.t");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn an_update_with_a_wrong_digest_is_refused_before_anything_is_installed() {
+        let root = tmp("mp-digest");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "digest");
+
+        let (v1, _) = release(&root, "acme.t", "1.0.0");
+        install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), "acme/t", ASSET).unwrap();
+
+        /* a tampered archive: valid zip, right plugin, wrong bytes vs digest */
+        let (v2, _) = release(&root, "acme.t", "1.1.0");
+        let wrong = "0".repeat(64);
+        let err =
+            update_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), &wrong, "acme/t", ASSET)
+                .unwrap_err();
+        assert!(err.to_string().contains("sha256 mismatch"), "{}", err);
+        /* nothing installed, no new version directory */
+        assert!(!paths.version_dir("acme.t", "1.1.0").exists());
+        assert_eq!(mgr.get_state().plugins[0].version, "1.0.0");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn an_update_for_a_repo_that_is_not_installed_is_refused() {
+        let root = tmp("mp-norepo");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "norepo");
+
+        let (v1, _) = release(&root, "acme.t", "1.0.0");
+        /* installed by hand from a folder, so no repo is recorded — the exact
+           state a pre-marketplace install is left in */
+        let record = registry::install_from_zip(&paths, &v1).unwrap();
+        assert!(matches!(record.source, PluginSource::Folder { .. }));
+        mgr.patch_state_sync(|s| s.plugins.push(record));
+
+        let (v2, d) = release(&root, "acme.t", "1.1.0");
+        let err =
+            update_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), &d, "acme/t", ASSET)
+            .unwrap_err();
+        assert!(matches!(err, PluginError::NotFound(_)), "{:?}", err);
+        assert_eq!(mgr.get_state().plugins[0].version, "1.0.0");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn a_marketplace_install_replaces_an_existing_record_instead_of_duplicating_it() {
+        let root = tmp("mp-dup");
+        let paths = registry::PluginPaths::new(&root);
+        let mgr = manager(&root, "dup");
+
+        let (v1, _) = release(&root, "acme.t", "1.0.0");
+        install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), "acme/t", ASSET).unwrap();
+        let (v2, _) = release(&root, "acme.t", "2.0.0");
+        install_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), "acme/t", ASSET).unwrap();
+
+        let state = mgr.get_state();
+        assert_eq!(state.plugins.len(), 1, "one row per plugin");
+        assert_eq!(state.plugins[0].version, "2.0.0");
+        std::fs::remove_dir_all(&root).ok();
     }
 
     /* the substitution is what turns a template into a plugin; a missed

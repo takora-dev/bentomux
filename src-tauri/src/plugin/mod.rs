@@ -15,6 +15,7 @@ pub mod boot;
 pub mod cli;
 pub mod commands;
 pub mod data;
+pub mod marketplace;
 pub mod registry;
 pub mod scheme;
 pub mod validate;
@@ -242,6 +243,15 @@ pub enum PluginSource {
     },
     Url {
         url: String,
+        /// `owner/name` on GitHub, when the install came from the marketplace.
+        ///
+        /// This is the join key between a catalog row and an installed
+        /// plugin: a repo name is not a plugin id, and guessing
+        /// `owner/name` → `owner.name` is wrong often enough to strand a user
+        /// on an old version. `default` because records written before this
+        /// field existed must still load.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        repo: Option<String>,
     },
 }
 
