@@ -11,7 +11,7 @@ import api from '../preload/bentomux';
 
 /* app-level shortcuts; Settings › Keybindings overrides these by action id */
 /* use Cmd on macOS, Ctrl on Windows/Linux */
-const IS_MAC = navigator.platform.toLowerCase().includes('mac');
+export const IS_MAC = navigator.platform.toLowerCase().includes('mac');
 const MOD = IS_MAC ? 'meta' : 'ctrl';
 
 /* every rebindable action. Splits and history keep Bentomux's own defaults;
@@ -84,6 +84,27 @@ export const KEY_PRESETS: Record<KeyPresetId, Record<string, string>> = {
     historyForward: IS_MAC ? 'meta+]' : '',
   },
 };
+
+/* accelerators the app reserves outside the rebindable shortcut map. Settings
+   validates a captured key against these so a rebind cannot silently collide
+   with a native menu item or a hardcoded handler:
+     - File ▸ Close Pane is a native menu item on CmdOrCtrl+W (menu.rs); on
+       Windows/Linux the DOM handler below binds Ctrl+W to the same action.
+     - Cmd/Ctrl+C and Cmd/Ctrl+V are the terminal's own copy/paste
+       (views/terminal.ts); both modifiers are accepted there, so both are
+       reserved on every platform.
+     - Cmd+Ctrl+F toggles fullscreen (the handler in initKeyboard below).
+     - Escape closes a modal. It can never be captured (accelFromEvent requires
+       a modifier); listed so this set matches the fixed rows shown in Settings. */
+export const RESERVED_ACCELS: ReadonlyArray<readonly [string, string]> = [
+  [`${MOD}+w`, 'Close Pane (File menu)'],
+  ['ctrl+c', 'Copy selection'],
+  ['meta+c', 'Copy selection'],
+  ['ctrl+v', 'Paste'],
+  ['meta+v', 'Paste'],
+  ['ctrl+meta+f', 'Toggle fullscreen'],
+  ['escape', 'Close modal'],
+];
 
 /** write a preset's bindings and record which preset is active */
 export function applyKeyPreset(id: KeyPresetId): void {

@@ -10,7 +10,7 @@ import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
 import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, backgroundImageUrl } from '../main';
-import { accelFor, formatAccel, applyKeyPreset, KEY_PRESETS, type ActionId, type KeyPresetId } from '../keyboard';
+import { accelFor, formatAccel, applyKeyPreset, KEY_PRESETS, RESERVED_ACCELS, IS_MAC, type ActionId, type KeyPresetId } from '../keyboard';
 import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
 import {
@@ -457,16 +457,36 @@ function buildPresetRow(paint: () => void): HTMLElement {
     applyKeyPreset(sel.value as KeyPresetId);
     paint();
   });
+  /* reset clears every override, so the whole list falls back to Bentomux's
+     own defaults and the picker reads 'Bentomux default' again */
+  const reset = h('button', { class: 'btn ghost', type: 'button', title: 'Clear all custom bindings' }, 'Reset to default');
+  reset.addEventListener('click', () => {
+    db.prefs.shortcuts = {};
+    db.prefs.keyPreset = 'default';
+    void api.setPrefs({ shortcuts: {}, keyPreset: 'default' });
+    paint();
+  });
+  const controls = h('div', { class: 'key-preset-controls' }, sel, reset);
   return h('div', { class: 'settings-section' },
-    field('Preset', sel),
+    field('Preset', controls),
     hint('Start from another terminal’s defaults, then fine-tune below. Ghostty binds Cmd+D / Cmd+Shift+D to split and Cmd+Alt+arrows to move focus; tab history and split-left/up are unbound under it. iTerm2 keeps Cmd+[ / Cmd+] for history.'));
 }
 
-const FIXED_KEY_ROWS: Array<[string, string]> = [
-  ['Copy selection', 'Ctrl+C'],
-  ['Paste', 'Ctrl+V'],
-  ['Close modal', 'Esc'],
-];
+/* read-only shortcuts the app owns outside the rebindable map. Built per
+   platform: macOS keeps Close Pane on the File menu (Cmd+W, menu.rs) and the
+   terminal accepts Cmd+C / Cmd+V; Windows/Linux have no app menu, so Ctrl+W is
+   a hardcoded DOM handler (keyboard.ts) and copy/paste stay on Ctrl. */
+function fixedKeyRows(): Array<[string, string]> {
+  const closePane = IS_MAC ? 'Cmd+W' : 'Ctrl+W';
+  const copy = IS_MAC ? 'Cmd+C' : 'Ctrl+C';
+  const paste = IS_MAC ? 'Cmd+V' : 'Ctrl+V';
+  return [
+    ['Copy selection', copy],
+    ['Paste', paste],
+    ['Close pane', closePane],
+    ['Close modal', 'Esc'],
+  ];
+}
 
 function keyRow(action: KeyAction, paint: () => void): HTMLElement {
   const accel = accelFor(action.id);
@@ -476,15 +496,36 @@ function keyRow(action: KeyAction, paint: () => void): HTMLElement {
     title: 'Click, then press the new shortcut',
     onclick: () => startKeyCapture(action, chip, paint),
   }, accel ? formatAccel(accel) : 'Unbound');
+  /* remove deletes whatever binding the row currently shows — a hand-set
+     override or a built-in default — leaving the action unbound. The slot is
+     always present (an empty span when the row is already unbound) so every
+     chip stays aligned. */
+  const remove = h('span', { class: 'key-remove-slot' },
+    accel
+      ? h('button', {
+          class: 'iconbtn key-remove',
+          type: 'button',
+          title: 'Remove shortcut',
+          onclick: () => {
+            const next = { ...(db.prefs.shortcuts || {}), [action.id]: '' };
+            db.prefs.shortcuts = next;
+            db.prefs.keyPreset = 'custom';
+            void api.setPrefs({ shortcuts: next, keyPreset: 'custom' });
+            paint();
+          },
+        }, ic('trash'))
+      : null);
   return h('div', { class: 'keys-row' },
     h('span', { class: 'keys-label' }, action.label),
-    chip);
+    chip,
+    remove);
 }
 
 function fixedKeyRow(label: string, accel: string): HTMLElement {
   return h('div', { class: 'keys-row' },
     h('span', { class: 'keys-label' }, label),
-    h('span', { class: 'key-chip static' }, accel));
+    h('span', { class: 'key-chip static' }, accel),
+    h('span', { class: 'key-remove-slot' }));
 }
 
 function accelFromEvent(e: KeyboardEvent): string | null {
@@ -497,6 +538,16 @@ function accelFromEvent(e: KeyboardEvent): string | null {
   /* at least one modifier, so plain typing can never be bound */
   if (!mods.length) return null;
   return [...mods, e.key.toLowerCase()].join('+');
+}
+
+/* the label of whatever already owns `accel`, or null when it is free. Checks
+   the other rebindable actions first, then the keys the app reserves outside
+   the shortcut map (native menu, fixed terminal keys, hardcoded handlers). */
+function accelClash(accel: string, self: ActionId): string | null {
+  const other = KEY_ACTIONS.find(o => o.id !== self && accelFor(o.id) === accel);
+  if (other) return other.label;
+  const reserved = RESERVED_ACCELS.find(([a]) => a === accel);
+  return reserved ? reserved[1] : null;
 }
 
 /* one-shot key capture for rebinding. Listens on window in the capture
@@ -517,10 +568,10 @@ function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void
     const accel = accelFromEvent(e);
     if (!accel) return;
     cleanup();
-    const clash = KEY_ACTIONS.find(o => o.id !== action.id && accelFor(o.id) === accel);
+    const clash = accelClash(accel, action.id);
     if (clash) {
       chip.classList.remove('capturing');
-      chip.textContent = 'Used by \u201C' + clash.label + '\u201D';
+      chip.textContent = 'Used by \u201C' + clash + '\u201D';
       setTimeout(paint, 1400);
       return;
     }
@@ -541,7 +592,7 @@ function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void
 function buildKeysSection(paint: () => void): HTMLElement {
   const rows = h('div', { class: 'keys-list' });
   for (const a of KEY_ACTIONS) rows.append(keyRow(a, paint));
-  for (const [label, accel] of FIXED_KEY_ROWS) rows.append(fixedKeyRow(label, accel));
+  for (const [label, accel] of fixedKeyRows()) rows.append(fixedKeyRow(label, accel));
   return h('div', {},
     buildPresetRow(paint),
     h('div', { class: 'settings-section' },

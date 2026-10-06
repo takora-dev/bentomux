@@ -1057,6 +1057,15 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .key-chip.capturing{border-color:var(--accent);color:var(--accent-ink)}
 .key-chip.unbound{border-style:dashed;color:var(--ink-3,var(--ink-2));opacity:.75}
 .key-chip.static{cursor:default;background:transparent}
+/* per-row remove affordance: fixed-width slot keeps every chip aligned whether
+   or not the row has an override; the button is always visible so clearing a
+   binding is discoverable, and brightens on row hover */
+.key-remove-slot{width:24px;height:24px;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.key-remove{width:24px;height:24px;opacity:.55}
+.keys-row:hover .key-remove,.key-remove:focus-visible{opacity:1}
+.key-preset-controls{display:flex;gap:8px;align-items:center}
+.key-preset-controls .select-input{flex:1;min-width:0}
+.key-preset-controls .btn{flex:0 0 auto}
 .palette-picker{display:flex;flex-direction:column;gap:8px}
 .palette-select{
   display:flex;align-items:center;gap:9px;width:100%;height:32px;
