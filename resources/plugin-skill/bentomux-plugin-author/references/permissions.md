@@ -39,6 +39,9 @@ named error rather than working by accident.
 - `res_list`
 - `agent_hooks_status`
 - `remote_info`
+- `pane_cwd`
+- `fs_list_dir`
+- `fs_read_file`
 
 ## What permissions are not
 

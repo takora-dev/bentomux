@@ -125,7 +125,7 @@ Each permission unlocks a namespace on `ctx`. Declaring a permission the plugin 
 
 `terminal.read` is separate from `app.read` on purpose: terminal output routinely contains secrets the user typed.
 
-**`backend.invoke` allowlist (v1) is read-only:** `get_state`, `git_status`, `git_diff`, `git_diff_stat`, `git_remote_info`, `git_branch_for`, `agents_list`, `agents_config`, `res_list`, `agent_hooks_status`, `remote_info`. Write commands are excluded. Extending this list grants every installed plugin the new capability — it is a review surface, and should be treated as one.
+**`backend.invoke` allowlist (v1) is read-only:** `get_state`, `git_status`, `git_diff`, `git_diff_stat`, `git_remote_info`, `git_branch_for`, `agents_list`, `agents_config`, `res_list`, `agent_hooks_status`, `remote_info`, `pane_cwd`, `fs_list_dir`, `fs_read_file`. Write commands are excluded. Extending this list grants every installed plugin the new capability — it is a review surface, and should be treated as one.
 
 ---
 

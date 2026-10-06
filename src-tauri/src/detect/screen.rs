@@ -13,8 +13,16 @@ fn screens() -> &'static Mutex<HashMap<String, TerminalSnapshot>> {
     SCREENS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub fn update_snapshot(id: &str, snapshot: TerminalSnapshot) {
+pub fn update_snapshot(id: &str, mut snapshot: TerminalSnapshot) {
     let mut guard = screens().lock().unwrap();
+    /* an empty cwd means "this message did not carry one", never "the pane
+    moved to /" — OSC 7 arrives rarely next to the 500 ms hot tick, so the
+    last known value has to outlive a tick that omits it */
+    if snapshot.cwd.is_empty() {
+        if let Some(cur) = guard.get(id) {
+            snapshot.cwd = cur.cwd.clone();
+        }
+    }
     match guard.get_mut(id) {
         /* hot tick carries text+meta only (see terminal.rs snapshot()): keep
         the cached html from the last explicit render so the remote mirror
@@ -24,6 +32,7 @@ pub fn update_snapshot(id: &str, snapshot: TerminalSnapshot) {
             cur.title = snapshot.title;
             cur.progress = snapshot.progress;
             cur.last_data_at = snapshot.last_data_at;
+            cur.cwd = snapshot.cwd;
         }
         _ => {
             guard.insert(id.to_string(), snapshot);
@@ -70,6 +79,16 @@ pub fn screen_dump_html(id: &str) -> String {
         .unwrap_or_default()
 }
 
+/* the pane's working directory, or "" when no shell has reported one */
+pub fn screen_cwd(id: &str) -> String {
+    screens()
+        .lock()
+        .unwrap()
+        .get(id)
+        .map(|s| s.cwd.clone())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,12 +103,45 @@ mod tests {
                 title: "Pi".into(),
                 progress: "3;50".into(),
                 last_data_at: 42,
+                cwd: "/tmp/a b".into(),
             },
         );
         assert_eq!(screen_lines("cache-test"), vec!["  ready"]);
         assert_eq!(screen_meta("cache-test"), ("Pi".into(), "3;50".into(), 42));
         assert_eq!(screen_dump_html("cache-test"), "<span>ready</span>");
+        assert_eq!(screen_cwd("cache-test"), "/tmp/a b");
         clear_snapshot("cache-test");
         assert!(screen_lines("cache-test").is_empty());
+    }
+
+    /* the hot tick omits html and may omit cwd; neither may erase what the
+    last full snapshot knew */
+    #[test]
+    fn a_hot_tick_keeps_the_last_known_cwd() {
+        update_snapshot(
+            "cwd-test",
+            TerminalSnapshot {
+                text: "a".into(),
+                html: "<b>a</b>".into(),
+                title: String::new(),
+                progress: String::new(),
+                last_data_at: 1,
+                cwd: "/work".into(),
+            },
+        );
+        update_snapshot(
+            "cwd-test",
+            TerminalSnapshot {
+                text: "ab".into(),
+                html: String::new(),
+                title: String::new(),
+                progress: String::new(),
+                last_data_at: 2,
+                cwd: String::new(),
+            },
+        );
+        assert_eq!(screen_cwd("cwd-test"), "/work");
+        assert_eq!(screen_dump_html("cwd-test"), "<b>a</b>");
+        clear_snapshot("cwd-test");
     }
 }

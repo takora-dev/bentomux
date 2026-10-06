@@ -40,7 +40,7 @@ pub const HOST_FLAG: &str = "--pty-host";
 daemon that answers with a different number: a daemon outlives app updates,
 so a silent mismatch would surface as confusing misbehaviour in the field
 with nothing to diagnose it. */
-pub const PROTOCOL_VERSION: u64 = 5;
+pub const PROTOCOL_VERSION: u64 = 6;
 
 /* how long to wait for the freshly spawned daemon to accept a connection */
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
@@ -383,6 +383,7 @@ fn send_snapshot(host: &Host, id: &str, snapshot: &crate::terminal::TerminalSnap
         "title": snapshot.title,
         "progress": snapshot.progress,
         "lastDataAt": snapshot.last_data_at,
+        "cwd": snapshot.cwd,
     });
     if !snapshot.html.is_empty() {
         obj["html"] = snapshot.html.clone().into();
@@ -511,6 +512,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                     "title": snapshot.title,
                     "progress": snapshot.progress,
                     "lastDataAt": snapshot.last_data_at,
+                    "cwd": snapshot.cwd,
                 });
                 if n != 0 {
                     if let Some(o) = obj.as_object_mut() {

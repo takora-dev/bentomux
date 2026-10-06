@@ -132,6 +132,11 @@ export const BACKEND_ALLOWLIST: string[] = [
   'res_list',
   'agent_hooks_status',
   'remote_info',
+  /* read-only filesystem + pane cwd, for file viewers: they list a
+     directory and read a file, and none of the three changes anything */
+  'pane_cwd',
+  'fs_list_dir',
+  'fs_read_file',
 ];
 
 /* ---------------- registry records ---------------- */

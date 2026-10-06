@@ -18,12 +18,17 @@ pub struct TerminalSnapshot {
     pub title: String,
     pub progress: String,
     pub last_data_at: u64,
+    /* pane working directory, from OSC 7. Empty until the shell reports one:
+    not every shell emits OSC 7, and a pane that has not been told must not
+    look like one sitting in `/`. */
+    pub cwd: String,
 }
 
 pub struct TerminalModel {
     term: Parser,
     title: String,
     progress: String,
+    cwd: String,
     last_data_at: u64,
     osc_carry: Vec<u8>,
 }
@@ -40,6 +45,7 @@ impl TerminalModel {
             term: Parser::new(rows, cols, SCROLLBACK),
             title: String::new(),
             progress: String::new(),
+            cwd: String::new(),
             last_data_at: 0,
             osc_carry: Vec::new(),
         }
@@ -54,6 +60,7 @@ impl TerminalModel {
             &mut self.term,
             &mut self.title,
             &mut self.progress,
+            &mut self.cwd,
             &mut self.osc_carry,
             chunk,
         );
@@ -84,7 +91,12 @@ impl TerminalModel {
             title: self.title.clone(),
             progress: self.progress.clone(),
             last_data_at: self.last_data_at,
+            cwd: self.cwd.clone(),
         }
+    }
+
+    pub fn cwd(&self) -> &str {
+        &self.cwd
     }
 
     pub fn text(&self) -> String {
@@ -98,6 +110,7 @@ impl TerminalModel {
             title: self.title.clone(),
             progress: self.progress.clone(),
             last_data_at: self.last_data_at,
+            cwd: self.cwd.clone(),
         }
     }
 }
@@ -109,10 +122,53 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn handle_osc(title: &mut String, progress: &mut String, payload: &[u8]) {
+/* OSC 7 carries a URI, not a path: `file://host/path%20with%20spaces`.
+We want the path back, so drop the scheme and authority and undo the
+percent-encoding. A pane that reports nothing keeps its previous cwd. */
+fn decode_osc7_uri(payload: &str) -> Option<String> {
+    let rest = payload.strip_prefix("file://")?;
+    let path = match rest.find('/') {
+        Some(0) => rest,
+        /* `file://host/path` — strip the authority; a non-empty host other
+        than localhost names a remote share we have no path for */
+        Some(slash) => {
+            let host = &rest[..slash];
+            if !host.is_empty() && host != "localhost" {
+                return None;
+            }
+            &rest[slash..]
+        }
+        None => return None,
+    };
+    if path.is_empty() {
+        return None;
+    }
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?;
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).ok()
+}
+
+fn handle_osc(title: &mut String, progress: &mut String, cwd: &mut String, payload: &[u8]) {
     let text = String::from_utf8_lossy(payload);
     if let Some(rest) = text.strip_prefix("0;").or_else(|| text.strip_prefix("2;")) {
         *title = rest.to_string();
+    } else if let Some(rest) = text.strip_prefix("7;") {
+        if let Some(path) = decode_osc7_uri(rest) {
+            *cwd = path;
+        }
     } else if let Some(rest) = text.strip_prefix("9;") {
         let mut parts = rest.split(';');
         match parts.next() {
@@ -127,6 +183,7 @@ fn feed(
     term: &mut Parser,
     title: &mut String,
     progress: &mut String,
+    cwd: &mut String,
     osc_carry: &mut Vec<u8>,
     chunk: &[u8],
 ) {
@@ -158,7 +215,7 @@ fn feed(
             }
             match end {
                 Some(e) => {
-                    handle_osc(title, progress, &stream[i + 2..e]);
+                    handle_osc(title, progress, cwd, &stream[i + 2..e]);
                     i = if stream[e] == 0x1b { e + 2 } else { e + 1 };
                 }
                 None => {
@@ -342,6 +399,33 @@ mod tests {
     }
 
     #[test]
+    fn osc7_reports_the_pane_cwd_percent_decoded() {
+        let mut model = TerminalModel::default();
+        model.process(b"\x1b]7;file://localhost/Users/me/my%20project\x07$ ");
+        assert_eq!(model.cwd(), "/Users/me/my project");
+
+        /* a bare host is optional; a real host is not a local path */
+        model.process(b"\x1b]7;file:///tmp/a%2Bb\x07");
+        assert_eq!(model.cwd(), "/tmp/a+b");
+        model.process(b"\x1b]7;file://server/share\x07");
+        assert_eq!(
+            model.cwd(),
+            "/tmp/a+b",
+            "a foreign host must not move the pane"
+        );
+    }
+
+    #[test]
+    fn osc7_split_across_chunks_and_survives_other_output() {
+        let mut model = TerminalModel::default();
+        model.process(b"\x1b]7;file:///a/b");
+        assert_eq!(model.cwd(), "", "an unfinished OSC carries no cwd yet");
+        model.process(b"-c\x07plain text");
+        assert_eq!(model.cwd(), "/a/b-c");
+        assert!(model.text().contains("plain text"));
+    }
+
+    #[test]
     fn state_replay_contains_rendered_text() {
         let mut model = TerminalModel::default();
         model.process(b"hello");
@@ -357,6 +441,7 @@ mod tests {
         let snap = model.snapshot();
         assert_eq!(snap.title, "pi pane");
         assert_eq!(snap.progress, "3;50");
+        assert_eq!(snap.cwd, "");
         assert!(snap.text.contains("ready"));
         model.set_size(24, 200);
         model.process("x".repeat(150).as_bytes());

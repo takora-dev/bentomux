@@ -446,6 +446,11 @@ impl PtyManager {
                                 .get("lastDataAt")
                                 .and_then(Value::as_u64)
                                 .unwrap_or(0),
+                            cwd: msg
+                                .get("cwd")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string(),
                         };
                         crate::detect::screen::update_snapshot(&id, snapshot);
                     }
@@ -564,6 +569,11 @@ impl PtyManager {
                 .unwrap_or_default()
                 .to_string(),
             last_data_at: reply.get("lastDataAt").and_then(Value::as_u64).unwrap_or(0),
+            cwd: reply
+                .get("cwd")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
         })
     }
 

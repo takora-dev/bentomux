@@ -1059,6 +1059,163 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
     base64::engine::general_purpose::STANDARD.decode(s)
 }
 
+/* ---------------- read-only filesystem + pane cwd (plugin allowlist) ----------------
+`backend.invoke` reaches the backend only through the curated allowlist in
+src/src/plugin/types.ts. This trio is what a file viewer needs: where the
+focused pane is sitting, what is in a directory, and what a file holds.
+All three only read — nothing here creates, moves, or deletes, and every
+response is capped so a stray `cd /` cannot flood a renderer. */
+
+/// A directory listing entry. `is_dir` comes from the entry's own type, so a
+/// symlink is reported as the link it is rather than followed.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsDirEntry {
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+}
+
+/// A file's contents, in whichever of the two forms fits it. Text arrives as
+/// text; anything binary arrives base64 with a mime the caller can put in a
+/// data URL. `truncated` says the file was longer than the cap.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsFileContents {
+    pub text: Option<String>,
+    pub base64: Option<String>,
+    pub mime: String,
+    pub size: u64,
+    pub truncated: bool,
+}
+
+/// More entries than this and the caller is not looking at a directory, it is
+/// looking at a build output folder.
+const FS_MAX_DIR_ENTRIES: usize = 2000;
+/// Text past this is not something a reader will scroll to.
+const FS_MAX_TEXT_BYTES: usize = 1024 * 1024;
+/// Images get more room because they are not scrolled through, they are shown.
+const FS_MAX_BINARY_BYTES: usize = 8 * 1024 * 1024;
+
+/// The pane's working directory as last reported over OSC 7, or `None` when
+/// the shell has not reported one.
+#[tauri::command]
+pub fn pane_cwd(pane_id: String) -> Option<String> {
+    let cwd = crate::detect::screen::screen_cwd(&pane_id);
+    if cwd.is_empty() {
+        None
+    } else {
+        Some(cwd)
+    }
+}
+
+#[tauri::command]
+pub fn fs_list_dir(path: String) -> Result<Vec<FsDirEntry>, String> {
+    let dir = std::path::Path::new(&path);
+    let read = std::fs::read_dir(dir).map_err(|e| format!("cannot read {}: {}", path, e))?;
+    let mut out: Vec<FsDirEntry> = Vec::new();
+    for entry in read {
+        let Ok(entry) = entry else { continue };
+        if out.len() >= FS_MAX_DIR_ENTRIES {
+            break;
+        }
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        /* file_type() does not follow the link, which is what we want: a
+        symlink loop must not turn a listing into a walk */
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        out.push(FsDirEntry {
+            name,
+            is_dir: kind.is_dir(),
+            size,
+        });
+    }
+    out.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(out)
+}
+
+fn mime_for(path: &str, binary: bool) -> String {
+    let ext = path
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !binary {
+        return match ext.as_str() {
+            "json" => "application/json",
+            "html" | "htm" => "text/html",
+            "css" => "text/css",
+            "md" => "text/markdown",
+            "csv" => "text/csv",
+            "svg" => "image/svg+xml",
+            _ => "text/plain",
+        }
+        .to_string();
+    }
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "ico" => "image/x-icon",
+        "bmp" => "image/bmp",
+        _ => "application/octet-stream",
+    }
+    .to_string()
+}
+
+/// A NUL byte in the first block is the same test git and file(1) use; a
+/// file that decodes as UTF-8 from there on is text.
+fn looks_binary(head: &[u8]) -> bool {
+    head.contains(&0) || std::str::from_utf8(head).is_err()
+}
+
+#[tauri::command]
+pub fn fs_read_file(path: String) -> Result<FsFileContents, String> {
+    let file = std::path::Path::new(&path);
+    let meta = std::fs::metadata(file).map_err(|e| format!("cannot stat {}: {}", path, e))?;
+    if meta.is_dir() {
+        return Err(format!("{} is a directory", path));
+    }
+    let bytes = std::fs::read(file).map_err(|e| format!("cannot read {}: {}", path, e))?;
+    let size = bytes.len() as u64;
+    let head = &bytes[..bytes.len().min(8192)];
+    /* SVG is text with an image extension: sending it as text lets the viewer
+    show the source, and a caller that wants the picture can still wrap it in
+    a data URL from the same string. */
+    let ext = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    let binary = looks_binary(head) && ext.as_deref() != Some("svg");
+
+    if !binary {
+        let limit = FS_MAX_TEXT_BYTES.min(bytes.len());
+        let truncated = bytes.len() > FS_MAX_TEXT_BYTES;
+        return Ok(FsFileContents {
+            text: Some(String::from_utf8_lossy(&bytes[..limit]).into_owned()),
+            base64: None,
+            mime: mime_for(&path, false),
+            size,
+            truncated,
+        });
+    }
+
+    let limit = FS_MAX_BINARY_BYTES.min(bytes.len());
+    use base64::Engine;
+    Ok(FsFileContents {
+        text: None,
+        base64: Some(base64::engine::general_purpose::STANDARD.encode(&bytes[..limit])),
+        mime: mime_for(&path, true),
+        size,
+        truncated: bytes.len() > FS_MAX_BINARY_BYTES,
+    })
+}
+
 /* ---------------- zone background images ----------------
    Wallpaper files live under app_data_dir/backgrounds/ and are named by
    their content hash, so re-picking the same image never duplicates
@@ -1219,8 +1376,8 @@ pub fn background_delete(app: tauri::AppHandle, name: String) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::{
-        is_background_name, remember_recent, safe_temp_name, validate_backgrounds,
-        MAX_RECENT_FOLDERS,
+        base64_decode, fs_list_dir, fs_read_file, is_background_name, pane_cwd, remember_recent,
+        safe_temp_name, validate_backgrounds, FS_MAX_TEXT_BYTES, MAX_RECENT_FOLDERS,
     };
     use crate::state::{BackgroundPosition, BackgroundSpec, Backgrounds, Prefs};
 
@@ -1371,5 +1528,107 @@ mod tests {
         assert!(!list.iter().any(|p| p == &dirs[MAX_RECENT_FOLDERS + 1]));
         assert_eq!(list[0], dirs[0]);
         std::fs::remove_dir_all(root).ok();
+    }
+
+    /* ---------------- read-only fs trio ---------------- */
+
+    fn fs_fixture(name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("bentomux-fs-{}", name));
+        std::fs::remove_dir_all(&root).ok();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        std::fs::write(root.join("notes.md"), b"# title\nbody\n").unwrap();
+        std::fs::write(root.join("blob.bin"), [0xff, 0x00, 0x01, 0x02]).unwrap();
+        std::fs::write(root.join("pic.png"), [0x89, b'P', b'N', b'G', 0x0d]).unwrap();
+        std::fs::write(
+            root.join("vec.svg"),
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>",
+        )
+        .unwrap();
+        root
+    }
+
+    #[test]
+    fn list_dir_sorts_dirs_first_and_keeps_sizes() {
+        let root = fs_fixture("list");
+        let out = fs_list_dir(root.to_string_lossy().into_owned()).unwrap();
+        let names: Vec<&str> = out.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["sub", "blob.bin", "notes.md", "pic.png", "vec.svg"]
+        );
+        assert!(out[0].is_dir);
+        assert!(!out[1].is_dir);
+        assert_eq!(out[1].size, 4);
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn list_dir_errors_on_a_file_and_on_nothing() {
+        let root = fs_fixture("list-err");
+        let file = root.join("notes.md").to_string_lossy().into_owned();
+        assert!(fs_list_dir(file).is_err());
+        assert!(fs_list_dir(root.join("missing").to_string_lossy().into_owned()).is_err());
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn read_file_returns_text_for_text_and_svg() {
+        let root = fs_fixture("read-text");
+        let md = fs_read_file(root.join("notes.md").to_string_lossy().into_owned()).unwrap();
+        assert_eq!(md.text.as_deref(), Some("# title\nbody\n"));
+        assert_eq!(md.mime, "text/markdown");
+        assert!(md.base64.is_none() && !md.truncated);
+
+        /* an image extension does not make it binary: SVG reads as source */
+        let svg = fs_read_file(root.join("vec.svg").to_string_lossy().into_owned()).unwrap();
+        assert!(svg.text.as_deref().unwrap().starts_with("<svg"));
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn read_file_returns_base64_for_binary_with_its_mime() {
+        let root = fs_fixture("read-bin");
+        let png = fs_read_file(root.join("pic.png").to_string_lossy().into_owned()).unwrap();
+        assert_eq!(png.mime, "image/png");
+        assert!(png.text.is_none());
+        /* the PNG signature survives the round trip */
+        let bytes = base64_decode(png.base64.as_deref().unwrap()).unwrap();
+        assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+
+        let blob = fs_read_file(root.join("blob.bin").to_string_lossy().into_owned()).unwrap();
+        assert_eq!(blob.mime, "application/octet-stream");
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn read_file_refuses_a_directory_and_truncates_a_huge_file() {
+        let root = fs_fixture("read-big");
+        assert!(fs_read_file(root.to_string_lossy().into_owned()).is_err());
+
+        let big = root.join("big.txt");
+        std::fs::write(&big, vec![b'a'; FS_MAX_TEXT_BYTES + 32]).unwrap();
+        let out = fs_read_file(big.to_string_lossy().into_owned()).unwrap();
+        assert!(out.truncated);
+        assert_eq!(out.text.unwrap().len(), FS_MAX_TEXT_BYTES);
+        assert_eq!(out.size, FS_MAX_TEXT_BYTES as u64 + 32);
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn pane_cwd_is_none_until_the_shell_reports_one() {
+        assert_eq!(pane_cwd("no-such-pane".into()), None);
+        crate::detect::screen::update_snapshot(
+            "cwd-cmd-test",
+            crate::terminal::TerminalSnapshot {
+                text: String::new(),
+                html: String::new(),
+                title: String::new(),
+                progress: String::new(),
+                last_data_at: 0,
+                cwd: "/work/here".into(),
+            },
+        );
+        assert_eq!(pane_cwd("cwd-cmd-test".into()), Some("/work/here".into()));
+        crate::detect::screen::clear_snapshot("cwd-cmd-test");
     }
 }
