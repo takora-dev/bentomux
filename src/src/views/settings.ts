@@ -10,7 +10,7 @@ import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
 import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, backgroundImageUrl } from '../main';
-import { accelFor, formatAccel, type ActionId } from '../keyboard';
+import { accelFor, formatAccel, applyKeyPreset, KEY_PRESETS, type ActionId, type KeyPresetId } from '../keyboard';
 import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
 import {
@@ -415,7 +415,52 @@ const KEY_ACTIONS: KeyAction[] = [
   { id: 'splitAlt', label: 'Split pane (alternate direction)' },
   { id: 'splitLeft', label: 'Split pane left' },
   { id: 'splitUp', label: 'Split pane up' },
+  { id: 'focusLeft', label: 'Focus pane left' },
+  { id: 'focusRight', label: 'Focus pane right' },
+  { id: 'focusUp', label: 'Focus pane up' },
+  { id: 'focusDown', label: 'Focus pane down' },
+  { id: 'focusPrev', label: 'Focus previous pane' },
+  { id: 'focusNext', label: 'Focus next pane' },
+  { id: 'historyBack', label: 'History back' },
+  { id: 'historyForward', label: 'History forward' },
 ];
+
+/* which preset the current shortcuts map matches, for the picker. A map that
+   matches no preset (or an unknown keyPreset) reads as Custom. */
+function currentPreset(): KeyPresetId | 'custom' {
+  const overrides = db.prefs.shortcuts;
+  if (!overrides || !Object.keys(overrides).length) return 'default';
+  const eq = (a: Record<string, string> | undefined, b: Record<string, string>): boolean => {
+    const ak = Object.keys(a || {}).sort();
+    const bk = Object.keys(b).sort();
+    if (ak.length !== bk.length || ak.some((k, i) => k !== bk[i])) return false;
+    return ak.every(k => (a as Record<string, string>)[k] === b[k]);
+  };
+  if (eq(overrides, KEY_PRESETS.ghostty)) return 'ghostty';
+  if (eq(overrides, KEY_PRESETS.iterm)) return 'iterm';
+  return 'custom';
+}
+
+function buildPresetRow(paint: () => void): HTMLElement {
+  const active = currentPreset();
+  const opts: Array<[string, string]> = [
+    ['default', 'Bentomux default'],
+    ['ghostty', 'Ghostty'],
+    ['iterm', 'iTerm2'],
+  ];
+  if (active === 'custom') opts.push(['custom', 'Custom']);
+  const sel = selectEl(opts, active);
+  sel.addEventListener('change', () => {
+    /* 'custom' is a display-only marker of the current hand-edited state, not
+       a preset you can switch back into — ignore picking it */
+    if (sel.value === 'custom') return;
+    applyKeyPreset(sel.value as KeyPresetId);
+    paint();
+  });
+  return h('div', { class: 'settings-section' },
+    field('Preset', sel),
+    hint('Start from another terminal’s defaults, then fine-tune below. Ghostty binds Cmd+D / Cmd+Shift+D to split and Cmd+Alt+arrows to move focus; tab history and split-left/up are unbound under it. iTerm2 keeps Cmd+[ / Cmd+] for history.'));
+}
 
 const FIXED_KEY_ROWS: Array<[string, string]> = [
   ['Copy selection', 'Ctrl+C'],
@@ -424,12 +469,13 @@ const FIXED_KEY_ROWS: Array<[string, string]> = [
 ];
 
 function keyRow(action: KeyAction, paint: () => void): HTMLElement {
+  const accel = accelFor(action.id);
   const chip = h('button', {
-    class: 'key-chip',
+    class: 'key-chip' + (accel ? '' : ' unbound'),
     type: 'button',
     title: 'Click, then press the new shortcut',
     onclick: () => startKeyCapture(action, chip, paint),
-  }, formatAccel(accelFor(action.id)));
+  }, accel ? formatAccel(accel) : 'Unbound');
   return h('div', { class: 'keys-row' },
     h('span', { class: 'keys-label' }, action.label),
     chip);
@@ -479,7 +525,8 @@ function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void
       return;
     }
     db.prefs.shortcuts = { ...(db.prefs.shortcuts || {}), [action.id]: accel };
-    void api.setPrefs({ shortcuts: db.prefs.shortcuts });
+    db.prefs.keyPreset = 'custom';
+    void api.setPrefs({ shortcuts: db.prefs.shortcuts, keyPreset: 'custom' });
     paint();
   }
   function onOutside(e: PointerEvent): void {
@@ -495,9 +542,11 @@ function buildKeysSection(paint: () => void): HTMLElement {
   const rows = h('div', { class: 'keys-list' });
   for (const a of KEY_ACTIONS) rows.append(keyRow(a, paint));
   for (const [label, accel] of FIXED_KEY_ROWS) rows.append(fixedKeyRow(label, accel));
-  return h('div', { class: 'settings-section' },
-    rows,
-    hint('Click a shortcut, then press the new combination. Escape cancels.'));
+  return h('div', {},
+    buildPresetRow(paint),
+    h('div', { class: 'settings-section' },
+      rows,
+      hint('Click a shortcut, then press the new combination. Escape cancels.')));
 }
 
 /* ---------------- Notifications (approval overlay + hooks) ---------------- */

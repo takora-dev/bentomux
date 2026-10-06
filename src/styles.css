@@ -1055,6 +1055,7 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 }
 .key-chip:hover{color:var(--ink)}
 .key-chip.capturing{border-color:var(--accent);color:var(--accent-ink)}
+.key-chip.unbound{border-style:dashed;color:var(--ink-3,var(--ink-2));opacity:.75}
 .key-chip.static{cursor:default;background:transparent}
 .palette-picker{display:flex;flex-direction:column;gap:8px}
 .palette-select{

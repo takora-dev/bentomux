@@ -5,7 +5,7 @@ import { db } from './store';
 import { render } from './render';
 import { currentModal } from './components/modal';
 import { leavesOf, splitTerminalPane, stepHistory, closeFocusedPaneOrTab } from './views/tabs';
-import { mostRecentPane } from './views/terminal';
+import { mostRecentPane, focusRelativePane, focusPaneInDirection } from './views/terminal';
 import { openSearchModal } from './views/search';
 import api from '../preload/bentomux';
 
@@ -14,29 +14,103 @@ import api from '../preload/bentomux';
 const IS_MAC = navigator.platform.toLowerCase().includes('mac');
 const MOD = IS_MAC ? 'meta' : 'ctrl';
 
+/* every rebindable action. Splits and history keep Bentomux's own defaults;
+   the focus actions start unbound and are what a terminal preset (Ghostty,
+   iTerm2) binds. An empty string means explicitly unbound — see accelFor. */
 const DEFAULT_ACCELS = {
   palette: `${MOD}+k`,
   splitDefault: `${MOD}+\\`,
   splitAlt: `${MOD}+shift+\\`,
   splitLeft: `${MOD}+alt+ArrowLeft`,
   splitUp: `${MOD}+alt+ArrowUp`,
+  focusLeft: '',
+  focusRight: '',
+  focusUp: '',
+  focusDown: '',
+  focusPrev: '',
+  focusNext: '',
+  historyBack: IS_MAC ? 'meta+[' : '',
+  historyForward: IS_MAC ? 'meta+]' : '',
 } as const;
 export type ActionId = keyof typeof DEFAULT_ACCELS;
 
-/** the accelerator currently bound to an action (pref override or default) */
+export type KeyPresetId = 'default' | 'ghostty' | 'iterm';
+
+/* Keybinding presets let someone coming from another terminal keep their
+   muscle memory. Values mirror each terminal's own defaults:
+     Ghostty (src/config/Config.zig): super+d = new_split:right,
+       super+shift+d = new_split:down, super+[ / super+] = goto_split
+       previous/next, super+alt+arrows = goto_split up/down/left/right.
+     iTerm2: cmd+d split, cmd+shift+d split down, cmd+alt+arrows move between
+       splits, cmd+[ / cmd+] switch tabs (which is Bentomux's tab history).
+   A preset wins over Bentomux's own bindings, so choosing Ghostty leaves tab
+   history and split-left/up unbound under that preset; they stay reachable
+   through the Default preset and the pane context menu. */
+const PRIMARY = IS_MAC ? 'meta' : 'ctrl';
+
+export const KEY_PRESETS: Record<KeyPresetId, Record<string, string>> = {
+  /* empty = no overrides, accelFor falls back to DEFAULT_ACCELS */
+  default: {},
+  ghostty: {
+    palette: `${PRIMARY}+k`,
+    splitDefault: `${PRIMARY}+d`,
+    splitAlt: `${PRIMARY}+shift+d`,
+    splitLeft: '',
+    splitUp: '',
+    focusLeft: `${PRIMARY}+alt+ArrowLeft`,
+    focusRight: `${PRIMARY}+alt+ArrowRight`,
+    focusUp: `${PRIMARY}+alt+ArrowUp`,
+    focusDown: `${PRIMARY}+alt+ArrowDown`,
+    focusPrev: `${PRIMARY}+[`,
+    focusNext: `${PRIMARY}+]`,
+    historyBack: '',
+    historyForward: '',
+  },
+  iterm: {
+    palette: `${PRIMARY}+k`,
+    splitDefault: `${PRIMARY}+d`,
+    splitAlt: `${PRIMARY}+shift+d`,
+    splitLeft: '',
+    splitUp: '',
+    focusLeft: `${PRIMARY}+alt+ArrowLeft`,
+    focusRight: `${PRIMARY}+alt+ArrowRight`,
+    focusUp: `${PRIMARY}+alt+ArrowUp`,
+    focusDown: `${PRIMARY}+alt+ArrowDown`,
+    /* iTerm2 keeps cmd+[ / cmd+] for switching tabs, so prev/next split is
+       left unbound and tab history keeps its default keys */
+    focusPrev: '',
+    focusNext: '',
+    historyBack: IS_MAC ? 'meta+[' : '',
+    historyForward: IS_MAC ? 'meta+]' : '',
+  },
+};
+
+/** write a preset's bindings and record which preset is active */
+export function applyKeyPreset(id: KeyPresetId): void {
+  const overrides: Record<string, string> = { ...KEY_PRESETS[id] };
+  db.prefs.shortcuts = overrides;
+  db.prefs.keyPreset = id;
+  void api.setPrefs({ shortcuts: overrides, keyPreset: id });
+}
+
+/** the accelerator currently bound to an action (pref override or default).
+    an explicit empty-string override means "unbound" and is respected. */
 export function accelFor(action: ActionId): string {
-  return db.prefs.shortcuts?.[action] || DEFAULT_ACCELS[action];
+  const overrides = db.prefs.shortcuts;
+  if (overrides && action in overrides) return overrides[action];
+  return DEFAULT_ACCELS[action];
 }
 
 /** "ctrl+shift+k" → "Ctrl+Shift+K" (or "Cmd+Shift+K" on macOS) for display */
 export function formatAccel(accel: string): string {
+  if (!accel) return '';
   const parts = accel.split('+');
   const key = parts.pop() || '';
   const prettyKey = key.length === 1 ? key.toUpperCase()
-    : key.toLowerCase() === 'arrowleft' ? '\u2190'
-    : key.toLowerCase() === 'arrowup' ? '\u2191'
-    : key.toLowerCase() === 'arrowright' ? '\u2192'
-    : key.toLowerCase() === 'arrowdown' ? '\u2193'
+    : key.toLowerCase() === 'arrowleft' ? '←'
+    : key.toLowerCase() === 'arrowup' ? '↑'
+    : key.toLowerCase() === 'arrowright' ? '→'
+    : key.toLowerCase() === 'arrowdown' ? '↓'
     : key.charAt(0).toUpperCase() + key.slice(1);
   const modParts = parts.map(p => {
     const lower = p.toLowerCase();
@@ -49,6 +123,7 @@ export function formatAccel(accel: string): string {
 
 /* compare a keydown against a "ctrl+shift+k"-style accelerator */
 function accelMatches(e: KeyboardEvent, accel: string): boolean {
+  if (!accel) return false;
   const parts = accel.toLowerCase().split('+');
   return e.ctrlKey === parts.includes('ctrl')
     && e.shiftKey === parts.includes('shift')
@@ -60,6 +135,12 @@ function accelMatches(e: KeyboardEvent, accel: string): boolean {
 function splitFocusedPane(dir: 'v' | 'h', before = false): void {
   const entry = ui.tabs.find(t => t.id === ui.activeTab);
   if (entry) void splitTerminalPane(mostRecentPane(leavesOf(entry)), dir, before);
+}
+
+/* the panes of the active terminal tab (empty when it is not a terminal) */
+function activePaneIds(): string[] {
+  const entry = ui.tabs.find(t => t.id === ui.activeTab);
+  return entry ? leavesOf(entry) : [];
 }
 
 export function initKeyboard(): void {
@@ -78,12 +159,21 @@ export function initKeyboard(): void {
     }
 
     if (ui.route.view === 'terminal') {
-      /* Ctrl+\ splits right, Ctrl+Shift+\ splits down,
-         Ctrl+Alt+Left splits left, Ctrl+Alt+Up splits up */
+      const ids = activePaneIds();
+      /* splits: Cmd+\ right, Cmd+Shift+\ down, Cmd+Alt+Left/Up left/up by
+         default; a preset may rebind them (Cmd+D / Cmd+Shift+D) */
       if (accelMatches(e, accelFor('splitDefault'))) { e.preventDefault(); splitFocusedPane('v'); return; }
       if (accelMatches(e, accelFor('splitAlt'))) { e.preventDefault(); splitFocusedPane('h'); return; }
       if (accelMatches(e, accelFor('splitLeft'))) { e.preventDefault(); splitFocusedPane('v', true); return; }
       if (accelMatches(e, accelFor('splitUp'))) { e.preventDefault(); splitFocusedPane('h', true); return; }
+
+      /* pane focus — bound by the Ghostty / iTerm2 presets */
+      if (accelMatches(e, accelFor('focusLeft'))) { e.preventDefault(); focusPaneInDirection(ids, 'left'); return; }
+      if (accelMatches(e, accelFor('focusRight'))) { e.preventDefault(); focusPaneInDirection(ids, 'right'); return; }
+      if (accelMatches(e, accelFor('focusUp'))) { e.preventDefault(); focusPaneInDirection(ids, 'up'); return; }
+      if (accelMatches(e, accelFor('focusDown'))) { e.preventDefault(); focusPaneInDirection(ids, 'down'); return; }
+      if (accelMatches(e, accelFor('focusPrev'))) { e.preventDefault(); focusRelativePane(ids, -1); return; }
+      if (accelMatches(e, accelFor('focusNext'))) { e.preventDefault(); focusRelativePane(ids, 1); return; }
 
       /* Windows/Linux: Ctrl+W closes the focused pane, or the tab when it is
          down to its last pane. macOS keeps this in the native menu
@@ -100,12 +190,11 @@ export function initKeyboard(): void {
     const tag = (e.target as HTMLElement).tagName;
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable;
 
-    /* Mac navigation: Cmd+[ back, Cmd+] forward */
-    if (e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
-      if (e.key === '[') { e.preventDefault(); stepHistory(-1); return; }
-      if (e.key === ']') { e.preventDefault(); stepHistory(1); return; }
-      /* Cmd+Ctrl+F = macOS fullscreen */
-    }
+    /* tab history: Cmd+[ back, Cmd+] forward by default; a preset may
+       rebind or unbind them */
+    if (accelMatches(e, accelFor('historyBack'))) { e.preventDefault(); stepHistory(-1); return; }
+    if (accelMatches(e, accelFor('historyForward'))) { e.preventDefault(); stepHistory(1); return; }
+
     if (e.metaKey && e.ctrlKey && e.key === 'f') {
       e.preventDefault();
       void api.toggleFullscreen();

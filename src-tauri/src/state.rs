@@ -164,6 +164,10 @@ pub struct Prefs {
     pub shell: Option<String>,
     /* app-shortcut overrides: action id → accelerator ("ctrl+shift+k") */
     pub shortcuts: Option<HashMap<String, String>>,
+    /* which preset the shortcuts map came from ('default' | 'ghostty' |
+    'iterm' | 'custom'); drives the Settings keybinding picker. Absent =
+    'default' so an existing bentomux.json reads as the built-in set. */
+    pub key_preset: Option<String>,
     pub pane_hidden: Option<bool>,
     pub sidebar_width: Option<f64>,
     /* workspace name labels before tab groups in the top bar; absent = shown */
@@ -208,6 +212,7 @@ impl Default for Prefs {
             font_size: None,
             shell: None,
             shortcuts: None,
+            key_preset: Some("default".to_string()),
             pane_hidden: Some(false),
             sidebar_width: Some(248.0),
             show_tab_group_names: None,

@@ -403,6 +403,56 @@ export function primePaneFocus(paneId: string): void {
   lastFocus.set(paneId, Date.now());
 }
 
+/* move focus to a specific pane of the active tab (keyboard focus actions) */
+export function focusPane(paneId: string): void {
+  lastFocus.set(paneId, Date.now());
+  const live = lives.get(paneId);
+  if (live) { try { live.term.focus(); } catch { /* pane gone */ } }
+}
+
+/* cycle focus through the tab's panes in creation order (Ghostty's
+   goto_split:previous / :next) */
+export function focusRelativePane(ids: string[], dir: -1 | 1): void {
+  if (ids.length < 2) return;
+  const current = mostRecentPane(ids);
+  const idx = ids.indexOf(current);
+  const next = ids[(idx + dir + ids.length) % ids.length];
+  if (next) focusPane(next);
+}
+
+/* move focus to the nearest pane in a screen direction (Ghostty/iTerm2's
+   directional split navigation). Panes are laid out by flexbox, so the
+   geometry is read from the DOM: pick the pane whose centre lies in the
+   requested direction and is closest, penalising off-axis drift so a pane
+   straight ahead beats one that is only diagonally over. */
+export function focusPaneInDirection(ids: string[], dir: 'left' | 'right' | 'up' | 'down'): void {
+  if (ids.length < 2) return;
+  const current = mostRecentPane(ids);
+  const curEl = document.querySelector(`.pane[data-pane="${CSS.escape(current)}"]`);
+  if (!curEl) return;
+  const cur = curEl.getBoundingClientRect();
+  const cx = cur.left + cur.width / 2;
+  const cy = cur.top + cur.height / 2;
+  const horizontal = dir === 'left' || dir === 'right';
+  const sign = dir === 'left' || dir === 'up' ? -1 : 1;
+  let best: string | null = null;
+  let bestScore = Infinity;
+  for (const id of ids) {
+    if (id === current) continue;
+    const el = document.querySelector(`.pane[data-pane="${CSS.escape(id)}"]`);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - cx;
+    const dy = r.top + r.height / 2 - cy;
+    const primary = horizontal ? dx : dy;
+    const secondary = horizontal ? dy : dx;
+    if (Math.sign(primary) !== sign || primary === 0) continue;
+    const score = Math.abs(primary) + Math.abs(secondary) * 2;
+    if (score < bestScore) { bestScore = score; best = id; }
+  }
+  if (best) focusPane(best);
+}
+
 /* drop a remembered divider position so that axis returns to 50/50 */
 export function resetPaneRatio(nodeKey: string): void {
   ratioByNode.delete(nodeKey);

@@ -134,7 +134,13 @@ export interface Prefs {
   remote?: RemotePrefs;
   /* auto-update; absent = enabled */
   autoUpdate?: boolean;
+  /* which keybinding preset the shortcuts map was seeded from: 'default'
+     (Bentomux's own), 'ghostty' or 'iterm' (a terminal the user came from),
+     or 'custom' once they hand-rebind any key. Drives the Settings picker. */
+  keyPreset?: KeyPreset;
 }
+
+export type KeyPreset = 'default' | 'ghostty' | 'iterm' | 'custom';
 
 export interface RemotePrefs {
   enabled?: boolean;

@@ -129,6 +129,9 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
             cur.shortcuts = Some(m);
         }
     }
+    if let Some(v) = obj.get("keyPreset").and_then(|v| v.as_str()) {
+        cur.key_preset = Some(v.to_string());
+    }
     if let Some(v) = obj.get("expanded") {
         if let Ok(m) = serde_json::from_value::<HashMap<String, bool>>(v.clone()) {
             cur.expanded = Some(m);
