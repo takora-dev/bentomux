@@ -955,7 +955,10 @@ function renderBottomDock(): void {
   const dock = $('#sidebarBottom');
   if (!dock) return;
   dock.innerHTML = '';
-  dock.append(...pluginDockButtons(), settingsGearButton(), remoteDockButton());
+  /* plugin buttons sit in the middle (the centered slot) with settings
+     left and remote right, so a plugin dock icon reads as the primary
+     action instead of the gear. */
+  dock.append(settingsGearButton(), ...pluginDockButtons(), remoteDockButton());
 }
 
 function renderGitPanel(): void {
