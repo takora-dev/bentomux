@@ -8,6 +8,7 @@ import { leavesOf, splitTerminalPane, stepHistory, closeFocusedPaneOrTab } from 
 import { mostRecentPane, focusRelativePane, focusPaneInDirection } from './views/terminal';
 import { openSearchModal } from './views/search';
 import api from '../preload/bentomux';
+import type { KeyPreset } from '../shared/types';
 
 /* app-level shortcuts; Settings › Keybindings overrides these by action id */
 /* use Cmd on macOS, Ctrl on Windows/Linux */
@@ -86,32 +87,47 @@ export const KEY_PRESETS: Record<KeyPresetId, Record<string, string>> = {
 };
 
 /* accelerators the app reserves outside the rebindable shortcut map. Settings
-   validates a captured key against these so a rebind cannot silently collide
-   with a native menu item or a hardcoded handler:
-     - File ▸ Close Pane is a native menu item on CmdOrCtrl+W (menu.rs); on
-       Windows/Linux the DOM handler below binds Ctrl+W to the same action.
+   rejects a captured key that collides with one of these so a rebind cannot
+   silently shadow a native menu item or a hardcoded handler, and renders every
+   entry carrying a `row` label as a read-only row (see views/settings.ts):
+     - Close Pane: a File-menu item on macOS (Cmd+W, menu.rs); Windows/Linux
+       have no app menu, so the DOM handler in initKeyboard binds Ctrl+W to the
+       same action.
      - Cmd/Ctrl+C and Cmd/Ctrl+V are the terminal's own copy/paste
-       (views/terminal.ts); both modifiers are accepted there, so both are
-       reserved on every platform.
-     - Cmd+Ctrl+F toggles fullscreen (the handler in initKeyboard below).
-     - Escape closes a modal. It can never be captured (accelFromEvent requires
-       a modifier); listed so this set matches the fixed rows shown in Settings. */
-export const RESERVED_ACCELS: ReadonlyArray<readonly [string, string]> = [
-  [`${MOD}+w`, 'Close Pane (File menu)'],
-  ['ctrl+c', 'Copy selection'],
-  ['meta+c', 'Copy selection'],
-  ['ctrl+v', 'Paste'],
-  ['meta+v', 'Paste'],
-  ['ctrl+meta+f', 'Toggle fullscreen'],
-  ['escape', 'Close modal'],
+       (views/terminal.ts). It accepts either modifier on every platform, so
+       both are reserved, but only the platform's own one is shown as a row.
+     - Cmd+Ctrl+F toggles fullscreen (the handler in initKeyboard).
+     - Escape closes a modal; accelFromEvent requires a modifier, so it can
+       never be captured — kept for the fixed row only, never matched here. */
+export type ReservedAccel = {
+  /** accelerator a captured key is compared against */
+  accel: string;
+  /** what the clash toast names as the current owner */
+  label: string;
+  /** when set, Settings renders a read-only row under this label */
+  row?: string;
+};
+
+export const RESERVED_ACCELS: ReadonlyArray<ReservedAccel> = [
+  { accel: `${MOD}+c`, label: 'Copy selection', row: 'Copy selection' },
+  { accel: IS_MAC ? 'ctrl+c' : 'meta+c', label: 'Copy selection' },
+  { accel: `${MOD}+v`, label: 'Paste', row: 'Paste' },
+  { accel: IS_MAC ? 'ctrl+v' : 'meta+v', label: 'Paste' },
+  { accel: `${MOD}+w`, label: IS_MAC ? 'Close Pane (File menu)' : 'Close Pane', row: 'Close pane' },
+  { accel: 'ctrl+meta+f', label: 'Toggle fullscreen' },
+  { accel: 'escape', label: 'Close modal', row: 'Close modal' },
 ];
+
+/** persist a shortcuts map and the preset it represents (caller repaints) */
+export function setShortcuts(shortcuts: Record<string, string>, preset: KeyPreset): void {
+  db.prefs.shortcuts = shortcuts;
+  db.prefs.keyPreset = preset;
+  void api.setPrefs({ shortcuts, keyPreset: preset });
+}
 
 /** write a preset's bindings and record which preset is active */
 export function applyKeyPreset(id: KeyPresetId): void {
-  const overrides: Record<string, string> = { ...KEY_PRESETS[id] };
-  db.prefs.shortcuts = overrides;
-  db.prefs.keyPreset = id;
-  void api.setPrefs({ shortcuts: overrides, keyPreset: id });
+  setShortcuts({ ...KEY_PRESETS[id] }, id);
 }
 
 /** the accelerator currently bound to an action (pref override or default).
@@ -132,6 +148,7 @@ export function formatAccel(accel: string): string {
     : key.toLowerCase() === 'arrowup' ? '↑'
     : key.toLowerCase() === 'arrowright' ? '→'
     : key.toLowerCase() === 'arrowdown' ? '↓'
+    : key.toLowerCase() === 'escape' ? 'Esc'
     : key.charAt(0).toUpperCase() + key.slice(1);
   const modParts = parts.map(p => {
     const lower = p.toLowerCase();

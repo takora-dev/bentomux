@@ -10,7 +10,7 @@ import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
 import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, backgroundImageUrl } from '../main';
-import { accelFor, formatAccel, applyKeyPreset, KEY_PRESETS, RESERVED_ACCELS, IS_MAC, type ActionId, type KeyPresetId } from '../keyboard';
+import { accelFor, formatAccel, applyKeyPreset, setShortcuts, KEY_PRESETS, RESERVED_ACCELS, type ActionId, type KeyPresetId, type ReservedAccel } from '../keyboard';
 import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
 import {
@@ -461,9 +461,7 @@ function buildPresetRow(paint: () => void): HTMLElement {
      own defaults and the picker reads 'Bentomux default' again */
   const reset = h('button', { class: 'btn ghost', type: 'button', title: 'Clear all custom bindings' }, 'Reset to default');
   reset.addEventListener('click', () => {
-    db.prefs.shortcuts = {};
-    db.prefs.keyPreset = 'default';
-    void api.setPrefs({ shortcuts: {}, keyPreset: 'default' });
+    setShortcuts({}, 'default');
     paint();
   });
   const controls = h('div', { class: 'key-preset-controls' }, sel, reset);
@@ -472,20 +470,13 @@ function buildPresetRow(paint: () => void): HTMLElement {
     hint('Start from another terminal’s defaults, then fine-tune below. Ghostty binds Cmd+D / Cmd+Shift+D to split and Cmd+Alt+arrows to move focus; tab history and split-left/up are unbound under it. iTerm2 keeps Cmd+[ / Cmd+] for history.'));
 }
 
-/* read-only shortcuts the app owns outside the rebindable map. Built per
-   platform: macOS keeps Close Pane on the File menu (Cmd+W, menu.rs) and the
-   terminal accepts Cmd+C / Cmd+V; Windows/Linux have no app menu, so Ctrl+W is
-   a hardcoded DOM handler (keyboard.ts) and copy/paste stay on Ctrl. */
+/* read-only shortcuts the app owns outside the rebindable map, derived from
+   RESERVED_ACCELS so the rows shown and the keys a rebind is rejected against
+   can never drift apart. Only entries carrying a `row` label are displayed. */
 function fixedKeyRows(): Array<[string, string]> {
-  const closePane = IS_MAC ? 'Cmd+W' : 'Ctrl+W';
-  const copy = IS_MAC ? 'Cmd+C' : 'Ctrl+C';
-  const paste = IS_MAC ? 'Cmd+V' : 'Ctrl+V';
-  return [
-    ['Copy selection', copy],
-    ['Paste', paste],
-    ['Close pane', closePane],
-    ['Close modal', 'Esc'],
-  ];
+  return RESERVED_ACCELS
+    .filter((r): r is ReservedAccel & { row: string } => !!r.row)
+    .map(r => [r.row, formatAccel(r.accel)]);
 }
 
 function keyRow(action: KeyAction, paint: () => void): HTMLElement {
@@ -507,10 +498,7 @@ function keyRow(action: KeyAction, paint: () => void): HTMLElement {
           type: 'button',
           title: 'Remove shortcut',
           onclick: () => {
-            const next = { ...(db.prefs.shortcuts || {}), [action.id]: '' };
-            db.prefs.shortcuts = next;
-            db.prefs.keyPreset = 'custom';
-            void api.setPrefs({ shortcuts: next, keyPreset: 'custom' });
+            setShortcuts({ ...(db.prefs.shortcuts || {}), [action.id]: '' }, 'custom');
             paint();
           },
         }, ic('trash'))
@@ -546,8 +534,8 @@ function accelFromEvent(e: KeyboardEvent): string | null {
 function accelClash(accel: string, self: ActionId): string | null {
   const other = KEY_ACTIONS.find(o => o.id !== self && accelFor(o.id) === accel);
   if (other) return other.label;
-  const reserved = RESERVED_ACCELS.find(([a]) => a === accel);
-  return reserved ? reserved[1] : null;
+  const reserved = RESERVED_ACCELS.find(r => r.accel === accel);
+  return reserved ? reserved.label : null;
 }
 
 /* one-shot key capture for rebinding. Listens on window in the capture
@@ -575,9 +563,7 @@ function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void
       setTimeout(paint, 1400);
       return;
     }
-    db.prefs.shortcuts = { ...(db.prefs.shortcuts || {}), [action.id]: accel };
-    db.prefs.keyPreset = 'custom';
-    void api.setPrefs({ shortcuts: db.prefs.shortcuts, keyPreset: 'custom' });
+    setShortcuts({ ...(db.prefs.shortcuts || {}), [action.id]: accel }, 'custom');
     paint();
   }
   function onOutside(e: PointerEvent): void {
