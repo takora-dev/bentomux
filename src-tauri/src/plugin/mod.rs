@@ -51,11 +51,20 @@ pub const PERMISSIONS: &[&str] = &[
     "agents.write",
     "remote.control",
     "backend.invoke",
+    "discord.write",
 ];
 
 /// Commands a plugin may reach through `backend.invoke`. Read-only on
 /// purpose: every entry here is a capability handed to *every* installed
 /// plugin, so extending it is a security review, not a convenience.
+///
+/// The exception is the `discord_*` trio at the end: it writes to the local
+/// Discord client's IPC socket, which is an effect no other allowlisted
+/// command has. It is gated behind its own permission (`discord.write`)
+/// rather than being handed to every plugin that holds `backend.invoke`.
+/// The gate itself is enforced in the renderer facade (src/src/plugin/
+/// facade.ts); this list is the shared vocabulary it and the authoring skill
+/// are generated from, so it has to name every command the app implements.
 pub const BACKEND_ALLOWLIST: &[&str] = &[
     "get_state",
     "git_status",
@@ -68,6 +77,12 @@ pub const BACKEND_ALLOWLIST: &[&str] = &[
     "res_list",
     "agent_hooks_status",
     "remote_info",
+    "pane_cwd",
+    "fs_list_dir",
+    "fs_read_file",
+    "discord_set_activity",
+    "discord_clear_activity",
+    "discord_status",
 ];
 
 /// Contribution kinds, in the order the Studio review screen lists them.

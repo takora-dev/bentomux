@@ -1,6 +1,6 @@
 [package]
 name = "bentomux"
-version = "0.2.52"
+version = "0.2.57"
 edition = "2021"
 description = "Bentomux — calm desktop for AI agent runtime workspaces"
 license = "MIT"

@@ -9,6 +9,7 @@ pub mod bridge;
 pub mod bridge_config;
 pub mod commands;
 pub mod detect;
+pub mod discord;
 pub mod git;
 /* macOS-only: the app menu (Cmd+W belongs to the focused pane, not the window) */
 #[cfg(target_os = "macos")]
@@ -226,6 +227,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::prefs_update,
+            /* Discord Rich Presence: the only non-read-only commands on the
+               plugin allowlist (see plugin/mod.rs BACKEND_ALLOWLIST). They
+               write to the local Discord client's IPC socket and nowhere
+               else — no network, no filesystem, no other app. */
+            discord::discord_set_activity,
+            discord::discord_clear_activity,
+            discord::discord_status,
             commands::workspace_choose,
             commands::workspace_add,
             commands::workspace_remove,

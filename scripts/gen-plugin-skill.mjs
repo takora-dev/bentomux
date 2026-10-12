@@ -143,8 +143,16 @@ function permissionsReference() {
     const list = methods[p] ?? [];
     if (p === 'storage') return `| \`storage\` | \`ctx.storage\` (get / set / delete / keys) |`;
     if (p === 'backend.invoke') return `| \`backend.invoke\` | \`ctx.app.invoke(command, args)\`, restricted to the allowlist below |`;
+    if (p === 'discord.write') return `| \`discord.write\` | \`ctx.app.invoke('discord_set_activity', …)\` and \`discord_clear_activity\` — the local Discord client's IPC socket |`;
     return `| \`${p}\` | ${list.length ? list.map(m => `\`ctx.app.${m}\``).join(', ') : '—'} |`;
   });
+
+  /* The writing commands live in a second table, so pull them out rather than
+     reading them as part of the read-only list. */
+  const writeBlock = types.match(/export const WRITE_COMMANDS[^{]*\{([\s\S]*?)\n\};/);
+  const writeCommands = writeBlock
+    ? [...writeBlock[1].matchAll(/(\w+):\s*'(\w+(?:\.\w+)?)'/g)].map(m => `\`${m[1]}\` (needs \`${m[2]}\`)`)
+    : [];
 
   return `# Permissions reference
 
@@ -160,9 +168,18 @@ ${rows.join('\n')}
 
 ## \`backend.invoke\` allowlist
 
-\`ctx.app.invoke(command, args)\` forwards only these, and they are read-only:
+\`ctx.app.invoke(command, args)\` forwards only these, and apart from the
+Discord trio below they are read-only:
 
 ${allowlist.map(c => `- \`${c}\``).join('\n')}
+
+### The writing commands
+
+These are the only allowlisted commands that change something. Each one
+additionally requires its own permission, so holding \`backend.invoke\` alone
+is not enough to reach any of them.
+
+${writeCommands.map(c => `- ${c}`).join('\n') || '- (none)'}
 
 ## What permissions are not
 

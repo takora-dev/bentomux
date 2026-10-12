@@ -82,13 +82,14 @@ export type PluginPermission =
   | 'agents.read'
   | 'agents.write'
   | 'remote.control'
-  | 'backend.invoke';
+  | 'backend.invoke'
+  | 'discord.write';
 
 export const ALL_PERMISSIONS: PluginPermission[] = [
   'storage', 'app.read', 'app.prefs.write', 'app.window', 'files.temp',
   'workspaces.write', 'tabs.write', 'terminal.read', 'terminal.input',
   'git.read', 'git.push', 'agents.read', 'agents.write', 'remote.control',
-  'backend.invoke',
+  'backend.invoke', 'discord.write',
 ];
 
 /**
@@ -117,6 +118,11 @@ export const PERMISSION_METHODS: Record<PluginPermission, string[]> = {
   'agents.write': ['setAgentModelSettings', 'saveResource', 'deleteResource', 'toggleResource', 'agentHooksInstall', 'agentHooksUninstall', 'resolveApproval'],
   'remote.control': ['remoteInfo', 'remoteSetEnabled', 'remoteSetPort'],
   'backend.invoke': [],
+  /* The local Discord client's IPC socket. The only permission here that
+     grants an effect rather than a read, which is why it is its own name
+     instead of a namespace on backend.invoke: the Studio review screen can
+     show "writes to your Discord presence" without implying anything else. */
+  'discord.write': [],
 };
 
 /** Commands `backend.invoke` will forward. Read-only on purpose. */
@@ -137,7 +143,23 @@ export const BACKEND_ALLOWLIST: string[] = [
   'pane_cwd',
   'fs_list_dir',
   'fs_read_file',
+  /* the only writing commands on the list; each additionally requires
+     `discord.write`, see WRITE_COMMANDS below */
+  'discord_set_activity',
+  'discord_clear_activity',
+  'discord_status',
 ];
+
+/**
+ * Allowlisted commands that change something, each with the permission that
+ * has to be declared to reach it. Everything else on the allowlist reads.
+ * The pair is enforced here rather than in the backend, because this is the
+ * only place a plugin's permission list and its call are both in hand.
+ */
+export const WRITE_COMMANDS: Record<string, PluginPermission> = {
+  discord_set_activity: 'discord.write',
+  discord_clear_activity: 'discord.write',
+};
 
 /* ---------------- registry records ---------------- */
 

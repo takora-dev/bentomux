@@ -16,6 +16,7 @@ import { raw } from '../../preload/bentomux';
 import {
   BACKEND_ALLOWLIST,
   PERMISSION_METHODS,
+  WRITE_COMMANDS,
   type PluginPermission,
 } from './types';
 
@@ -77,13 +78,20 @@ export function buildAppFacade(
     }) as unknown as (...args: never[]) => unknown;
   }
 
-  /* 3. the generic backend passthrough, allowlisted in Rust as well */
+  /* 3. the generic backend passthrough, allowlisted in Rust as well. A
+     command on the list is not enough: the writing ones additionally
+     require their own permission, so `backend.invoke` alone cannot set a
+     Discord presence for every plugin that happens to hold it. */
   if (granted.has('backend.invoke')) {
     facade['invoke'] = ((command: string, args?: Record<string, unknown>) => {
       if (!BACKEND_ALLOWLIST.includes(command)) {
         throw new Error(
           `plugin \`${pluginId}\` tried to invoke \`${command}\`, which is not on the backend allowlist`,
         );
+      }
+      const needed = WRITE_COMMANDS[command];
+      if (needed && !granted.has(needed)) {
+        throw new PermissionError(pluginId, command, needed);
       }
       return raw.invoke(command, args);
     }) as unknown as (...args: never[]) => unknown;
@@ -106,6 +114,8 @@ export function describePermissions(permissions: PluginPermission[]): string[] {
       out.push('Store its own data (kept if you uninstall it)');
     } else if (permission === 'backend.invoke') {
       out.push('Read app data through a fixed allowlist of commands');
+    } else if (permission === 'discord.write') {
+      out.push('Write to your Discord presence');
     } else if (methods.length) {
       out.push(`${permission}: ${methods.join(', ')}`);
     }

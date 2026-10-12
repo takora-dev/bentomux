@@ -23,10 +23,12 @@ named error rather than working by accident.
 | `agents.write` | `ctx.app.setAgentModelSettings`, `ctx.app.saveResource`, `ctx.app.deleteResource`, `ctx.app.toggleResource`, `ctx.app.agentHooksInstall`, `ctx.app.agentHooksUninstall`, `ctx.app.resolveApproval` |
 | `remote.control` | `ctx.app.remoteInfo`, `ctx.app.remoteSetEnabled`, `ctx.app.remoteSetPort` |
 | `backend.invoke` | `ctx.app.invoke(command, args)`, restricted to the allowlist below |
+| `discord.write` | `ctx.app.invoke('discord_set_activity', …)` and `discord_clear_activity` — the local Discord client's IPC socket |
 
 ## `backend.invoke` allowlist
 
-`ctx.app.invoke(command, args)` forwards only these, and they are read-only:
+`ctx.app.invoke(command, args)` forwards only these, and apart from the
+Discord trio below they are read-only:
 
 - `get_state`
 - `git_status`
@@ -42,6 +44,18 @@ named error rather than working by accident.
 - `pane_cwd`
 - `fs_list_dir`
 - `fs_read_file`
+- `discord_set_activity`
+- `discord_clear_activity`
+- `discord_status`
+
+### The writing commands
+
+These are the only allowlisted commands that change something. Each one
+additionally requires its own permission, so holding `backend.invoke` alone
+is not enough to reach any of them.
+
+- `discord_set_activity` (needs `discord.write`)
+- `discord_clear_activity` (needs `discord.write`)
 
 ## What permissions are not
 

@@ -55,7 +55,7 @@ export type PluginPermission =
   | 'storage' | 'app.read' | 'app.prefs.write' | 'app.window' | 'files.temp'
   | 'workspaces.write' | 'tabs.write' | 'terminal.read' | 'terminal.input'
   | 'git.read' | 'git.push' | 'agents.read' | 'agents.write'
-  | 'remote.control' | 'backend.invoke';
+  | 'remote.control' | 'backend.invoke' | 'discord.write';
 
 export type Cleanup = () => void;
 export type RenderFn = (host: HTMLElement) => void | Cleanup;

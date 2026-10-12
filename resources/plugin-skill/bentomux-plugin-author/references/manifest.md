@@ -67,6 +67,7 @@ the app.
 - `agents.write`
 - `remote.control`
 - `backend.invoke`
+- `discord.write`
 
 Unknown names are a validation error, so a typo cannot silently grant nothing.
 
