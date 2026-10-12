@@ -44,6 +44,7 @@ const MAX_ENDPOINTS: u32 = 10;
 
 /// Every read and write is bounded: a socket left behind by a crashed client
 /// must make the call fail fast rather than hang the caller.
+#[cfg_attr(windows, allow(dead_code))]
 const IO_TIMEOUT: Duration = Duration::from_millis(1500);
 
 /// The two opcodes this module sends: HANDSHAKE opens a connection, FRAME
@@ -280,9 +281,11 @@ fn connect(app_id: &str) -> Result<(), String> {
         let mut endpoint = (0..MAX_ENDPOINTS).find_map(open_endpoint).ok_or_else(|| {
             "no Discord IPC endpoint found — is the Discord desktop app running?".to_string()
         })?;
+        #[cfg(unix)]
         endpoint
             .set_read_timeout(Some(IO_TIMEOUT))
             .map_err(|e| e.to_string())?;
+        #[cfg(unix)]
         endpoint
             .set_write_timeout(Some(IO_TIMEOUT))
             .map_err(|e| e.to_string())?;
