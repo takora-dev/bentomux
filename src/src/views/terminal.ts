@@ -106,7 +106,13 @@ function refitTerminal(live: Live, notifyPty = false): void {
 function flushTerminalOutput(): void {
   outputFrame = null;
   for (const [live, output] of outputQueue) {
-    if (!live.host.isConnected || parking.contains(live.host)) continue;
+    /* host detached between enqueue and frame: keep the bytes for the next
+       mount instead of dropping them (dropped escape state can leave the
+       pane blank while the shell is still running) */
+    if (!live.host.isConnected || parking.contains(live.host)) {
+      bufferPending(live.id, output);
+      continue;
+    }
     try {
       live.term.write(output);
     } catch {
