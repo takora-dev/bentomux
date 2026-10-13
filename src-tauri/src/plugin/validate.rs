@@ -35,6 +35,8 @@ pub mod codes {
     pub const ENTRY_ESCAPES_ROOT: &str = "entry-escapes-root";
     pub const ENTRY_EMPTY: &str = "entry-empty";
     pub const ENTRY_NOT_MODULE: &str = "entry-not-module";
+    pub const IMPORT_UNRESOLVED: &str = "import-unresolved";
+    pub const IMPORT_NOT_EXPORTED: &str = "import-not-exported";
     pub const CONTRIBUTION_ID_SHAPE: &str = "contribution-id-shape";
     pub const CONTRIBUTION_ID_DUPLICATE: &str = "contribution-id-duplicate";
     pub const PERMISSION_UNKNOWN: &str = "permission-unknown";
@@ -191,6 +193,7 @@ pub fn validate_dir_with(root: &Path, opts: &ValidateOptions) -> ValidationRepor
     if let Some(manifest) = &manifest {
         check_identity(manifest, opts, &mut report);
         check_entry(root, manifest, &mut report);
+        check_sibling_imports(root, &mut report);
         check_contributions(manifest, &mut report);
         check_permissions(manifest, &mut report);
         check_network(manifest, &mut report);
@@ -606,6 +609,108 @@ fn check_entry(root: &Path, m: &PluginManifest, report: &mut ValidationReport) {
                 format!("cannot read entry `{}`: {}", m.entry, e),
                 &m.entry,
             ));
+        }
+    }
+}
+
+/// Names a module exports, by static scan: `export function|const|let|var|
+/// class|async function NAME`, `export { a, b as c }`, and `export default`.
+/// `export * from` re-exports are reported as `None` (unknowable statically),
+/// so the caller skips the check instead of failing a valid plugin.
+fn exported_names(src: &str) -> Option<std::collections::HashSet<String>> {
+    use regex::Regex;
+    use std::sync::OnceLock;
+    static DECL: OnceLock<Regex> = OnceLock::new();
+    static LIST: OnceLock<Regex> = OnceLock::new();
+    static STAR: OnceLock<Regex> = OnceLock::new();
+    let decl = DECL.get_or_init(|| {
+        Regex::new(r"(?m)^\s*export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)").unwrap()
+    });
+    let list = LIST.get_or_init(|| Regex::new(r"export\s*\{([^}]*)\}").unwrap());
+    let star = STAR.get_or_init(|| Regex::new(r"export\s*\*\s*from").unwrap());
+    if star.is_match(src) {
+        return None;
+    }
+    let mut out = std::collections::HashSet::new();
+    for c in decl.captures_iter(src) {
+        out.insert(c[1].to_string());
+    }
+    for c in list.captures_iter(src) {
+        for part in c[1].split(',') {
+            /* `a as b` exports `b`; `a from 'x'` re-exports are covered by the star-free scan */
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            let exported = part.rsplit(|ch: char| ch.is_whitespace()).next().unwrap_or(part);
+            out.insert(exported.to_string());
+        }
+    }
+    if src.contains("export default") {
+        out.insert("default".to_string());
+    }
+    Some(out)
+}
+
+/// Static named imports from sibling modules: `import { a, b as c } from './x.js'`.
+/// Each imported name must be exported by the target, or the plugin fails at
+/// activation with "Importing binding name ... is not found" — the exact
+/// failure a mixed-version install produces. Checked here so install refuses it
+/// and `--plugin-validate` reports it before publish.
+fn check_sibling_imports(root: &Path, report: &mut ValidationReport) {
+    use regex::Regex;
+    use std::sync::OnceLock;
+    static IMPORT: OnceLock<Regex> = OnceLock::new();
+    let import = IMPORT.get_or_init(|| {
+        Regex::new(r#"import\s*\{([^}]*)\}\s*from\s*['"](\./[^'"]+)['"]"#).unwrap()
+    });
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && p.extension().map(|x| x == "js" || x == "mjs").unwrap_or(false))
+        .collect();
+    files.sort();
+    for file in files {
+        let Ok(src) = fs::read_to_string(&file) else {
+            continue;
+        };
+        let name = file.file_name().unwrap_or_default().to_string_lossy().to_string();
+        for c in import.captures_iter(&src) {
+            let spec = &c[2];
+            let Some(target) = safe_join(root, spec.trim_start_matches("./")) else {
+                continue;
+            };
+            let Ok(body) = fs::read_to_string(&target) else {
+                report.errors.push(Issue::at(
+                    codes::IMPORT_UNRESOLVED,
+                    format!("{} imports `{}`, which does not exist in the plugin", name, spec),
+                    &name,
+                ));
+                continue;
+            };
+            let Some(exports) = exported_names(&body) else {
+                continue;
+            };
+            for raw in c[1].split(',') {
+                let raw = raw.trim();
+                if raw.is_empty() {
+                    continue;
+                }
+                let imported = raw.split(|ch: char| ch.is_whitespace()).next().unwrap_or(raw);
+                if !exports.contains(imported) {
+                    report.errors.push(Issue::at(
+                        codes::IMPORT_NOT_EXPORTED,
+                        format!(
+                            "{} imports `{}` from `{}`, but that module does not export it. Mixed-version files? Reinstall the whole plugin.",
+                            name, imported, spec
+                        ),
+                        &name,
+                    ));
+                }
+            }
         }
     }
 }
@@ -1433,6 +1538,49 @@ mod tests {
         let r = f.validate();
         assert!(r.ok, "{:?}", r.errors);
         assert!(r.warnings.iter().any(|i| i.message.contains("declared twice")));
+    }
+
+    /* the mixed-version install: index.js imports a name the old sprite.js no
+    longer exports. The host fails at activation; the validator must refuse first. */
+    #[test]
+    fn sibling_import_of_a_missing_export_is_refused() {
+        let f = Fixture::new("siblingimport");
+        f.manifest(GOOD_MANIFEST)
+            .write("index.js", "import { frameKeyframes, tick } from './sprite.js';\nexport function activate() {}")
+            .write("sprite.js", "export function tick() {}");
+        let r = f.validate();
+        assert!(!r.ok);
+        assert!(r
+            .errors
+            .iter()
+            .any(|i| i.code == codes::IMPORT_NOT_EXPORTED && i.message.contains("frameKeyframes")));
+    }
+
+    #[test]
+    fn sibling_imports_that_resolve_pass() {
+        let f = Fixture::new("siblingok");
+        f.manifest(GOOD_MANIFEST)
+            .write(
+                "index.js",
+                "import { frameKeyframes as fk, tick } from './sprite.js';\nexport function activate() {}",
+            )
+            .write(
+                "sprite.js",
+                "export const frameKeyframes = {};\nfunction tick() {}\nexport { tick };",
+            );
+        let r = f.validate();
+        assert!(r.ok, "{:?}", r.errors);
+    }
+
+    #[test]
+    fn sibling_import_of_a_missing_file_is_refused() {
+        let f = Fixture::new("siblingmissing");
+        f.manifest(GOOD_MANIFEST).write(
+            "index.js",
+            "import { a } from './gone.js';\nexport function activate() {}",
+        );
+        let r = f.validate();
+        assert!(r.errors.iter().any(|i| i.code == codes::IMPORT_UNRESOLVED));
     }
 
     #[test]

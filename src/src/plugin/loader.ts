@@ -38,9 +38,18 @@ const PLUGIN_URL_BASE = /Win/.test(navigator.platform)
   ? 'http://plugin.localhost'
   : 'plugin://localhost';
 
-export function pluginAssetUrl(pluginId: string, path: string): string {
+/**
+ * Asset URL for a plugin file. Without a version token the webview's module
+ * map keeps serving whatever a sibling import fetched first: an update would
+ * re-fetch the entry but keep an old `./sprite.js`, and the entry would fail
+ * with "Importing binding name ... is not found". The token goes in the path,
+ * not a query, because relative imports resolve against the entry's path and
+ * drop its query string.
+ */
+export function pluginAssetUrl(pluginId: string, path: string, token = ''): string {
   const clean = path.replace(/^\/+/, '');
-  return `${PLUGIN_URL_BASE}/${pluginId}/${clean}`;
+  const version = token ? `@v/${token}/` : '';
+  return `${PLUGIN_URL_BASE}/${pluginId}/${version}${clean}`;
 }
 
 /* ---------------- status ---------------- */
@@ -278,7 +287,11 @@ async function activate(pluginId: string): Promise<boolean> {
     /* cache-bust by generation and content hash: a reload must produce a new
        module instance, and an update must not run the previous version */
     const generation = ++slot.generation;
-    const url = `${pluginAssetUrl(slot.manifest.id, slot.manifest.entry)}?h=${slot.record.sha256.slice(0, 8)}&g=${generation}`;
+    /* the token is the install's content hash, so an update gets new URLs for
+       every file, siblings included. The generation query makes a reload of
+       the same install a fresh module instance. */
+    const token = slot.record.sha256.slice(0, 8);
+    const url = `${pluginAssetUrl(slot.manifest.id, slot.manifest.entry, token)}?g=${generation}`;
 
     const mod = (await import(/* @vite-ignore */ url)) as PluginModule;
     if (typeof mod.activate !== 'function') {

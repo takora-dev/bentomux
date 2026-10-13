@@ -58,6 +58,18 @@ fn split_path(path: &str) -> Option<(&str, &str)> {
     }
 }
 
+/// Strip the `@v/<token>/` version segment the loader puts in every plugin
+/// URL. The token only exists to change the URL when the install changes, so
+/// the webview's module map cannot hand back an old sibling module. Files
+/// are always resolved from the registry's current version directory, so the
+/// token is ignored for lookup.
+fn strip_version_segment(rel: &str) -> &str {
+    match rel.strip_prefix("@v/") {
+        Some(rest) => rest.split_once('/').map(|(_, r)| r).unwrap_or(""),
+        None => rel,
+    }
+}
+
 fn content_type_for(path: &std::path::Path) -> &'static str {
     match path
         .extension()
@@ -130,6 +142,7 @@ pub fn handle(
         responder.respond(not_found());
         return;
     };
+    let rel = strip_version_segment(rel);
     if rel.is_empty() {
         responder.respond(not_found());
         return;
@@ -200,6 +213,13 @@ mod tests {
         }
         assert_eq!(CORS.0, "Access-Control-Allow-Origin");
         assert_eq!(CORS.1, "*");
+    }
+
+    #[test]
+    fn version_segment_is_stripped_before_lookup() {
+        assert_eq!(strip_version_segment("@v/ab12cd34/index.js"), "index.js");
+        assert_eq!(strip_version_segment("@v/ab12cd34/assets/a.svg"), "assets/a.svg");
+        assert_eq!(strip_version_segment("index.js"), "index.js");
     }
 
     #[test]

@@ -527,13 +527,39 @@ fn place_version(
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-    if dest.exists() {
-        fs::remove_dir_all(&dest)?;
+    swap_into_place(&staging, &dest)
+}
+
+/// Replace `dest` with `staging` in two renames, never a delete-then-rename:
+/// the old tree moves aside first, so a crash or failed rename leaves either
+/// the old version or the new one at `dest`, never nothing. The aside copy is
+/// deleted only after the new tree is in place.
+fn swap_into_place(staging: &Path, dest: &Path) -> PluginResult<()> {
+    let aside = dest.with_file_name(format!(
+        ".old-{}-{}",
+        dest.file_name().and_then(|n| n.to_str()).unwrap_or("plugin"),
+        std::process::id()
+    ));
+    if aside.exists() {
+        fs::remove_dir_all(&aside)?;
     }
-    fs::rename(&staging, &dest).map_err(|e| {
-        fs::remove_dir_all(&staging).ok();
-        PluginError::Io(format!("could not place plugin: {}", e))
-    })?;
+    let had_old = dest.exists();
+    if had_old {
+        fs::rename(dest, &aside).map_err(|e| {
+            fs::remove_dir_all(staging).ok();
+            PluginError::Io(format!("could not move old plugin aside: {}", e))
+        })?;
+    }
+    if let Err(e) = fs::rename(staging, dest) {
+        if had_old {
+            fs::rename(&aside, dest).ok();
+        }
+        fs::remove_dir_all(staging).ok();
+        return Err(PluginError::Io(format!("could not place plugin: {}", e)));
+    }
+    if had_old {
+        fs::remove_dir_all(&aside).ok();
+    }
     Ok(())
 }
 
@@ -572,15 +598,10 @@ fn finalize_install(
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-    if dest.exists() {
-        /* reinstalling the same version replaces it: the user asked for this
-        exact folder to be installed, so the on-disk copy is stale */
-        fs::remove_dir_all(&dest)?;
-    }
-    fs::rename(&staging, &dest).map_err(|e| {
-        fs::remove_dir_all(&staging).ok();
-        PluginError::Io(format!("could not place plugin: {}", e))
-    })?;
+    /* same-version reinstall replaces the tree: the user asked for this exact
+    folder, so the on-disk copy is stale. swap_into_place keeps the old one
+    until the new one is in */
+    swap_into_place(&staging, &dest)?;
 
     let sha = hash_tree(&dest)?;
     Ok(PluginRecord::new(
