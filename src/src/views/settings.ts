@@ -411,8 +411,8 @@ interface KeyAction {
 
 const KEY_ACTIONS: KeyAction[] = [
   { id: 'palette', label: 'Open search palette' },
-  { id: 'splitDefault', label: 'Split pane (default direction)' },
-  { id: 'splitAlt', label: 'Split pane (alternate direction)' },
+  { id: 'splitDefault', label: 'Split pane right' },
+  { id: 'splitAlt', label: 'Split pane down' },
   { id: 'splitLeft', label: 'Split pane left' },
   { id: 'splitUp', label: 'Split pane up' },
   { id: 'focusLeft', label: 'Focus pane left' },
