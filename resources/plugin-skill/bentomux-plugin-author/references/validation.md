@@ -28,6 +28,8 @@ of them and run once more rather than iterating one error at a time.
 | `entry-escapes-root` | entry escapes root |
 | `entry-empty` | entry empty |
 | `entry-not-module` | entry not module |
+| `import-unresolved` | import unresolved |
+| `import-not-exported` | import not exported |
 | `contribution-id-shape` | contribution id shape |
 | `contribution-id-duplicate` | contribution id duplicate |
 | `permission-unknown` | permission unknown |
