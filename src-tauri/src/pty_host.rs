@@ -574,6 +574,25 @@ fn handle_line(host: &Arc<Host>, line: &str) {
 
 /* ---------------- pty lifecycle ---------------- */
 
+/* A GUI launch (Finder/Dock) gives the app no locale, so panes ran zsh under
+the C locale: multibyte glyphs get the wrong cell width and zle erases short
+by a cell (ghost chars after autosuggest/menu completion). Only fill in a
+UTF-8 locale when the inherited one is missing or C/POSIX. */
+fn utf8_locale_overrides(get: impl Fn(&str) -> Option<String>) -> Vec<(&'static str, &'static str)> {
+    let is_c = |v: Option<String>| match v.as_deref() {
+        None | Some("") | Some("C") | Some("POSIX") => true,
+        Some(_) => false,
+    };
+    let mut out = Vec::new();
+    if is_c(get("LANG")) {
+        out.push(("LANG", "en_US.UTF-8"));
+    }
+    if is_c(get("LC_CTYPE")) {
+        out.push(("LC_CTYPE", "en_US.UTF-8"));
+    }
+    out
+}
+
 fn spawn_term(
     host: &Arc<Host>,
     workspace_id: &str,
@@ -599,6 +618,9 @@ fn spawn_term(
     }
     cmd.cwd(path);
     cmd.env("TERM", "xterm-256color");
+    for (k, v) in utf8_locale_overrides(|k| std::env::var(k).ok()) {
+        cmd.env(k, v);
+    }
     for (k, v) in bridge_env_for(&id) {
         cmd.env(k, v);
     }
@@ -848,6 +870,25 @@ pub fn run_host() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn utf8_locale_fills_missing_and_c_only() {
+        let none = utf8_locale_overrides(|_| None);
+        assert_eq!(none, vec![("LANG", "en_US.UTF-8"), ("LC_CTYPE", "en_US.UTF-8")]);
+
+        let c = utf8_locale_overrides(|_| Some("C".to_string()));
+        assert_eq!(c.len(), 2);
+
+        let user = utf8_locale_overrides(|k| match k {
+            "LANG" => Some("ja_JP.UTF-8".to_string()),
+            "LC_CTYPE" => Some("POSIX".to_string()),
+            _ => None,
+        });
+        assert_eq!(user, vec![("LC_CTYPE", "en_US.UTF-8")]);
+
+        let kept = utf8_locale_overrides(|_| Some("en_GB.UTF-8".to_string()));
+        assert!(kept.is_empty());
+    }
 
     #[test]
     fn address_file_is_per_instance() {
