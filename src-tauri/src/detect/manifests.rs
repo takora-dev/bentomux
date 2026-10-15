@@ -553,4 +553,79 @@ mod tests {
         );
         assert_eq!(live.state, Some(RunState::Working));
     }
+    #[test]
+    fn opencode_v2_real_screens() {
+        /* captured from the opencode v2.0.29 TUI (100x30 viewport):
+        idle, just-finished, and mid-turn. The live turn draws
+        `⬝⬝⬝⬝⬝⬝⬝⬝ esc interrupt` on the last line; the finished
+        screen has neither the hint nor the bar. */
+        let m = manifest_for("opencode").expect("opencode manifest");
+        let idle = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "┃",
+                    "┃  Ask anything… \"Fix broken tests\"",
+                    "┃",
+                    "┃  Build auto · Muse Spark 1.3 Free OpenCode · medium",
+                    "╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+                    "/private/tmp/ocap                         shift+tab agents  ctrl+p commands",
+                    "⊙ 2 MCP /mcps                                                                             2.0.29",
+                ]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            },
+        );
+        assert!(
+            idle.state != Some(RunState::Working),
+            "idle v2 screen read as working via {:?}",
+            idle.rule_id
+        );
+        let finished = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "hi",
+                    "Build · Muse Spark 1.3 Free · 2.3s · 36.6 tok/s",
+                    "┃",
+                    "┃  Build auto · Muse Spark 1.3 Free OpenCode · medium",
+                    "╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+                    "/private/tmp/ocap                                                    13.8K (1%)  ctrl+p commands",
+                ]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            },
+        );
+        assert!(
+            finished.state != Some(RunState::Working),
+            "finished v2 screen read as working via {:?}",
+            finished.rule_id
+        );
+        let working = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "Running sleep 20 then will reply done.",
+                    "┃",
+                    "┃  ⠹ sleep 20",
+                    "┃",
+                    "┃  Build auto · Muse Spark 1.3 Free OpenCode · medium",
+                    "╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
+                    "⬝⬝⬝⬝⬝⬝⬝⬝ esc interrupt                                  ↓ 1 shell · 13.8K (1%)  ctrl+p commands",
+                ]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            },
+        );
+        assert_eq!(working.state, Some(RunState::Working));
+    }
 }

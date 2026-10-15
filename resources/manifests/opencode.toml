@@ -1,5 +1,5 @@
 id = "opencode"
-version = "2026.10.15.1"
+version = "2026.10.15.2"
 min_engine_version = 1
 updated_at = "2026-10-15T00:00:00Z"
 aliases = ["open-code", "herdr:opencode"]
@@ -10,6 +10,11 @@ aliases = ["open-code", "herdr:opencode"]
 # rule pins the tab on working forever — including (and especially) when
 # the pane sits unfocused behind a newly opened terminal while it finishes.
 # Same bug class as pi's spinner rule (see pi.toml).
+#
+# v2 footer (verified against opencode v2.0.29 TUI): the live turn draws
+# `⬝⬝⬝⬝⬝⬝⬝⬝ esc interrupt` on the last line — note `esc interrupt`
+# without "to", so the v1 `esc to interrupt` substring never fires there.
+# When the turn ends the footer is redrawn without the hint or the bar.
 
 [[rules]]
 id = "permission_required"
@@ -30,6 +35,7 @@ region = "bottom_non_empty_lines(8)"
 visible_working = true
 any = [
   { contains = ["esc to interrupt"] },
+  { contains = ["esc interrupt"] },
   { contains = ["ctrl+c to interrupt"] },
   { contains = ["press esc to interrupt"] },
   { line_regex = ['(?i).*opencode.*esc (again to )?interrupt'] },
