@@ -11,11 +11,12 @@ import '@xterm/xterm/css/xterm.css';
 import { h, $ } from '../dom';
 import { openContextMenu, type MenuEntry } from '../components/menu';
 import { emitPaneFocused } from '../main';
+import { renderSidebar } from '../render';
 import { leafIds, type PaneNode } from '../../shared/split-tree';
 import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
 import { xtermTheme } from '../terminal-theme';
-import { splitTerminalPane, closeTerminalPane, setNodeDir } from './tabs';
+import { splitTerminalPane, closeTerminalPane, setNodeDir, syncWorkspaceForPane } from './tabs';
 import api from '../../preload/bentomux';
 
 interface Live {
@@ -319,6 +320,10 @@ function markFocusedPane(host: HTMLElement, tabId: string): void {
   for (const el of document.querySelectorAll(FOCUS_TOGGLE_SELECTOR)) {
     el.classList.toggle('active', el.getAttribute('data-pane') === tabId);
   }
+  /* focusing a pane makes its workspace the active one, so the Changes pill,
+     the rail, and an open Git panel follow the shell the user is looking at
+     even when the marker went stale through a path that skipped activate() */
+  if (syncWorkspaceForPane(tabId)) renderSidebar();
 }
 
 /* xterm has no public focus event; its hidden textarea bubbles focusin */

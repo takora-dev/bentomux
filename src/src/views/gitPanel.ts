@@ -46,6 +46,17 @@ export function notifyPanelPolling(active: boolean): void {
   panelPolling = active;
 }
 
+/* The live panel poll, if any. A workspace switch builds a new root while the
+   old interval is still waiting out its 4s tick — clear it at supersede/close
+   time instead of letting the detached panel keep polling (and repainting the
+   titlebar pill with the previous workspace's numbers). */
+let activePoll: ReturnType<typeof setInterval> | null = null;
+
+export function stopPanelPoll(): void {
+  if (activePoll !== null) { clearInterval(activePoll); activePoll = null; }
+  notifyPanelPolling(false);
+}
+
 export function startPillHeartbeat(): void {
   if (pillTimer !== null) return;
   pillTimer = setInterval(() => {
@@ -328,11 +339,21 @@ export function gitPanelPage(): HTMLElement {
      while it is on screen, self-clearing once the sidebar drops the node.
      Skipped while the tab is hidden — git output cannot change what the user
      sees, and each tick costs process spawns. */
-  const poll = window.setInterval(() => {
-    if (!root.isConnected) { window.clearInterval(poll); notifyPanelPolling(false); return; }
+  const poll = setInterval(() => {
+    if (!root.isConnected) {
+      clearInterval(poll);
+      if (activePoll === poll) activePoll = null;
+      notifyPanelPolling(false);
+      return;
+    }
     if (document.visibilityState !== 'visible') return;
     void refresh(state, paint, { silent: true });
   }, PANEL_POLL_MS);
+  /* a rebuild for another workspace supersedes this mount: take down its
+     interval now rather than on the next tick, so the detached panel stops
+     repainting the titlebar pill with the old workspace's numbers */
+  if (activePoll !== null) clearInterval(activePoll);
+  activePoll = poll;
 
   /* notify the shared scheduler so the titlebar pill can stand down while
      the panel's own poll covers the active workspace */

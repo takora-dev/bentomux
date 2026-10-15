@@ -18,7 +18,7 @@ import { closeContextMenu, contextMenuAnchoredTo, openContextMenu, type MenuEntr
 import { openSearchModal } from './search';
 import { openSettingsModal } from './settings';
 import { remoteDockButton } from './remote';
-import { gitPanelPage, notifyPanelPolling, refreshChangesPill } from './gitPanel';
+import { gitPanelPage, stopPanelPoll, refreshChangesPill } from './gitPanel';
 import { dockEntries, sidebarEntries } from '../plugin/registry';
 import { ensureActive, pluginAssetUrl } from '../plugin/loader';
 import { contributionIcon, contributionLabel } from '../plugin/icons';
@@ -971,7 +971,7 @@ function renderGitPanel(): void {
     /* drop the mounted panel so re-opening fetches instead of showing the
        snapshot from the previous time the panel was up */
     slot.innerHTML = '';
-    notifyPanelPolling(false);
+    stopPanelPoll();
     return;
   }
   /* gitPanelPage() returns the same node while the active workspace is

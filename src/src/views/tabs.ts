@@ -80,6 +80,24 @@ function syncActiveWorkspaceMarker(workspaceId: string | undefined): void {
   void refreshChangesPill();
 }
 
+/* workspace owning this pane, for focus-driven sync (terminal.ts) */
+export function workspaceIdForPane(paneId: string): string | undefined {
+  return entryForPane(paneId)?.workspaceId;
+}
+
+/* Keep the active-workspace marker (Changes pill, Git panel, rail) on the
+   pane the user is actually looking at. No-op when nothing changed so xterm
+   focus stays cheap. Returns true when the marker moved and callers should
+   re-render workspace-keyed surfaces. */
+export function syncWorkspaceForPane(paneId: string): boolean {
+  const wsId = workspaceIdForPane(paneId);
+  if (!wsId || db.activeWorkspaceId === wsId) return false;
+  db.activeWorkspaceId = wsId;
+  void api.setActiveWorkspace(wsId);
+  void refreshChangesPill();
+  return true;
+}
+
 function pushHistory(from: string, to: string): void {
   if (from === to) return;
   if (ui.history[ui.history.length - 1] === from) return;
@@ -446,6 +464,18 @@ function jumpToHistoryEntry(id: string): void {
   if (!t) return;
   ui.activeTab = id;
   ui.route = t.route;
+  /* same tail as activate(): the visible tab moved, so the workspace marker,
+     the backend's active tab, and the Git panel rule must follow — otherwise
+     the panel/pill/rail stay stuck on the previous workspace until the user
+     clicks a terminal to resync them. History push is skipped on purpose:
+     activate() would record this jump and corrupt the back/forward stacks. */
+  syncActiveWorkspaceMarker(t.workspaceId);
+  api.setActiveTab(t.route.view === 'terminal' ? t.route.tabId : null);
+  if (t.route.view === 'terminal') { ui.gitPanelOpen = false; }
+  emitTabActivated(
+    t.id,
+    t.route.view === 'terminal' ? t.tree ? firstLeafId(t.tree) : t.route.tabId : null,
+  );
   render();
 }
 
