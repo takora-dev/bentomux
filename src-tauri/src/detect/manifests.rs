@@ -506,4 +506,51 @@ mod tests {
         );
         assert_eq!(live.state, Some(RunState::Working));
     }
+    #[test]
+    fn opencode_history_must_not_read_as_working() {
+        /* the reported bug: opencode finishes while its pane sits unfocused
+        behind a newly opened terminal, and the tab sticks on working. The
+        old whole_recent interrupt-hint rule kept matching the stale
+        "esc to interrupt" line still visible in the transcript. Scoped to
+        the bottom lines, history must not impersonate a live turn. */
+        let m = manifest_for("opencode").expect("opencode manifest");
+        let idle_with_history = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "esc to interrupt · working".to_string(),
+                    "done, edited foo.ts".to_string(),
+                    "ran tests: 12 passed".to_string(),
+                    "all done".to_string(),
+                    "summary of changes".to_string(),
+                    "file list".to_string(),
+                    "token usage 12.4k".to_string(),
+                    "session info".to_string(),
+                    "Type your message…".to_string(),
+                    "› ".to_string(),
+                    "hint: /help for commands".to_string(),
+                    "cwd ~/proj (main)".to_string(),
+                ],
+            },
+        );
+        assert!(
+            idle_with_history.state != Some(RunState::Working),
+            "stale history read as working via {:?}",
+            idle_with_history.rule_id
+        );
+        let live = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "editing foo.ts".to_string(),
+                    "esc to interrupt · working".to_string(),
+                ],
+            },
+        );
+        assert_eq!(live.state, Some(RunState::Working));
+    }
 }
