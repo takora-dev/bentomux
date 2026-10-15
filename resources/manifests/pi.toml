@@ -1,7 +1,7 @@
 id = "pi"
-version = "2026.09.17.1"
+version = "2026.10.15.1"
 min_engine_version = 1
-updated_at = "2026-09-17T00:00:00Z"
+updated_at = "2026-10-15T00:00:00Z"
 aliases = ["herdr:pi"]
 
 # Verified against @earendil-works/pi-coding-agent dist source
@@ -32,7 +32,13 @@ state = "working"
 priority = 900
 region = "bottom_non_empty_lines(5)"
 visible_working = true
-line_regex = ['^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s+\S', '─{1,2} [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]', '[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]─']
+# Alternates live in `any`: like herdr, every pattern inside one
+# `line_regex` list must ALL match, so three shapes need three gates.
+any = [
+  { line_regex = ['^\s*[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\s+\S'] },
+  { line_regex = ['─{1,2} [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]'] },
+  { line_regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]─'] },
+]
 
 [[rules]]
 id = "footer_stats_idle"

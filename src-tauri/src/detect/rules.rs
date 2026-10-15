@@ -168,37 +168,37 @@ fn rule_line(line: &str) -> bool {
     count >= 6 && t.chars().count() == count
 }
 
+/* Matcher semantics mirror herdr's compiled_gate_matches
+(src/detect/manifest.rs): every `contains` needle (case-insensitive),
+every `regex` (case-sensitive, run against the whole region text —
+patterns carry their own `(?m)`/`(?i)` flags), and every `line_regex`
+(case-sensitive, each must hit at least one line) must hold; `any`
+needs one branch, `all` needs every branch, `not` forbids any branch.
+An empty gate matches — there is no "no evidence means no match"
+special case upstream. */
 fn matches_matcher(m: &Matcher, text: &str, lines: &[String]) -> bool {
     let contains = m.contains.as_deref().unwrap_or(&[]);
     let regex = m.regex.as_deref().unwrap_or(&[]);
     let line_regex = m.line_regex.as_deref().unwrap_or(&[]);
     let lower_text = text.to_lowercase();
-    let lower_lines: Vec<String> = lines.iter().map(|l| l.to_lowercase()).collect();
 
-    if !contains.is_empty()
-        && !contains
-            .iter()
-            .all(|s| lower_text.contains(&s.to_lowercase()))
+    if !contains
+        .iter()
+        .all(|s| lower_text.contains(&s.to_lowercase()))
     {
         return false;
     }
-    /* regex runs multi-line over the whole region text; Rust regex has no
-    'm'-style global multi match on a single string, so we anchor each
-    pattern against the joined text via a line-by-line scan when the
-    pattern is line-anchored, else a plain search. TS used new RegExp(r,'m')
-    which matches anywhere including per-line start anchors. */
-    if !regex.is_empty() && !regex.iter().any(|r| regex_multi_hit(r, &lower_text)) {
+    if !regex.iter().all(|r| regex_multi_hit(r, text)) {
         return false;
     }
-    if !line_regex.is_empty()
-        && !lower_lines
-            .iter()
-            .any(|line| line_regex.iter().any(|r| regex_line_hit(r, line)))
+    if !line_regex
+        .iter()
+        .all(|r| lines.iter().any(|line| regex_line_hit(r, line)))
     {
         return false;
     }
     if let Some(any) = &m.any {
-        if !any.iter().any(|sub| matches_matcher(sub, text, lines)) {
+        if !any.is_empty() && !any.iter().any(|sub| matches_matcher(sub, text, lines)) {
             return false;
         }
     }
@@ -211,14 +211,6 @@ fn matches_matcher(m: &Matcher, text: &str, lines: &[String]) -> bool {
         if not.iter().any(|sub| matches_matcher(sub, text, lines)) {
             return false;
         }
-    }
-    if contains.is_empty()
-        && regex.is_empty()
-        && line_regex.is_empty()
-        && m.any.as_ref().map_or(true, |a| a.is_empty())
-        && m.all.as_ref().map_or(true, |a| a.is_empty())
-    {
-        return false;
     }
     true
 }
@@ -443,5 +435,48 @@ mod tests {
         /* a valid pattern still works through the same cache */
         assert!(regex_line_hit(r"^\s*❯", "  ❯ 1. yes"));
         assert!(!regex_line_hit(r"^\s*❯", "text ❯ not at start"));
+    }
+
+    /* herdr parity: every pattern in a `regex`/`line_regex` list must
+    hold (ALL), not just one (ANY). A single-element list behaves the
+    same either way, which is why the port's divergence went unnoticed. */
+    #[test]
+    fn multi_pattern_line_regex_requires_every_pattern() {
+        let m = Matcher {
+            line_regex: Some(vec![
+                r"^\s*question\s*$".to_string(),
+                r"^\s*\? ".to_string(),
+            ]),
+            ..Default::default()
+        };
+        assert!(matches_matcher(
+            &m,
+            "question\n? what next",
+            &["question".into(), "? what next".into()]
+        ));
+        assert!(!matches_matcher(&m, "? what next", &["? what next".into()]));
+    }
+
+    /* herdr parity: `regex`/`line_regex` run against the original-case
+    text; only `contains` is case-insensitive. */
+    #[test]
+    fn regex_matching_is_case_sensitive_like_herdr() {
+        let m = Matcher {
+            regex: Some(vec!["MCP tasks".to_string()]),
+            ..Default::default()
+        };
+        assert!(matches_matcher(&m, "MCP tasks still running", &[]));
+        assert!(!matches_matcher(&m, "mcp tasks still running", &[]));
+        let ci = Matcher {
+            contains: Some(vec!["mcp tasks".to_string()]),
+            ..Default::default()
+        };
+        assert!(matches_matcher(&ci, "MCP TASKS STILL RUNNING", &[]));
+    }
+
+    /* herdr parity: a gate with no matchers at all still matches. */
+    #[test]
+    fn empty_gate_matches_like_herdr() {
+        assert!(matches_matcher(&Matcher::default(), "anything", &[]));
     }
 }

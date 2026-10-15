@@ -242,6 +242,14 @@ struct TermShared {
     alive: AtomicBool,
     attached: AtomicBool,
     last_snapshot_at: AtomicU64,
+    /* a chunk arrived but its snapshot was skipped by the 500 ms throttle.
+    The sweeper (see serve()) flushes one trailing snapshot once output
+    goes quiet, so the runtime cache always converges to the latest
+    screen. Without this the final frame of a burst — e.g. an agent's
+    turn-end redraw clearing its working footer — is lost whenever it
+    lands inside the throttle window and nothing follows it, pinning
+    the pane's status forever. */
+    snapshot_pending: AtomicBool,
     stream_gate: Mutex<()>,
     terminal: Mutex<TerminalModel>,
 }
@@ -648,6 +656,7 @@ fn spawn_term(
         alive: AtomicBool::new(true),
         attached: AtomicBool::new(false),
         last_snapshot_at: AtomicU64::new(0),
+        snapshot_pending: AtomicBool::new(false),
         stream_gate: Mutex::new(()),
         terminal: Mutex::new(TerminalModel::default()),
     });
@@ -713,6 +722,11 @@ fn spawn_term(
                             and remote already tick at 250 ms. */
                             let snapshot = shared_r.terminal.lock().unwrap().snapshot();
                             send_snapshot(&host_r, &shared_r.id, &snapshot);
+                            shared_r.snapshot_pending.store(false, Ordering::Relaxed);
+                        } else {
+                            /* throttled away: the sweeper flushes one
+                            trailing snapshot once output goes quiet */
+                            shared_r.snapshot_pending.store(true, Ordering::Relaxed);
                         }
                     }
                 }
@@ -765,6 +779,53 @@ fn idle_watch(host: Arc<Host>) {
     }
 }
 
+/* Flush throttled-away trailing snapshots once a pane's output goes
+quiet (see TermShared::snapshot_pending). Runs on the same cadence as
+the reader throttle, so the worst case lag behind the live screen is
+one extra interval and the runtime cache always converges — including
+the final frame of a burst that would otherwise be lost. Lock order is
+terms-then-terminal, same as the attach/resize paths. */
+fn sweep_term(host: &Host, shared: &Arc<TermShared>) -> bool {
+    if !shared.attached.load(Ordering::SeqCst) {
+        return false;
+    }
+    if !shared.snapshot_pending.swap(false, Ordering::SeqCst) {
+        return false;
+    }
+    let now = now_ms();
+    let previous = shared.last_snapshot_at.load(Ordering::Relaxed);
+    if now.saturating_sub(previous) < SNAPSHOT_INTERVAL_MS
+        || shared
+            .last_snapshot_at
+            .compare_exchange(previous, now, Ordering::Relaxed, Ordering::Relaxed)
+            .is_err()
+    {
+        /* a fresh snapshot went out after this flag was set; re-arm
+        and let the next sweep decide */
+        shared.snapshot_pending.store(true, Ordering::SeqCst);
+        return false;
+    }
+    let snapshot = shared.terminal.lock().unwrap().snapshot();
+    send_snapshot(host, &shared.id, &snapshot);
+    true
+}
+
+fn snapshot_sweep(host: Arc<Host>) {
+    loop {
+        std::thread::sleep(Duration::from_millis(SNAPSHOT_INTERVAL_MS));
+        let terms: Vec<Arc<TermShared>> = host
+            .terms
+            .lock()
+            .unwrap()
+            .values()
+            .map(|t| t.shared.clone())
+            .collect();
+        for shared in terms {
+            sweep_term(&host, &shared);
+        }
+    }
+}
+
 /* Serve until the process is killed. `idle_exit` is off for in-process test
 servers, which must not take the test harness down with them. */
 pub fn serve(listener: TcpListener, token: String, idle_exit: bool) -> i32 {
@@ -773,6 +834,8 @@ pub fn serve(listener: TcpListener, token: String, idle_exit: bool) -> i32 {
         let watcher = host.clone();
         std::thread::spawn(move || idle_watch(watcher));
     }
+    let sweeper = host.clone();
+    std::thread::spawn(move || snapshot_sweep(sweeper));
     for stream in listener.incoming() {
         let Ok(stream) = stream else { continue };
         let host = host.clone();
@@ -870,6 +933,56 @@ pub fn run_host() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_shared(id: &str) -> Arc<TermShared> {
+        Arc::new(TermShared {
+            id: id.to_string(),
+            workspace_id: "ws".to_string(),
+            pid: 1,
+            alive: AtomicBool::new(true),
+            attached: AtomicBool::new(true),
+            last_snapshot_at: AtomicU64::new(0),
+            snapshot_pending: AtomicBool::new(false),
+            stream_gate: Mutex::new(()),
+            terminal: Mutex::new(TerminalModel::default()),
+        })
+    }
+
+    /* the dropped-final-frame race: a burst's last chunk arrives inside
+    the 500 ms throttle window, so the reader marks the term pending
+    instead of sending. The sweep must flush exactly one trailing
+    snapshot and clear the flag. */
+    #[test]
+    fn sweep_flushes_a_throttled_trailing_snapshot() {
+        let host = Host::new();
+        let shared = test_shared("sweep-flush");
+        shared.terminal.lock().unwrap().process(b"hello");
+        shared.snapshot_pending.store(true, Ordering::SeqCst);
+        assert!(sweep_term(&host, &shared));
+        assert!(!shared.snapshot_pending.load(Ordering::SeqCst));
+        assert!(shared.last_snapshot_at.load(Ordering::Relaxed) > 0);
+    }
+
+    #[test]
+    fn sweep_rearms_when_the_interval_has_not_elapsed() {
+        let host = Host::new();
+        let shared = test_shared("sweep-rearm");
+        shared.last_snapshot_at.store(now_ms(), Ordering::Relaxed);
+        shared.snapshot_pending.store(true, Ordering::SeqCst);
+        assert!(!sweep_term(&host, &shared));
+        assert!(shared.snapshot_pending.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn sweep_skips_detached_and_clean_terms() {
+        let host = Host::new();
+        let clean = test_shared("sweep-clean");
+        assert!(!sweep_term(&host, &clean));
+        let detached = test_shared("sweep-detached");
+        detached.attached.store(false, Ordering::SeqCst);
+        detached.snapshot_pending.store(true, Ordering::SeqCst);
+        assert!(!sweep_term(&host, &detached));
+    }
 
     #[test]
     fn utf8_locale_fills_missing_and_c_only() {

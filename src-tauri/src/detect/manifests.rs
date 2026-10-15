@@ -153,7 +153,9 @@ pub fn claude_manifest() -> super::rules::AgentManifest {
                     ..Default::default()
                 },
             ),
-            /* idle prompt box inside the bottom frame */
+            /* idle prompt box inside the bottom frame. The two shapes are
+            alternates in `any`: like herdr, every pattern inside one
+            `line_regex` list must ALL match, so two shapes need two gates. */
             rule(
                 "live_prompt_box",
                 RunState::Idle,
@@ -161,7 +163,16 @@ pub fn claude_manifest() -> super::rules::AgentManifest {
                 RegionName::PromptBoxBody,
                 false,
                 Matcher {
-                    line_regex: Some(vec!["^\\s*❯".to_string(), "^\\s*[│║]\\s*[❯>]".to_string()]),
+                    any: Some(vec![
+                        Matcher {
+                            line_regex: Some(vec!["^\\s*❯".to_string()]),
+                            ..Default::default()
+                        },
+                        Matcher {
+                            line_regex: Some(vec!["^\\s*[│║]\\s*[❯>]".to_string()]),
+                            ..Default::default()
+                        },
+                    ]),
                     not: Some(vec![
                         contains_all(&["enter to select"]),
                         contains_all(&["esc to cancel"]),
@@ -459,6 +470,45 @@ mod tests {
             let manifest = manifest_for(agent).expect("manifest should load");
             assert!(!manifest.rules.is_empty(), "{agent} has no rules");
         }
+    }
+    #[test]
+    fn kimi_question_panel_needs_both_lines() {
+        /* herdr parity: the two patterns in one `line_regex` list must
+        ALL match — a lone `? ` line without the `question` header is
+        not the question panel. */
+        let m = manifest_for("kimi").expect("kimi manifest");
+        let base = vec![
+            "↑↓ select   esc cancel".to_string(),
+            "↵ choose".to_string(),
+        ];
+        let mut partial = base.clone();
+        partial.push("? pick one".to_string());
+        let d = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: partial,
+            },
+        );
+        assert!(
+            d.state != Some(RunState::Blocked) || d.rule_id.as_deref() != Some("question_panel"),
+            "half a question panel read as blocked via {:?}",
+            d.rule_id
+        );
+        let mut full = base;
+        full.insert(0, "question".to_string());
+        full.push("? pick one".to_string());
+        let d = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: String::new(),
+                osc_progress: String::new(),
+                lines: full,
+            },
+        );
+        assert_eq!(d.state, Some(RunState::Blocked));
+        assert_eq!(d.rule_id.as_deref(), Some("question_panel"));
     }
     #[test]
     fn pi_history_must_not_read_as_working() {
