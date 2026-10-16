@@ -826,6 +826,12 @@ function allSections(): SettingsSection[] {
   return [...SECTIONS, ...contributed];
 }
 
+/* Plugin sections carry a `plugin:` id prefix, so the menu can tell them apart
+   from the app's own sections and group them under their own heading. */
+function isPluginSection(s: SettingsSection): boolean {
+  return s.id.startsWith('plugin:');
+}
+
 export function openSettingsModal(): void {
   if (currentModal) return; /* one modal at a time — keyboard handler also guards */
   let sections = allSections();
@@ -838,7 +844,18 @@ export function openSettingsModal(): void {
   function buildMenu(): void {
     menuHost.innerHTML = '';
     menuItems = [];
+    let groupedPlugins = false;
     for (const s of sections) {
+      /* the built-ins end with Updates; plugin sections follow. A heading and a
+         divider make it obvious where the app's own settings stop and the
+         user's installed plugins begin. */
+      if (!groupedPlugins && isPluginSection(s)) {
+        groupedPlugins = true;
+        menuHost.append(
+          h('div', { class: 'settings-menu-divide' }),
+          h('div', { class: 'nav-label settings-menu-label' }, 'Plugin settings'),
+        );
+      }
       const btn = h('button', {
         class: 'nav-item',
         type: 'button',

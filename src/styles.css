@@ -1035,6 +1035,10 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
   min-height:520px;
 }
 .settings-menu{padding:10px 8px;border-right:1px solid var(--line)}
+/* the app's own sections end with Updates; plugin-contributed sections are set
+   off by a divider and a heading so they never read as built-in entries */
+.settings-menu-divide{border-top:1px solid var(--line);margin:10px 4px}
+.settings-menu-label{margin:0 5px 5px}
 .settings-content{padding:16px 18px 18px;max-height:70vh;overflow-y:auto}
 .settings-section{display:flex;flex-direction:column;gap:12px}
 .settings-section-h{
