@@ -154,24 +154,47 @@ pub fn validate_path_with(path: &Path, opts: &ValidateOptions) -> ValidationRepo
         return validate_dir_with(path, opts);
     }
 
-    let Ok(staging) = crate::plugin::registry::unpack_to(&crate::plugin::registry::PluginPaths::new(
-        &std::env::temp_dir().join("bentomux-validate"),
-    ), path) else {
-        /* not a directory and not a readable archive: report it as the
-           packaging failure it is, rather than as a missing manifest */
-        let mut report = ValidationReport::empty();
-        report.errors.push(Issue::new(
-            codes::MANIFEST_UNREADABLE,
-            format!(
-                "{} is neither a plugin folder nor a readable plugin package (.zip)",
-                path.display()
-            ),
-        ));
-        return report.finish();
+    /* One throwaway root per invocation. A single shared root
+       (`bentomux-validate`) was handed to every call, and Rust tests run in
+       parallel: two archives unpacked in the same millisecond landed in the
+       same `.unpack-*` directory, so an empty archive was validated against a
+       valid plugin's `plugin.json` and came back `ok`. The pid separates
+       processes; a random token separates concurrent calls inside one process
+       without a clock to collide on. */
+    let validation_root = std::env::temp_dir().join(format!(
+        "bentomux-validate-{}-{:016x}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+
+    let paths = crate::plugin::registry::PluginPaths::new(&validation_root);
+
+    let staging = match crate::plugin::registry::unpack_to(&paths, path) {
+        Ok(staging) => staging,
+        Err(_) => {
+            /* not a directory and not a readable archive: report it as the
+               packaging failure it is, rather than as a missing manifest. The
+               failed unpack may still have created the code root, so the
+               throwaway tree is removed either way. */
+            let _ = fs::remove_dir_all(&validation_root);
+
+            let mut report = ValidationReport::empty();
+            report.errors.push(Issue::new(
+                codes::MANIFEST_UNREADABLE,
+                format!(
+                    "{} is neither a plugin folder nor a readable plugin package (.zip)",
+                    path.display()
+                ),
+            ));
+            return report.finish();
+        }
     };
 
     let report = validate_dir_with(&staging, opts);
-    let _ = std::fs::remove_dir_all(&staging);
+
+    /* Remove both the extracted staging tree and its unique parent: nothing
+       from a validation run should survive in the temp directory. */
+    let _ = fs::remove_dir_all(&validation_root);
     report
 }
 
