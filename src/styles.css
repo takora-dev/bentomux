@@ -1802,7 +1802,8 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.palette-pastel-pixel .dialog,
 :root.palette-pastel-pixel .ctx-menu,
 :root.palette-pastel-pixel .remote-pop,
-:root.palette-pastel-pixel .update-banner{
+:root.palette-pastel-pixel .update-banner,
+:root.palette-pastel-pixel .update-status-card{
   border-width:2px;
   box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(92,58,24,.10);
 }
@@ -1892,7 +1893,8 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.palette-pixelated .dialog,
 :root.palette-pixelated .ctx-menu,
 :root.palette-pixelated .remote-pop,
-:root.palette-pixelated .update-banner{
+:root.palette-pixelated .update-banner,
+:root.palette-pixelated .update-status-card{
   border-width:2px;
   box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(60,56,53,.12);
 }
@@ -1942,7 +1944,10 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 :root.palette-pixelated .palette-select,
 :root.palette-pixelated .git-pill,
 :root.palette-pixelated .seg,
-:root.palette-pixelated .seg button{border-radius:0}
+:root.palette-pixelated .seg button,
+:root.palette-pixelated .update-progress-track,
+:root.palette-pixelated .update-progress-fill,
+:root.palette-pixelated .update-badge{border-radius:0}
 :root.palette-pixelated .thinking i,
 :root.palette-pixelated .dock-dot,
 :root.palette-pixelated .nav-item .dot,
@@ -1990,8 +1995,52 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 /* ---------------- update banner ---------------- */
 .update-banner{position:fixed;bottom:16px;right:16px;z-index:900;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:13px;color:var(--ink)}
 .update-banner[hidden]{display:none}
-.update-banner-msg{flex:1;min-width:0}
-.update-banner .btn{flex:0 0 auto}
+.update-banner-body{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.update-banner-msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.update-banner .btn{flex:0 0 auto;align-self:center}
+.update-banner--progress{min-width:280px;max-width:360px}
+.update-banner--progress .update-banner-msg{white-space:normal}
+
+/* ---------------- update progress bar (banner + settings) ---------------- */
+.update-progress{display:flex;align-items:center;gap:9px;width:100%}
+.update-progress-track{
+  position:relative;flex:1;min-width:0;height:8px;
+  background:var(--tint);border:1px solid var(--line);border-radius:999px;
+  overflow:hidden;
+}
+.update-progress-bar{height:100%;width:100%}
+.update-progress-fill{
+  height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-ink));
+  transition:width .25s ease;
+}
+.update-progress-pct{
+  flex:0 0 auto;min-width:34px;text-align:right;
+  font:11.5px var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums;
+}
+@media (prefers-reduced-motion:reduce){.update-progress-fill{transition:none}}
+
+/* ---------------- update status card (settings) ---------------- */
+.update-status-card{
+  display:flex;flex-direction:column;gap:12px;
+  padding:14px 15px;
+  border:1px solid var(--line);border-radius:10px;
+  background:var(--surface);
+}
+.update-status-head{display:flex;align-items:center;gap:10px;min-width:0}
+.update-status-title{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35}
+.update-status-detail{font-size:12px;color:var(--ink-3);line-height:1.45;overflow-wrap:anywhere}
+.update-badge{
+  flex:0 0 auto;display:inline-flex;align-items:center;
+  height:20px;padding:0 9px;border-radius:999px;
+  font-size:11px;font-weight:550;letter-spacing:.01em;
+  background:var(--tint);color:var(--ink-2);white-space:nowrap;
+}
+.update-badge.accent{background:var(--accent-tint);color:var(--accent-ink)}
+.update-badge.ok{background:color-mix(in srgb,#1a7f37 14%,transparent);color:#1a7f37}
+.update-badge.danger{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.update-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.update-actions .settings-hint{margin:0}
 
 /* ---------------- plugin platform ----------------
    Plugin-contributed UI renders through the same tokens and component

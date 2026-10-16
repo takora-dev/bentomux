@@ -758,28 +758,56 @@ function wireUpdateBanner(): void {
   const b = banner;
   let dismissed = false;
 
+  /* the bar element is created once and reused across repaints so the fill can
+     animate smoothly while chunks arrive instead of being rebuilt each frame */
+  const barFill = h('div', { class: 'update-progress-fill' });
+  const bar = h('div', { class: 'update-progress-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' }, barFill);
+  const barPct = h('span', { class: 'update-progress-pct' }, '');
+  const progressWrap = h('div', { class: 'update-progress' }, h('div', { class: 'update-progress-track' }, bar), barPct);
+
   function paint(): void {
     const s = updateStatus;
-    if (dismissed || (s.phase !== 'available' && s.phase !== 'ready')) {
+    if (dismissed || (s.phase !== 'available' && s.phase !== 'downloading' && s.phase !== 'ready')) {
       b.hidden = true;
       return;
     }
     b.hidden = false;
     b.innerHTML = '';
-    const msg = s.phase === 'ready'
-      ? 'Bentomux v' + s.available + ' installed — restart to apply'
-      : 'Bentomux v' + s.available + ' available';
-    const settingsBtn = h('button', {
-      class: 'btn primary',
-      type: 'button',
-      onclick: () => { void import('./views/settings').then(m => m.openSettingsModal()); },
-    }, s.phase === 'ready' ? 'Restart' : 'Update');
-    const closeBtn = h('button', {
+    b.classList.toggle('update-banner--progress', s.phase === 'downloading' || s.phase === 'ready');
+
+    const msg = s.phase === 'downloading'
+      ? 'Downloading v' + s.available + '…'
+      : s.phase === 'ready'
+        ? 'Bentomux v' + s.available + ' installed — restart to apply'
+        : 'Bentomux v' + s.available + ' available';
+
+    const body = h('div', { class: 'update-banner-body' }, h('span', { class: 'update-banner-msg' }, msg));
+
+    if (s.phase === 'downloading' || s.phase === 'ready') {
+      const pct = Math.max(0, Math.min(100, s.progress));
+      barFill.style.width = pct + '%';
+      bar.setAttribute('aria-valuenow', String(pct));
+      barPct.textContent = pct + '%';
+      progressWrap.style.display = '';
+      body.append(progressWrap);
+    }
+
+    const kids: HTMLElement[] = [body];
+
+    if (s.phase === 'available' || s.phase === 'ready') {
+      kids.push(h('button', {
+        class: 'btn primary',
+        type: 'button',
+        onclick: () => { void import('./views/settings').then(m => m.openSettingsModal()); },
+      }, s.phase === 'ready' ? 'Restart' : 'Update'));
+    }
+    kids.push(h('button', {
       class: 'btn ghost',
       type: 'button',
+      title: s.phase === 'downloading' ? 'Hide — download continues in the background' : 'Dismiss',
       onclick: () => { dismissed = true; b.hidden = true; },
-    }, '×');
-    b.append(h('span', { class: 'update-banner-msg' }, msg), settingsBtn, closeBtn);
+    }, '×'));
+    b.append(...kids);
   }
 
   onUpdateChange(paint);

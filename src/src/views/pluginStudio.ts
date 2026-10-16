@@ -566,25 +566,50 @@ function marketplaceRow(
 }
 
 /**
- * Say the plugin updated, and name the way back.
+ * Say the plugin updated, name the way back, and offer the restart.
  *
  * `commit_update` keeps exactly one previous version on disk, so this is the
  * only moment the user is told the escape hatch exists. After a third version
  * arrives the older directory is garbage-collected, and the Roll back button in
  * the plugin list becomes the only route.
+ *
+ * The restart button is not decoration. `reloadPlugin` re-imports the entry
+ * under a fresh URL and re-renders the surfaces that read the registry, so UI
+ * contributions swap over immediately — but a plugin's background service is
+ * started once, at boot, and keeps running the previous version's code until
+ * the app relaunches. Without the button the user is left to discover that
+ * themselves. A restart is cheap here: panes belong to the pty host daemon, so
+ * quitting leaves terminals and agents running.
  */
 function showUpdated(pluginName: string, previousVersion: string | null): void {
-  openModal({
+  const modal = openModal({
     title: 'Updated ' + pluginName,
     body: h('div', { class: 'plugin-review' },
       h('p', {},
         pluginName + ' is updated and reloaded. Any open tab it owns was torn ' +
         'down and rebuilt by the reload.'),
+      h('p', { class: 'plugin-review-note' },
+        'Restart Bentomux to apply the update everywhere — background services ' +
+        'keep running the previous version until then.'),
       previousVersion
         ? h('p', { class: 'plugin-review-note' },
             `v${previousVersion} is kept on disk as your rollback target. Roll back from the ` +
             'plugin list in Settings → Plugins if the new version misbehaves.')
         : h('p', { class: 'plugin-review-note' }, 'No earlier version was on disk to roll back to.'),
+    ),
+    footer: h('div', { class: 'plugin-review-foot' },
+      h('button', {
+        class: 'btn',
+        type: 'button',
+        onclick: () => modal.close(),
+      }, 'Restart later'),
+      h('button', {
+        class: 'btn primary',
+        type: 'button',
+        onclick: () => {
+          void restartApp().catch(e => showError('Could not restart', readableError(e)));
+        },
+      }, 'Restart now'),
     ),
   });
 }

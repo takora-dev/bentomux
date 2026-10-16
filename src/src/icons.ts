@@ -26,6 +26,8 @@ export const IC = {
   trash:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11"/><path d="M6.5 2.5h3"/><path d="m4 4.5.7 8.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8l.7-8.2"/><path d="M6.7 7.2v3.4M9.3 7.2v3.4"/></svg>',
   sliders:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 5h3.2M9.3 5h4.2M2.5 11h5.2M11.3 11h2.2"/><circle cx="7.5" cy="5" r="1.6"/><circle cx="9.5" cy="11" r="1.6"/></svg>',
   info:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.3"/><circle cx="8" cy="5.3" r="0.7" fill="currentColor" stroke="none"/></svg>',
+  refresh:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-3.95"/><path d="M13.5 2.6V6H10.1"/></svg>',
+  download:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7.2"/><path d="m4.9 6.9 3.1 3.1 3.1-3.1"/><path d="M3 13h10"/></svg>',
 };
 
 export const ic = (name: keyof typeof IC): HTMLElement => markup('span', { class: 'ic' }, IC[name]);

@@ -23,6 +23,8 @@ export interface UpdateStatus {
   available: string;     // available version tag (when phase === 'available'|'downloading'|'ready')
   notes: string;
   progress: number;      // 0-100 during 'downloading'
+  downloaded: number;    // bytes received so far during 'downloading'
+  total: number;         // total bytes, 0 until the plugin reports a content length
   error: string;
   releaseUrl: string;    // fallback link to GitHub release
 }
@@ -36,6 +38,8 @@ export const updateStatus: UpdateStatus = {
   available: '',
   notes: '',
   progress: 0,
+  downloaded: 0,
+  total: 0,
   error: '',
   releaseUrl: REPO + '/releases/latest',
 };
@@ -91,10 +95,11 @@ function describeCheckError(e: unknown): string {
 
 export async function installUpdate(): Promise<void> {
   if (!cachedUpdate) return;
-  set({ phase: 'downloading', progress: 0 });
+  set({ phase: 'downloading', progress: 0, downloaded: 0, total: 0 });
   try {
     let downloaded = 0;
     let total = 0;
+    let lastPaint = 0;
     /* download and install are separate calls so the daemon stays alive for
        the whole download: only the install step replaces the binary, and
        killing the pty host before it killed every pane and left every new
@@ -102,14 +107,23 @@ export async function installUpdate(): Promise<void> {
     await cachedUpdate.download(event => {
       if (event.event === 'Started') {
         total = event.data.contentLength ?? 0;
+        set({ total });
       } else if (event.event === 'Progress') {
         downloaded += event.data.chunkLength;
-        set({ progress: total > 0 ? Math.round((downloaded / total) * 100) : 0 });
+        /* coalesce the render: a fast link can fire hundreds of chunk events
+           per second, and repainting the bar on each one is wasted work */
+        const now = performance.now();
+        if (now - lastPaint < 80 && total > 0 && downloaded < total) return;
+        lastPaint = now;
+        set({
+          downloaded,
+          progress: total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0,
+        });
       }
     });
     // release the files the installer cannot overwrite (Windows file locks)
     await raw.invoke('shutdown_for_update').catch(() => {});
-    set({ phase: 'ready', progress: 100 });
+    set({ phase: 'ready', progress: 100, downloaded: total || downloaded, total: total || downloaded });
     await cachedUpdate.install();
   } catch (e) {
     set({ phase: 'error', error: String(e) });

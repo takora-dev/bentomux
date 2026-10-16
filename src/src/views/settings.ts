@@ -626,27 +626,89 @@ function buildNotificationsSection(paint: () => void): HTMLElement {
 
 const PHASE_LABEL: Record<UpdatePhase, string> = {
   idle:        'Not checked yet',
-  checking:    'Checking…',
-  current:     'Up to date',
+  checking:    'Checking for updates…',
+  current:     'You’re up to date',
   available:   'Update available',
-  downloading: 'Downloading…',
+  downloading: 'Downloading update…',
   ready:       'Ready to install',
   error:       'Check failed',
 };
 
+const PHASE_TONE: Record<UpdatePhase, string> = {
+  idle:        '',
+  checking:    '',
+  current:     'ok',
+  available:   'accent',
+  downloading: 'accent',
+  ready:       'ok',
+  error:       'danger',
+};
+
+/* human-readable byte size for the progress detail line */
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  const v = n / Math.pow(1024, i);
+  return `${i === 0 ? v : v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
 function buildUpdatesSection(paint: () => void): HTMLElement {
-  const statusLine = h('span', { class: 'settings-hint' }, '…');
-  const checkBtn   = h('button', { class: 'btn', type: 'button' }, 'Check now') as HTMLButtonElement;
-  const actionBtn  = h('button', { class: 'btn primary', type: 'button', style: 'display:none' }, '') as HTMLButtonElement;
-  const fallback   = h('a', { class: 'settings-hint', href: '#', style: 'display:none' }, 'Open release page') as HTMLAnchorElement;
+  const badge       = h('span', { class: 'update-badge' }, '') as HTMLElement;
+  const title       = h('div', { class: 'update-status-title' }, '') as HTMLElement;
+  const detail      = h('div', { class: 'update-status-detail' }, '') as HTMLElement;
+
+  const barFill     = h('div', { class: 'update-progress-fill' }) as HTMLElement;
+  const bar         = h('div', { class: 'update-progress-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' }, barFill) as HTMLElement;
+  const barPct      = h('span', { class: 'update-progress-pct' }, '') as HTMLElement;
+  const progressWrap = h('div', { class: 'update-progress' }, h('div', { class: 'update-progress-track' }, bar), barPct) as HTMLElement;
+
+  const checkBtn    = h('button', { class: 'btn', type: 'button' }, ic('refresh'), h('span', {}, 'Check now')) as HTMLButtonElement;
+  const actionBtn   = h('button', { class: 'btn primary', type: 'button', style: 'display:none' }, '') as HTMLButtonElement;
+  const fallback    = h('a', { class: 'settings-hint', href: '#', style: 'display:none' }, 'Open release page') as HTMLAnchorElement;
   let unsub: (() => void) | null = null;
 
   function paintStatus(): void {
     const s = updateStatus;
-    statusLine.textContent = PHASE_LABEL[s.phase]
-      + (s.phase === 'available' || s.phase === 'ready' ? ' — v' + s.available : '')
-      + (s.phase === 'downloading' ? ' ' + s.progress + '%' : '')
-      + (s.phase === 'error' ? ': ' + s.error : '');
+    const pct = Math.max(0, Math.min(100, s.progress));
+
+    badge.textContent = PHASE_LABEL[s.phase];
+    badge.className = 'update-badge' + (PHASE_TONE[s.phase] ? ' ' + PHASE_TONE[s.phase] : '');
+
+    /* headline + supporting line */
+    if (s.phase === 'available') {
+      title.textContent = 'Bentomux v' + s.available + ' is available';
+      detail.textContent = 'Installed: v' + (s.version || '…') + ' — install to update in place.';
+    } else if (s.phase === 'downloading') {
+      title.textContent = 'Downloading Bentomux v' + s.available;
+      detail.textContent = s.total > 0
+        ? formatBytes(s.downloaded) + ' of ' + formatBytes(s.total) + ' — keep the app open.'
+        : formatBytes(s.downloaded) + ' downloaded…';
+    } else if (s.phase === 'ready') {
+      title.textContent = 'Bentomux v' + s.available + ' is ready';
+      detail.textContent = 'Restart to finish applying the update.';
+    } else if (s.phase === 'current') {
+      title.textContent = 'You’re on the latest version';
+      detail.textContent = 'Installed: v' + (s.version || '…');
+    } else if (s.phase === 'error') {
+      title.textContent = 'Couldn’t check for updates';
+      detail.textContent = s.error;
+    } else if (s.phase === 'checking') {
+      title.textContent = 'Checking for updates…';
+      detail.textContent = 'Installed: v' + (s.version || '…');
+    } else {
+      title.textContent = 'Not checked yet';
+      detail.textContent = 'Installed: v' + (s.version || '…');
+    }
+
+    /* progress bar: shown while downloading, and filled on ready */
+    const showProgress = s.phase === 'downloading' || s.phase === 'ready';
+    progressWrap.style.display = showProgress ? '' : 'none';
+    if (showProgress) {
+      barFill.style.width = pct + '%';
+      bar.setAttribute('aria-valuenow', String(pct));
+      barPct.textContent = pct + '%';
+    }
 
     const showInstall = s.phase === 'available';
     const showRestart = s.phase === 'ready';
@@ -662,7 +724,7 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
   paintStatus();
   unsub = onUpdateChange(paintStatus);
   /* detach when the section is removed from DOM */
-  statusLine.addEventListener('disconnectedCallback', () => unsub?.());
+  title.addEventListener('disconnectedCallback', () => unsub?.());
 
   checkBtn.addEventListener('click', () => { void checkForUpdate(); });
   actionBtn.addEventListener('click', () => {
@@ -684,9 +746,12 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
     field('Auto-update',
       toggleSeg(db.prefs.autoUpdate !== false, on => setPref('autoUpdate', on, paint))),
     hint('Check for updates on launch and every 6 hours when enabled.'),
-    versionHint,
-    field('Status', h('div', { class: 'hooks-row' }, checkBtn, statusLine)),
-    h('div', { class: 'hooks-row', style: 'margin-top:8px;gap:8px' }, actionBtn, fallback));
+    h('div', { class: 'update-status-card' },
+      h('div', { class: 'update-status-head' }, title, badge),
+      detail,
+      progressWrap,
+      h('div', { class: 'update-actions' }, checkBtn, actionBtn, fallback)),
+    versionHint);
 }
 
 /* ---------------- Sessions (the pty host daemon) ---------------- */
