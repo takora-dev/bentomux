@@ -74,7 +74,12 @@ pub struct Activity {
     /// Required, and must be one of Discord's approved application names
     /// ("Visual Studio Code", "Terminal", ...).
     pub details: String,
-    pub state: String,
+    /// Optional. Discord rejects an activity whose `state` is present but
+    /// empty — `"state" is not allowed to be empty` — and rejects the whole
+    /// activity with it. So an omitted state has to stay omitted on the wire
+    /// instead of collapsing to `""`, which is what the plugin sends when the
+    /// user hides the workspace line.
+    pub state: Option<String>,
     pub large_image: Option<String>,
     pub large_text: Option<String>,
     pub small_image: Option<String>,
@@ -96,7 +101,8 @@ pub struct Activity {
 #[derive(Debug, Serialize)]
 struct ActivityWire<'a> {
     details: &'a str,
-    state: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     large_image: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -117,7 +123,7 @@ impl Activity {
     fn to_wire(&self) -> ActivityWire<'_> {
         ActivityWire {
             details: &self.details,
-            state: &self.state,
+            state: self.state.as_deref(),
             large_image: self.large_image.as_deref(),
             large_text: self.large_text.as_deref(),
             small_image: self.small_image.as_deref(),
@@ -147,7 +153,7 @@ fn valid_button(button: &ActivityButton) -> bool {
 fn sanitized(activity: &Activity) -> Activity {
     Activity {
         details: clamp(&activity.details, MAX_DETAILS),
-        state: clamp(&activity.state, MAX_STATE),
+        state: activity.state.as_deref().map(|v| clamp(v, MAX_STATE)),
         large_image: activity.large_image.clone(),
         large_text: activity.large_text.clone().map(|v| clamp(&v, MAX_VALUE)),
         small_image: activity.small_image.clone(),
@@ -428,7 +434,7 @@ mod tests {
            translation. */
         let activity = Activity {
             details: "Bentomux".into(),
-            state: "proj".into(),
+            state: Some("proj".into()),
             large_image: Some("logo".into()),
             large_text: Some("Bentomux".into()),
             small_image: Some("logo".into()),
@@ -468,6 +474,23 @@ mod tests {
         assert!(wire.get("large_image").is_none());
         assert!(wire.get("buttons").is_none());
         assert_eq!(wire.get("details").unwrap(), "");
+    }
+
+    #[test]
+    fn a_missing_state_is_left_off_the_wire_entirely() {
+        /* Discord rejects the WHOLE activity when `state` is present but
+           empty — `"state" is not allowed to be empty`. A plugin that hides
+           its location line omits `state`, so an absent one must not collapse
+           to `""` on the wire, or the presence vanishes instead of losing a
+           line. Pins the bug: state is `Option`, and `None` skips the key. */
+        let wire = serde_json::to_value(
+            Activity { details: "Bentomux".into(), ..Default::default() }.to_wire(),
+        )
+        .unwrap();
+        assert!(
+            wire.get("state").is_none(),
+            "an unset state must be omitted, not sent as empty: {wire}",
+        );
     }
 
     #[test]
