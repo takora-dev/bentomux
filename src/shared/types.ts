@@ -130,6 +130,8 @@ export interface Prefs {
   /* agent approval notifications; absent = enabled (overlay pop + chime) */
   notifEnabled?: boolean;
   notifSound?: boolean;
+  /* OS notification when an agent finishes or becomes blocked; absent = enabled */
+  notifAgentState?: boolean;
   /* remote monitor (phone browser); absent = disabled */
   remote?: RemotePrefs;
   /* auto-update; absent = enabled */
@@ -408,6 +410,10 @@ export interface GitCommitDetail {
    screen-manifest state evaluation over the live terminal buffer. */
 
 export type AgentRunState = 'idle' | 'working' | 'blocked';
+
+/* OS verdict on whether Bentomux may show notifications; "unknown" is a macOS
+   dev run, where the bare binary has no bundle identifier to ask about. */
+export type NotifyPermission = 'granted' | 'denied' | 'prompt' | 'unknown';
 
 export interface RuntimeStatus {
   running: boolean;

@@ -75,6 +75,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
+        /* OS notifications for agent state changes (runtime.rs) */
+        .plugin(tauri_plugin_notification::init())
         .manage(app_state)
         .manage(pty_manager);
     /* macOS: replace Tauri's default app menu, whose Close Window item binds
@@ -98,6 +100,24 @@ pub fn run() {
         possible. */
         if let Some(main) = app.get_webview_window("main") {
             restore_window_bounds(&handle, &main);
+        }
+        /* macOS attributes notifications by bundle identifier. tauri dev
+        runs the bare binary - no .app, no bundle id - and the notification
+        plugin then falls back to "com.apple.Terminal", which is why a dev
+        build never appears under Bentomux in System Settings. Pin the legacy
+        notification identity to the installed Bentomux bundle instead. The
+        set is one-shot: if that bundle is absent the call fails and the
+        plugin keeps its Terminal fallback. */
+        #[cfg(target_os = "macos")]
+        {
+            let identity = if tauri::is_dev() {
+                "app.bentomux.desktop"
+            } else {
+                app.config().identifier.as_str()
+            };
+            if let Err(e) = mac_notification_sys::set_application(identity) {
+                eprintln!("[bentomux] notification identity '{identity}': {e}");
+            }
         }
         /* connect to (or spawn) the pty host daemon. Runs first because it is
         the slowest step, and any IPC command that arrives meanwhile waits
@@ -227,6 +247,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::prefs_update,
+            commands::notify_test,
+            commands::notify_permission,
+            commands::notify_open_settings,
             /* Discord Rich Presence: the only non-read-only commands on the
                plugin allowlist (see plugin/mod.rs BACKEND_ALLOWLIST). They
                write to the local Discord client's IPC socket and nowhere

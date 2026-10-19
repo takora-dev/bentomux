@@ -45,6 +45,7 @@ import type {
   GitCommitDetail,
   GitStatusResult,
   ModelSettingsPatch,
+  NotifyPermission,
   Prefs,
   RemotePairing,
   ResourceItem,
@@ -157,6 +158,9 @@ const api = {
      run after boot has completed. */
   getState: () => invokeWithRetry<AppState>('get_state'),
   setPrefs: (partial: Omit<Partial<Prefs>, 'font'> & { font?: string | null }) => invoke<AppState>('prefs_update', { partial }),
+  notifyTest: () => invoke<void>('notify_test'),
+  notifyPermission: (prompt: boolean) => invoke<NotifyPermission>('notify_permission', { prompt }),
+  notifyOpenSettings: () => invoke<void>('notify_open_settings'),
 
   /* zone background images (Settings → Appearance → Background) */
   backgroundPick: () => invoke<string | null>('background_pick'),

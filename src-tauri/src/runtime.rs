@@ -155,6 +155,7 @@ use tauri::{Emitter, Manager};
 
 use crate::detect::{manifests::manifest_for, rules, screen};
 use crate::pty::PtyManager;
+use tauri_plugin_notification::NotificationExt;
 
 struct RuntimeState {
     app: Option<tauri::AppHandle>,
@@ -259,6 +260,87 @@ fn publish(statuses: &BTreeMap<String, RuntimeStatus>) {
     }
     if let Some(app) = &st.app {
         let _ = app.emit("rt:status", statuses);
+    }
+}
+
+/* Which state transitions earn an OS notification. Only working -> done
+   (idle) and working -> blocked, per the settings copy. */
+fn transition_notice(prev: &AgentRunState, next: &AgentRunState) -> Option<&'static str> {
+    match (prev, next) {
+        (AgentRunState::Working, AgentRunState::Idle) => Some("finished"),
+        (AgentRunState::Working, AgentRunState::Blocked) => Some("blocked"),
+        _ => None,
+    }
+}
+
+/* pane -> "agent in workspace" for the notification body */
+fn pane_label(app: &tauri::AppHandle, pane_id: &str, agent: &str) -> String {
+    let s = app.state::<crate::state::AppStateManager>().get_state();
+    let rec = s.open_tabs.iter().find(|r| {
+        let tree = r
+            .split_tree
+            .clone()
+            .unwrap_or_else(|| crate::split_tree::leaf_node(&r.id));
+        crate::split_tree::tree_has_leaf(&tree, pane_id)
+    });
+    let title = rec
+        .and_then(|r| r.title.clone())
+        .filter(|t| !t.trim().is_empty())
+        .or_else(|| {
+            rec.and_then(|r| {
+                s.workspaces
+                    .iter()
+                    .find(|w| w.id == r.workspace_id)
+                    .map(|w| w.name.clone())
+            })
+        });
+    match title {
+        Some(t) => format!("{agent} in {t}"),
+        None => agent.to_string(),
+    }
+}
+
+/* Fire an OS notification for a working -> done/blocked transition.
+   Only manifest- and integration-derived states qualify: the "activity"
+   fallback flips on a 1.5 s output pulse and would notify on every shell
+   command in a pane whose agent has no manifest. */
+fn notify_state_change(
+    app: &tauri::AppHandle,
+    pane_id: &str,
+    st: &RuntimeStatus,
+    prev: &AgentRunState,
+    next: &AgentRunState,
+) {
+    let Some(kind) = transition_notice(prev, next) else {
+        return;
+    };
+    if !matches!(st.source.as_deref(), Some("manifest") | Some("integration")) {
+        return;
+    }
+    let prefs = app
+        .state::<crate::state::AppStateManager>()
+        .get_state()
+        .prefs;
+    /* the Notifications master switch wins over the per-event one */
+    let enabled = prefs.notif_enabled.unwrap_or(true) && prefs.notif_agent_state.unwrap_or(true);
+    if !enabled {
+        return;
+    }
+    let agent = st.runtime.as_deref().unwrap_or("agent");
+    let where_ = pane_label(app, pane_id, agent);
+    let body = if kind == "blocked" {
+        format!("{where_} is blocked and waiting for you")
+    } else {
+        format!("{where_} finished")
+    };
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title("Bentomux")
+        .body(body)
+        .show()
+    {
+        eprintln!("[bentomux] agent state notification failed: {e}");
     }
 }
 
@@ -631,12 +713,28 @@ pub fn init(app: tauri::AppHandle) {
             }
             let mut statuses: BTreeMap<String, RuntimeStatus> = BTreeMap::new();
             for t in &terms {
+                let prev = runtime_state()
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .and_then(|s| s.last_states.get(&t.id).cloned());
                 let st = status_for(&t.id, deepest_match(t.pid, &by_parent));
+                if let (Some(prev), Some(next)) = (&prev, &st.state) {
+                    notify_state_change(&app, &t.id, &st, prev, next);
+                }
                 if st.state.is_some() {
                     runtime_state().lock().unwrap().as_mut().map(|s| {
                         s.last_states
                             .insert(t.id.clone(), st.state.clone().unwrap())
                     });
+                } else {
+                    /* agent gone: forget the old state so the next agent in
+                       this pane cannot inherit it and fire a stale notice */
+                    runtime_state()
+                        .lock()
+                        .unwrap()
+                        .as_mut()
+                        .map(|s| s.last_states.remove(&t.id));
                 }
                 statuses.insert(t.id.clone(), st);
             }
@@ -745,6 +843,16 @@ mod tests {
         assert_eq!(match_agent("zsh", None), None);
         assert_eq!(match_agent("node", None), None);
         assert_eq!(match_agent("git", None), None);
+    }
+
+    #[test]
+    fn transition_notice_covers_done_and_blocked_only() {
+        use AgentRunState::{Blocked, Idle, Working};
+        assert_eq!(transition_notice(&Working, &Idle), Some("finished"));
+        assert_eq!(transition_notice(&Working, &Blocked), Some("blocked"));
+        assert_eq!(transition_notice(&Idle, &Working), None);
+        assert_eq!(transition_notice(&Blocked, &Idle), None);
+        assert_eq!(transition_notice(&Working, &Working), None);
     }
 
     #[test]

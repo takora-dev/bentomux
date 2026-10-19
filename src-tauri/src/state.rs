@@ -190,6 +190,8 @@ pub struct Prefs {
     /* agent approval notifications; absent = enabled (overlay pop + chime) */
     pub notif_enabled: Option<bool>,
     pub notif_sound: Option<bool>,
+    /* OS notification when an agent finishes or becomes blocked; absent = enabled */
+    pub notif_agent_state: Option<bool>,
     /* remote monitor (phone browser); absent = disabled */
     pub remote: Option<RemotePrefs>,
     /* auto-update; absent = enabled */
@@ -224,6 +226,7 @@ impl Default for Prefs {
             approval_overlay: None,
             notif_enabled: None,
             notif_sound: None,
+            notif_agent_state: None,
             remote: None,
             auto_update: None,
             boot_attempts: None,

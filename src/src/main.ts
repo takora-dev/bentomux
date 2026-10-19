@@ -24,6 +24,7 @@ import {
 import { initKeyboard } from './keyboard';
 import { refreshChangesPill, startPillHeartbeat } from './views/gitPanel';
 import { initAgentEvents } from './views/agent-events';
+import { ensureNotifyPermission } from './notify-permission';
 import { initAutoUpdate, updateStatus, onUpdateChange } from './updates';
 import { topbarEntries, tabRenderer, modalRenderer } from './plugin/registry';
 import { openPluginTab } from './views/tabs';
@@ -887,6 +888,12 @@ async function boot(): Promise<void> {
      within a beat without blocking the shell. */
   void loadInitialBranches().then(() => renderSidebar());
   void refreshChangesPill();
+  /* Ask the OS once per launch while the feature is on: a fresh install has
+     never authorized notifications, and macOS drops (silently) the first
+     alerts otherwise. A "no" answer raises the settings dialog. */
+  if (db.prefs.notifAgentState !== false && db.prefs.notifEnabled !== false) {
+    void ensureNotifyPermission();
+  }
 
   /* Plugins come last, and deliberately: their activation must not delay the
      shell's first paint. Services start here too, once the window is

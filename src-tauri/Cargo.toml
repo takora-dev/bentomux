@@ -62,15 +62,29 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "b
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
+# OS notifications for agent state changes (working -> done / blocked);
+# mac + windows + linux in one crate, so no per-OS branch in our code
+tauri-plugin-notification = "2"
 # one daemon and one bentomux.json per machine: a second launch focuses the
 # window the user already has instead of racing it for both
 tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_System_Pipes", "Win32_Storage_FileSystem"] }
+windows = { version = "0.58", features = ["Win32_System_Pipes", "Win32_Storage_FileSystem", "Win32_System_Registry"] }
 
 [target.'cfg(unix)'.dependencies]
 # Unix socket support included in tokio
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# attribution for OS notifications: tauri dev runs a bare binary with no
+# bundle, so we pin the legacy notification identity to the installed app
+mac-notification-sys = "0.6"
+# notification authorization: the legacy API cannot report whether the user
+# allowed notifications, UNUserNotificationCenter can
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = "0.3"
+objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCenter", "UNNotificationSettings", "block2"] }
 
 [profile.dev]
 debug = 1

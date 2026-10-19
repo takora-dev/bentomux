@@ -23,6 +23,7 @@ import { onPluginsChanged } from '../plugin/loader';
 import { contributionLabel } from '../plugin/icons';
 import { buildPluginsSection } from './pluginStudio';
 import { renderTabs } from './tabs';
+import { ensureNotifyPermission } from '../notify-permission';
 import api from '../../preload/bentomux';
 
 /* persist one pref key and run any immediate side effect; callers repaint
@@ -588,12 +589,13 @@ function buildKeysSection(paint: () => void): HTMLElement {
 
 /* ---------------- Notifications (approval overlay + hooks) ---------------- */
 
-function notifToggle(key: 'notifEnabled' | 'notifSound', paint: () => void): HTMLElement {
+function notifToggle(key: 'notifEnabled' | 'notifSound' | 'notifAgentState', paint: () => void): HTMLElement {
   return toggleSeg(db.prefs[key] !== false, on => setPref(key, on, paint));
 }
 
 function buildNotificationsSection(paint: () => void): HTMLElement {
   const statusLine = h('span', { class: 'settings-hint' }, 'Checking…');
+  const testNote = h('span', { class: 'settings-hint' }, '');
   const action = h('button', { class: 'btn ghost', type: 'button' }, '…');
   let current: AgentHooksStatus | null = null;
 
@@ -618,6 +620,24 @@ function buildNotificationsSection(paint: () => void): HTMLElement {
     field('Notifications', notifToggle('notifEnabled', paint)),
     hint('Shows approval requests and plays status sounds when an agent finishes, becomes blocked, or returns to idle. With this off, on-screen notifications are suppressed; phone approvals still work.'),
     field('Notification sound', notifToggle('notifSound', paint)),
+    field('Agent state notifications', toggleSeg(db.prefs.notifAgentState !== false, on => {
+      setPref('notifAgentState', on, paint);
+      if (on) void ensureNotifyPermission();
+    })),
+    hint('Shows a system notification when an agent goes from working to done, or from working to blocked. Uses the OS notification centre on macOS, Windows, and Linux.'),
+    field('Test', h('div', { class: 'hooks-row' },
+      h('button', { class: 'btn ghost', type: 'button', onclick: () => {
+        testNote.textContent = 'Sending…';
+        void ensureNotifyPermission().then(ok => {
+          if (!ok) { testNote.textContent = 'Blocked by the OS — see the dialog.'; return; }
+          return api.notifyTest()
+            .then(() => {
+              testNote.textContent = 'Sent. If no banner appears, check Focus / Do Not Disturb and give Bentomux a Banner style in System Settings → Notifications.';
+            })
+            .catch(e => { testNote.textContent = 'Failed: ' + String(e); });
+        });
+      } }, 'Send test notification'),
+      testNote)),
     field('Approval hooks', h('div', { class: 'hooks-row' }, action, statusLine)),
     hint('Claude Code asks Bentomux for permission decisions, answered in the floating overlay. Requires Node on PATH; agents fail open when Bentomux is closed.'));
 }

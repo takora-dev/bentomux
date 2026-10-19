@@ -71,6 +71,196 @@ pub fn prefs_update(partial: serde_json::Value, state: State<'_, AppStateManager
     state.patch_prefs(|cur| merge_prefs(cur, &partial))
 }
 
+/* Settings > Notifications: prove the OS notification path without waiting
+   for an agent transition. Ignores the prefs gates on purpose. macOS goes
+   straight to mac-notification-sys so delivery errors are returned; the
+   plugin spawns the send and drops the error. */
+#[tauri::command]
+pub fn notify_test(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = &app;
+        mac_notification_sys::send_notification(
+            "Bentomux",
+            None,
+            "Notifications are working.",
+            None,
+        )
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri_plugin_notification::NotificationExt;
+        app.notification()
+            .builder()
+            .title("Bentomux")
+            .body("Notifications are working.")
+            .show()
+            .map_err(|e| e.to_string())
+    }
+}
+
+/* ---------------- notification permission ----------------
+   The OS verdict on whether Bentomux may show notifications:
+   "granted" | "denied" | "prompt" (macOS has not asked yet) | "unknown"
+   (macOS dev, where the bare binary has no bundle to ask about). */
+
+#[cfg(target_os = "macos")]
+fn notify_permission_impl(_app: &tauri::AppHandle, prompt: bool) -> String {
+    use objc2::runtime::Bool;
+    use objc2_foundation::{NSBundle, NSError};
+    use objc2_user_notifications::{
+        UNAuthorizationOptions, UNAuthorizationStatus, UNNotificationSettings,
+        UNUserNotificationCenter,
+    };
+    use std::ptr::NonNull;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    /* UNUserNotificationCenter aborts the process when the executable is not
+       inside an app bundle (tauri dev runs the bare binary), so report
+       "unknown" there instead of asking. */
+    if NSBundle::mainBundle().bundleIdentifier().is_none() {
+        return "unknown".to_string();
+    }
+    let center = UNUserNotificationCenter::currentNotificationCenter();
+
+    if prompt {
+        let (tx, rx) = mpsc::channel::<()>();
+        let block: block2::RcBlock<dyn Fn(Bool, *mut NSError)> =
+            block2::RcBlock::new(move |_granted, _error| {
+                let _ = tx.send(());
+            });
+        center.requestAuthorizationWithOptions_completionHandler(
+            UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
+            &block,
+        );
+        /* the user can sit on the system prompt; never block the command */
+        let _ = rx.recv_timeout(Duration::from_secs(30));
+    }
+
+    let (tx, rx) = mpsc::channel::<UNAuthorizationStatus>();
+    let block: block2::RcBlock<dyn Fn(NonNull<UNNotificationSettings>)> =
+        block2::RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
+            let status = unsafe { settings.as_ref() }.authorizationStatus();
+            let _ = tx.send(status);
+        });
+    center.getNotificationSettingsWithCompletionHandler(&block);
+    match rx.recv_timeout(Duration::from_secs(10)) {
+        Ok(status) if status == UNAuthorizationStatus::Denied => "denied".to_string(),
+        Ok(status) if status == UNAuthorizationStatus::NotDetermined => "prompt".to_string(),
+        Ok(_) => "granted".to_string(),
+        Err(_) => "unknown".to_string(),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn notify_permission_impl(app: &tauri::AppHandle, _prompt: bool) -> String {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+
+    fn dword(subkey: &str, name: &str) -> Option<u32> {
+        let sub: Vec<u16> = subkey.encode_utf16().chain(std::iter::once(0)).collect();
+        let val: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut data: u32 = 0;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        let status = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(sub.as_ptr()),
+                PCWSTR(val.as_ptr()),
+                RRF_RT_REG_DWORD,
+                None,
+                Some(&mut data as *mut u32 as *mut core::ffi::c_void),
+                Some(&mut size),
+            )
+        };
+        if status.0 == 0 {
+            Some(data)
+        } else {
+            None
+        }
+    }
+
+    /* toasts are allowed unless switched off globally, or for this app's
+       AUMID (the bundle identifier, the value the installer puts on the
+       Start Menu shortcut) */
+    let global = dword(
+        r"SoftwareMicrosoftWindowsCurrentVersionPushNotifications",
+        "ToastEnabled",
+    );
+    if global == Some(0) {
+        return "denied".to_string();
+    }
+    let key = format!(
+        r"SoftwareMicrosoftWindowsCurrentVersionNotificationsSettings{}",
+        app.config().identifier
+    );
+    if dword(&key, "Enabled") == Some(0) {
+        return "denied".to_string();
+    }
+    "granted".to_string()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn notify_permission_impl(_app: &tauri::AppHandle, _prompt: bool) -> String {
+    /* D-Bus has no per-app notification grant: the desktop either runs a
+       notification daemon or the send is dropped. */
+    "granted".to_string()
+}
+
+/* prompt = true asks macOS for permission when it never has, and waits for
+   the answer; elsewhere it is a no-op. Returns the state after that. The
+   macOS query can wait on the user reading a system prompt, so it runs on
+   the blocking pool instead of a runtime worker. */
+#[tauri::command]
+pub async fn notify_permission(app: tauri::AppHandle, prompt: bool) -> String {
+    tauri::async_runtime::spawn_blocking(move || notify_permission_impl(&app, prompt))
+        .await
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+/* Deep-link to the OS notification settings, for a user whose OS is
+   blocking us. Linux has no standard cross-desktop pane. */
+#[tauri::command]
+pub fn notify_open_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.Notifications-Settings.extension")
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", "ms-settings:notifications"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let status = std::process::Command::new("sh")
+            .args([
+                "-c",
+                "command -v gnome-control-center >/dev/null && exec gnome-control-center notifications; +                 command -v systemsettings >/dev/null && exec systemsettings kcm_notifications; exit 1",
+            ])
+            .status()
+            .map_err(|e| e.to_string())?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("no desktop notification settings panel found".to_string())
+        }
+    }
+}
+
 fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     let obj = p.as_object();
     if obj.is_none() {
@@ -121,6 +311,9 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     }
     if let Some(v) = obj.get("notifSound").and_then(|v| v.as_bool()) {
         cur.notif_sound = Some(v);
+    }
+    if let Some(v) = obj.get("notifAgentState").and_then(|v| v.as_bool()) {
+        cur.notif_agent_state = Some(v);
     }
 
     // Complex fields
