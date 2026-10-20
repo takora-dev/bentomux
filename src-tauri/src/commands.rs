@@ -72,33 +72,10 @@ pub fn prefs_update(partial: serde_json::Value, state: State<'_, AppStateManager
 }
 
 /* Settings > Notifications: prove the OS notification path without waiting
-   for an agent transition. Ignores the prefs gates on purpose. macOS goes
-   straight to mac-notification-sys so delivery errors are returned; the
-   plugin spawns the send and drops the error. */
+   for an agent transition. Ignores the prefs gates on purpose. */
 #[tauri::command]
 pub fn notify_test(app: tauri::AppHandle) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let _ = &app;
-        mac_notification_sys::send_notification(
-            "Bentomux",
-            None,
-            "Notifications are working.",
-            None,
-        )
-        .map(|_| ())
-        .map_err(|e| e.to_string())
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        app.notification()
-            .builder()
-            .title("Bentomux")
-            .body("Notifications are working.")
-            .show()
-            .map_err(|e| e.to_string())
-    }
+    crate::notify::send(&app, "Bentomux", "Notifications are working.")
 }
 
 /* ---------------- notification permission ----------------
@@ -187,14 +164,14 @@ fn notify_permission_impl(app: &tauri::AppHandle, _prompt: bool) -> String {
        AUMID (the bundle identifier, the value the installer puts on the
        Start Menu shortcut) */
     let global = dword(
-        r"SoftwareMicrosoftWindowsCurrentVersionPushNotifications",
+        r"Software\Microsoft\Windows\CurrentVersion\PushNotifications",
         "ToastEnabled",
     );
     if global == Some(0) {
         return "denied".to_string();
     }
     let key = format!(
-        r"SoftwareMicrosoftWindowsCurrentVersionNotificationsSettings{}",
+        r"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\{}",
         app.config().identifier
     );
     if dword(&key, "Enabled") == Some(0) {
@@ -249,7 +226,7 @@ pub fn notify_open_settings() -> Result<(), String> {
         let status = std::process::Command::new("sh")
             .args([
                 "-c",
-                "command -v gnome-control-center >/dev/null && exec gnome-control-center notifications; +                 command -v systemsettings >/dev/null && exec systemsettings kcm_notifications; exit 1",
+                "command -v gnome-control-center >/dev/null && exec gnome-control-center notifications; command -v systemsettings >/dev/null && exec systemsettings kcm_notifications; exit 1",
             ])
             .status()
             .map_err(|e| e.to_string())?;

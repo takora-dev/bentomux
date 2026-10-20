@@ -14,6 +14,7 @@ pub mod git;
 /* macOS-only: the app menu (Cmd+W belongs to the focused pane, not the window) */
 #[cfg(target_os = "macos")]
 pub mod menu;
+pub mod notify;
 pub mod overlay;
 pub mod plugin;
 pub mod pty;
@@ -94,6 +95,8 @@ pub fn run() {
         use tauri::Emitter;
         use tauri::Manager;
         let handle = app.handle().clone();
+        #[cfg(target_os = "macos")]
+        notify::install();
         /* the window already exists (config windows are built before this
         hook runs). Apply the remembered geometry first, before the slow pty
         handshake, so the user sees as little of the config default as

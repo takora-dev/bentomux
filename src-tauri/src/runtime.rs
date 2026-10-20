@@ -155,7 +155,6 @@ use tauri::{Emitter, Manager};
 
 use crate::detect::{manifests::manifest_for, rules, screen};
 use crate::pty::PtyManager;
-use tauri_plugin_notification::NotificationExt;
 
 struct RuntimeState {
     app: Option<tauri::AppHandle>,
@@ -333,13 +332,7 @@ fn notify_state_change(
     } else {
         format!("{where_} finished")
     };
-    if let Err(e) = app
-        .notification()
-        .builder()
-        .title("Bentomux")
-        .body(body)
-        .show()
-    {
+    if let Err(e) = crate::notify::send(app, "Bentomux", &body) {
         eprintln!("[bentomux] agent state notification failed: {e}");
     }
 }
