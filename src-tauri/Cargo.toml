@@ -84,7 +84,7 @@ mac-notification-sys = "0.6"
 objc2 = "0.6"
 block2 = "0.6"
 objc2-foundation = "0.3"
-objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCenter", "UNNotificationSettings", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "block2"] }
+objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCenter", "UNNotificationSettings", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationSound", "block2"] }
 
 [profile.dev]
 debug = 1

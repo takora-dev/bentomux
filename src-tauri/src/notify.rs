@@ -79,14 +79,17 @@ pub fn install() {
 #[cfg(target_os = "macos")]
 pub fn send(_app: &tauri::AppHandle, title: &str, body: &str) -> Result<(), String> {
     if !in_bundle() {
-        return mac_notification_sys::send_notification(title, None, body, None)
+        let mut options = mac_notification_sys::Notification::new();
+        options.default_sound();
+        return mac_notification_sys::send_notification(title, None, body, Some(&options))
             .map(|_| ())
             .map_err(|e| e.to_string());
     }
     use block2::RcBlock;
     use objc2_foundation::{NSError, NSString};
     use objc2_user_notifications::{
-        UNMutableNotificationContent, UNNotificationRequest, UNUserNotificationCenter,
+        UNMutableNotificationContent, UNNotificationRequest, UNNotificationSound,
+        UNUserNotificationCenter,
     };
     use std::sync::mpsc;
     use std::time::Duration;
@@ -94,6 +97,7 @@ pub fn send(_app: &tauri::AppHandle, title: &str, body: &str) -> Result<(), Stri
     let content = UNMutableNotificationContent::new();
     content.setTitle(&NSString::from_str(title));
     content.setBody(&NSString::from_str(body));
+    content.setSound(Some(&UNNotificationSound::defaultSound()));
     let id = format!(
         "bentomux-{}",
         std::time::SystemTime::now()
