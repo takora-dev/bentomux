@@ -76,7 +76,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
-        /* OS notifications for agent state changes (runtime.rs) */
+        /* OS notifications for agent state changes (runtime.rs). On macOS
+        notify.rs talks to the OS itself, because the plugin's macOS backend
+        goes through the legacy client and macOS forbids mixing it with the
+        modern one. */
         .plugin(tauri_plugin_notification::init())
         .manage(app_state)
         .manage(pty_manager);
@@ -110,9 +113,14 @@ pub fn run() {
         build never appears under Bentomux in System Settings. Pin the legacy
         notification identity to the installed Bentomux bundle instead. The
         set is one-shot: if that bundle is absent the call fails and the
-        plugin keeps its Terminal fallback. */
+        plugin keeps its Terminal fallback.
+        Only pin it when the legacy client is the one in use: macOS refuses to
+        mix the legacy NSUserNotification client with the modern
+        UNUserNotificationCenter in one process, and the mix raises an ObjC
+        exception that kills the app (the installed .app uses the modern
+        client, so the legacy one stays closed there). */
         #[cfg(target_os = "macos")]
-        {
+        if !notify::modern_client() {
             let identity = if tauri::is_dev() {
                 "app.bentomux.desktop"
             } else {

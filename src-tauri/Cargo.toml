@@ -80,8 +80,10 @@ windows = { version = "0.58", features = ["Win32_System_Pipes", "Win32_Storage_F
 # bundle, so we pin the legacy notification identity to the installed app
 mac-notification-sys = "0.6"
 # notification authorization: the legacy API cannot report whether the user
-# allowed notifications, UNUserNotificationCenter can
-objc2 = "0.6"
+# allowed notifications, UNUserNotificationCenter can. `exception` lets
+# objc2::exception::catch fence the calls that raise (a throw crossing into
+# Rust is a hard crash, not a catchable panic).
+objc2 = { version = "0.6", features = ["exception"] }
 block2 = "0.6"
 objc2-foundation = "0.3"
 objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCenter", "UNNotificationSettings", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotification", "UNNotificationSound", "block2"] }

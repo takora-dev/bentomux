@@ -95,40 +95,50 @@ fn notify_permission_impl(_app: &tauri::AppHandle, prompt: bool) -> String {
     use std::sync::mpsc;
     use std::time::Duration;
 
-    /* UNUserNotificationCenter aborts the process when the executable is not
-       inside an app bundle (tauri dev runs the bare binary), so report
-       "unknown" there instead of asking. */
-    if NSBundle::mainBundle().bundleIdentifier().is_none() {
+    /* UNUserNotificationCenter raises an ObjC exception (which kills the
+       process) when the app is not a registered .app bundle. Tauri dev runs
+       the bare target/debug binary; it can still carry an identifier, so
+       also require the bundle path to end in .app. Report "unknown".
+    */
+    let bundle = NSBundle::mainBundle();
+    let bundled = bundle.bundlePath().to_string().ends_with(".app");
+    if !bundled || bundle.bundleIdentifier().is_none() {
         return "unknown".to_string();
     }
-    let center = UNUserNotificationCenter::currentNotificationCenter();
+    /* the guard above should keep this off the throwing path, but the throw is
+    an ObjC exception that unwinds into Rust as a hard crash, so fence the
+    whole modern sequence and report "unknown" instead of dying */
+    let probed = objc2::exception::catch(std::panic::AssertUnwindSafe(|| {
+        let center = UNUserNotificationCenter::currentNotificationCenter();
 
-    if prompt {
-        let (tx, rx) = mpsc::channel::<()>();
-        let block: block2::RcBlock<dyn Fn(Bool, *mut NSError)> =
-            block2::RcBlock::new(move |_granted, _error| {
-                let _ = tx.send(());
+        if prompt {
+            let (tx, rx) = mpsc::channel::<()>();
+            let block: block2::RcBlock<dyn Fn(Bool, *mut NSError)> =
+                block2::RcBlock::new(move |_granted, _error| {
+                    let _ = tx.send(());
+                });
+            center.requestAuthorizationWithOptions_completionHandler(
+                UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
+                &block,
+            );
+            /* the user can sit on the system prompt; never block the command */
+            let _ = rx.recv_timeout(Duration::from_secs(30));
+        }
+
+        let (tx, rx) = mpsc::channel::<UNAuthorizationStatus>();
+        let block: block2::RcBlock<dyn Fn(NonNull<UNNotificationSettings>)> =
+            block2::RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
+                let status = unsafe { settings.as_ref() }.authorizationStatus();
+                let _ = tx.send(status);
             });
-        center.requestAuthorizationWithOptions_completionHandler(
-            UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
-            &block,
-        );
-        /* the user can sit on the system prompt; never block the command */
-        let _ = rx.recv_timeout(Duration::from_secs(30));
-    }
-
-    let (tx, rx) = mpsc::channel::<UNAuthorizationStatus>();
-    let block: block2::RcBlock<dyn Fn(NonNull<UNNotificationSettings>)> =
-        block2::RcBlock::new(move |settings: NonNull<UNNotificationSettings>| {
-            let status = unsafe { settings.as_ref() }.authorizationStatus();
-            let _ = tx.send(status);
-        });
-    center.getNotificationSettingsWithCompletionHandler(&block);
-    match rx.recv_timeout(Duration::from_secs(10)) {
-        Ok(status) if status == UNAuthorizationStatus::Denied => "denied".to_string(),
-        Ok(status) if status == UNAuthorizationStatus::NotDetermined => "prompt".to_string(),
-        Ok(_) => "granted".to_string(),
-        Err(_) => "unknown".to_string(),
+        center.getNotificationSettingsWithCompletionHandler(&block);
+        rx.recv_timeout(Duration::from_secs(10))
+    }));
+    match probed {
+        Ok(Ok(status)) if status == UNAuthorizationStatus::Denied => "denied".to_string(),
+        Ok(Ok(status)) if status == UNAuthorizationStatus::NotDetermined => "prompt".to_string(),
+        Ok(Ok(_)) => "granted".to_string(),
+        _ => "unknown".to_string(),
     }
 }
 
