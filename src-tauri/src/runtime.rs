@@ -488,6 +488,20 @@ fn match_agent(name: &str, cmd: Option<&str>) -> Option<&'static str> {
     if c.contains("@google/gemini-cli") {
         return Some("gemini");
     }
+    /* Hermes ships a generated `/bin/sh` shim that execs python with a
+    multi-kilobyte inline bootstrap, so neither the binary name nor any
+    argument token is `hermes`: the TUI process reports name="python3" with
+    argv[0]="python3", and its node child reports `ui-tui/dist/entry.js`.
+    The install root is the only stable evidence in either command line, and
+    it must be paired with a hermes path so a project directory that merely
+    shares the name does not read as the agent. */
+    if c.contains(".hermes/hermes-agent")
+        || c.contains("/hermes-agent/hermes")
+        || c.contains("hermes_cli.main")
+        || c.contains("hermes-agent/ui-tui")
+    {
+        return Some("hermes");
+    }
     /* The agent name is not always a bare token. Node CLIs that set
     `process.title` (pi, omp, …) replace their own argv[0], so on macOS
     sysinfo reports name="node" with the real name stranded in the argument
@@ -896,6 +910,26 @@ mod tests {
         assert_eq!(
             match_agent("node", Some("node /usr/local/bin/kimi")),
             Some("kimi")
+        );
+        /* measured: `hermes --tui` is a generated sh shim that execs python
+        with a ~7 KB inline bootstrap, so the agent's own process reports
+        name="python3" and argv[0]="python3" — no argument token is ever
+        `hermes`. Only the install root in the command line identifies it. */
+        assert_eq!(
+            match_agent(
+                "python3",
+                Some(
+                    "/Users/mac/.hermes/tools/python-3.14.7-darwin-x64/bin/python3 -I -c import os\012sys.path.insert(0, '/Users/mac/.hermes/hermes-agent')\012from hermes_cli.main import main"
+                )
+            ),
+            Some("hermes")
+        );
+        assert_eq!(
+            match_agent(
+                "node",
+                Some("node --expose-gc /Users/mac/.hermes/hermes-agent/ui-tui/dist/entry.js")
+            ),
+            Some("hermes")
         );
         /* a python-based agent keeps the interpreter in argv[0] as well */
         assert_eq!(

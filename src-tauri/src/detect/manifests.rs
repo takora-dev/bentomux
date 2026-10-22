@@ -678,4 +678,90 @@ mod tests {
         );
         assert_eq!(working.state, Some(RunState::Working));
     }
+    /* captured from a live `hermes --tui` session (30x100 viewport) on
+    2026-10-22: the idle splash and a mid-turn screen. The TUI's only state
+    evidence is the OSC tab/window title (`✓` idle, `⏳` working, `⚠`
+    waiting); the footer adds `Ctrl+C to interrupt` while a turn runs. */
+    #[test]
+    fn hermes_real_screens_classify_by_osc_title() {
+        let m = manifest_for("hermes").expect("hermes manifest");
+        let idle = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: "✓ deepseek-v4.1-flash · /private/tmp".to_string(),
+                osc_progress: String::new(),
+                lines: vec![
+                    "                         Nous Research · Messenger of the Digital Gods                             │".to_string(),
+                    " ──────────────────────────────────────────────────────────────────────────────────────────────    │".to_string(),
+                    "                                                                                                   ┃".to_string(),
+                    " ╭──────────────────────────────────────────────────────────────────────────────────────────────╮  ┃".to_string(),
+                    " │                                                                                              │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⠶⠶⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀                   Charizard Agent vunknown (2026.9.24)              │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⣴⠟⠁⠀⠀⠀⠀⠈⠻⣦⠀⠀⠀⠀⠀⠀                                                                      │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⣼⠏⠀⠀⠀✦⠀⠀⠀⠀⠹⣧⠀⠀⠀⠀⠀                                                                      │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⢰⡟⠀⠀⣀⣤⣤⣤⣀⠀⠀⠀⢻⡆⠀⠀⠀⠀             ▾ Available Tools                                        │  ┃".to_string(),
+                    " │  ⠀⠀⣠⡾⠛⠁⣠⣾⠟⠉⠀⠉⠻⣷⣄⠀⠈⠛⢷⣄⠀⠀             browser-use: browser_exec                                │  ┃".to_string(),
+                    " │  ⠀⣼⠟⠀⢀⣾⠟⠁⠀⠀⠀⠀⠀⠈⠻⣷⡀⠀⠻⣧⠀              clarify: clarify                                         │  ┃".to_string(),
+                    " │  ⢸⡟⠀⠀⣿⡟⠀⠀⠀🔥⠀⠀⠀⠀⢻⣿⠀⠀⢻⡇              code_execution: execute_code                             │  ┃".to_string(),
+                    " │  ⠀⠻⣦⡀⠘⢿⣧⡀⠀⠀⠀⠀⠀⢀⣼⡿⠃⢀⣴⠟⠀              delegation: delegate_task                                │  ┃".to_string(),
+                    " │  ⠀⠀⠈⠻⣦⣀⠙⢿⣷⣤⣤⣤⣾⡿⠋⣀⣴⠟⠁⠀⠀              file: patch, read_file, search_files, write_file         │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠈⠙⠛⠶⠤⠭⠭⠤⠶⠛⠋⠁⠀⠀⠀⠀               memory: memory                                           │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⠀⣰⡿⢿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀              other: tool_call, tool_describe, tool_search             │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⣼⡟⠀⠀⢻⣧⠀⠀⠀⠀⠀⠀⠀⠀              skills: skill_manage, skill_view, skills_list            │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀tail flame lit⠀⠀⠀⠀⠀⠀⠀⠀      (and 4 more toolsets…)                                   │  ┃".to_string(),
+                    " │  deepseek-v4.1-flash · Nous                                                                  │  ┃".to_string(),
+                    " │  Research                           ▸ Available Skills (138) in 20 categories                │  ┃".to_string(),
+                    " │  /private/tmp                                                                                │  ┃".to_string(),
+                    " │  Session: 185a0a71                  ▸ MCP Servers (2) connected                              │  ┃".to_string(),
+                    " │                                     20 tools · 138 skills · 2 MCP · /help for commands       │  ┃".to_string(),
+                    " │                                                                                              │  ┃".to_string(),
+                    " ╰──────────────────────────────────────────────────────────────────────────────────────────────╯  ┃".to_string(),
+                    "                                                                                                   ┃".to_string(),
+                    " ─ ready │ deepseek v4.1 flash high │ 6s │ voice off │ 6 sessions                    ─ /private/tmp".to_string(),
+                    " ✦ Try \"/help\" for commands".to_string(),
+                ],
+            },
+        );
+        assert_eq!(idle.state, Some(RunState::Idle), "idle splash: {:?}", idle.rule_id);
+
+        let busy = evaluate(
+            &m,
+            &ScreenInput {
+                osc_title: "⏳ list the files in this dire… · deepseek-v4.1-flash · /private/tmp".to_string(),
+                osc_progress: String::new(),
+                lines: vec![
+                    " ╭──────────────────────────────────────────────────────────────────────────────────────────────╮  │".to_string(),
+                    " │                                                                                              │  │".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⠶⠶⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀                   Charizard Agent vunknown (2026.9.24)              │  │".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⣴⠟⠁⠀⠀⠀⠀⠈⠻⣦⠀⠀⠀⠀⠀⠀                                                                      │  │".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⣼⠏⠀⠀⠀✦⠀⠀⠀⠀⠹⣧⠀⠀⠀⠀⠀                                                                      │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⢰⡟⠀⠀⣀⣤⣤⣤⣀⠀⠀⠀⢻⡆⠀⠀⠀⠀             ▾ Available Tools                                        │  ┃".to_string(),
+                    " │  ⠀⠀⣠⡾⠛⠁⣠⣾⠟⠉⠀⠉⠻⣷⣄⠀⠈⠛⢷⣄⠀⠀             browser-use: browser_exec                                │  ┃".to_string(),
+                    " │  ⠀⣼⠟⠀⢀⣾⠟⠁⠀⠀⠀⠀⠀⠈⠻⣷⡀⠀⠻⣧⠀              clarify: clarify                                         │  ┃".to_string(),
+                    " │  ⢸⡟⠀⠀⣿⡟⠀⠀⠀🔥⠀⠀⠀⠀⢻⣿⠀⠀⢻⡇              code_execution: execute_code                             │  ┃".to_string(),
+                    " │  ⠀⠻⣦⡀⠘⢿⣧⡀⠀⠀⠀⠀⠀⢀⣼⡿⠃⢀⣴⠟⠀              delegation: delegate_task                                │  ┃".to_string(),
+                    " │  ⠀⠀⠈⠻⣦⣀⠙⢿⣷⣤⣤⣤⣾⡿⠋⣀⣴⠟⠁⠀⠀              file: patch, read_file, search_files, write_file         │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠈⠙⠛⠶⠤⠭⠭⠤⠶⠛⠋⠁⠀⠀⠀⠀               memory: memory                                           │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⠀⣰⡿⢿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀              other: tool_call, tool_describe, tool_search             │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀⣼⡟⠀⠀⢻⣧⠀⠀⠀⠀⠀⠀⠀⠀              skills: skill_manage, skill_view, skills_list            │  ┃".to_string(),
+                    " │  ⠀⠀⠀⠀⠀⠀⠀tail flame lit⠀⠀⠀⠀⠀⠀⠀⠀      (and 4 more toolsets…)                                   │  ┃".to_string(),
+                    " │  deepseek-v4.1-flash · Nous                                                                  │  ┃".to_string(),
+                    " │  Research                           ▸ Available Skills (138) in 20 categories                │  ┃".to_string(),
+                    " │  /private/tmp                                                                                │  ┃".to_string(),
+                    " │  Session: 185a0a71                  ▸ MCP Servers (2) connected                              │  ┃".to_string(),
+                    " │                                     20 tools · 138 skills · 2 MCP · /help for commands       │  ┃".to_string(),
+                    " │                                                                                              │  ┃".to_string(),
+                    " ╰──────────────────────────────────────────────────────────────────────────────────────────────╯  ┃".to_string(),
+                    "                                                                                                   ┃".to_string(),
+                    "                                                                                                   ┃".to_string(),
+                    " ✦ list the files in this directory                                                                ┃".to_string(),
+                    "                                                                                                   ┃".to_string(),
+                    " ─ ⠙ · 1s │ deepseek v4.1 flash high │ 9s │ voice off          ─  list the files in this directory".to_string(),
+                    " ✦ Ctrl+C to interrupt…".to_string(),
+                ],
+            },
+        );
+        assert_eq!(busy.state, Some(RunState::Working), "mid-turn: {:?}", busy.rule_id);
+    }
+
 }
