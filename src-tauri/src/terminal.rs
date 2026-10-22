@@ -11,6 +11,16 @@ const DEFAULT_ROWS: u16 = 24;
 const DEFAULT_COLS: u16 = 80;
 const SCROLLBACK: usize = 500;
 
+/* vt100 0.15.2 does unchecked arithmetic on the grid edges: a 1-column
+screen panics on the first wide glyph (screen.rs `size.cols - width`) and a
+1-row screen panics on the first wrap (grid.rs `col_wrap`). Both are
+reachable — FitAddon floors its row count at 1, so a pane smaller than one
+cell during a mount or resize burst resizes the parser to a single row — and
+the panic poisons the daemon's terminal mutex, freezing every pane. Clamp to
+the smallest grid the parser survives. */
+pub const MIN_ROWS: u16 = 2;
+pub const MIN_COLS: u16 = 2;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TerminalSnapshot {
     pub text: String,
@@ -42,7 +52,7 @@ impl Default for TerminalModel {
 impl TerminalModel {
     pub fn new(rows: u16, cols: u16) -> Self {
         Self {
-            term: Parser::new(rows, cols, SCROLLBACK),
+            term: Parser::new(rows.max(MIN_ROWS), cols.max(MIN_COLS), SCROLLBACK),
             title: String::new(),
             progress: String::new(),
             cwd: String::new(),
@@ -52,7 +62,8 @@ impl TerminalModel {
     }
 
     pub fn set_size(&mut self, rows: u16, cols: u16) {
-        self.term.set_size(rows.max(1), cols.max(1));
+        self.term
+            .set_size(rows.max(MIN_ROWS), cols.max(MIN_COLS));
     }
 
     pub fn process(&mut self, chunk: &[u8]) {
@@ -496,5 +507,27 @@ mod probe_row_preservation {
         assert_eq!(rows.len(), 6, "leading blanks were dropped: {rows:?}");
         assert_eq!(rows[3], "bottom line");
         assert!(rows[..3].iter().all(|r| r.is_empty()));
+    }
+
+    /* FitAddon floors rows at 1, so a pane that is momentarily shorter than
+    one cell resizes the parser to a 1x80 grid. vt100 panics on the first
+    wrap there (`col_wrap` subtract-with-overflow) and the panic poisoned the
+    daemon's mutex, freezing every pane in the app. The model must refuse the
+    degenerate size instead. */
+    #[test]
+    fn a_degenerate_size_never_reaches_the_parser() {
+        let mut m = TerminalModel::new(1, 80);
+        m.process(&b"x".repeat(400));
+        assert!(m.text().contains(&"x".repeat(79)));
+
+        let mut m = TerminalModel::new(24, 80);
+        m.set_size(1, 80);
+        m.process(&b"y".repeat(400));
+        assert!(m.text().contains("y"));
+
+        /* one column panics on the first wide glyph (screen.rs) */
+        let mut m = TerminalModel::new(24, 1);
+        m.process("\u{65e5}\u{672c}\u{8a9e}".as_bytes());
+        assert!(m.text().contains('\u{65e5}'));
     }
 }

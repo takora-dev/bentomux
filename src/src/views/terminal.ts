@@ -91,6 +91,14 @@ function monoFont(): string {
 function refitTerminal(live: Live, notifyPty = false): void {
   if (!live.host.isConnected || parking.contains(live.host)) return;
   try {
+    /* FitAddon floors its proposal at one row and two columns. A pane that
+       is momentarily shorter than a single cell (first mount, a split being
+       dragged, a window restore) would otherwise resize the grid to one row:
+       the app reflows its entire screen into that row and the backend parser
+       drops below the smallest grid vt100 survives. Keep the last good grid
+       and wait for a real one. */
+    const proposal = live.fit.proposeDimensions();
+    if (proposal && proposal.rows < 2) return;
     live.fit.fit();
     /* ResizeObserver fires on every layout pass; only the PTY when the grid
        actually changed, or each notify triggers another TUI redraw */

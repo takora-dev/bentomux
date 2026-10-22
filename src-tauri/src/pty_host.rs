@@ -263,13 +263,34 @@ struct HostTerm {
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
 }
 
+/* A panic anywhere under these locks (a vt100 arithmetic bug, a renderer
+walk) poisons the mutex, and every later `lock().unwrap()` in the daemon
+panics too — one bad frame took the whole pty host down one thread at a
+time. None of this state is half-written in a way that is worse than the
+freeze: recover the guard and let the next chunk redraw. */
+fn recover<T>(result: Result<T, std::sync::PoisonError<T>>) -> T {
+    result.unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn term_lock(shared: &TermShared) -> std::sync::MutexGuard<'_, TerminalModel> {
+    recover(shared.terminal.lock())
+}
+
+fn gate_lock(shared: &TermShared) -> std::sync::MutexGuard<'_, ()> {
+    recover(shared.stream_gate.lock())
+}
+
 /* resize the pty and the parser together, then hand back a fresh render: the
 resize reflows the grid, so a text-only frame would leave a watcher looking
 at a stale screen until the next output happened to arrive */
 fn apply_size(term: &HostTerm, rows: u16, cols: u16) -> crate::terminal::TerminalSnapshot {
+    /* the parser refuses grids below 2x2 (vt100 panics on their edges); give
+    the pty the same floor or the app draws into rows the model does not have */
+    let rows = rows.max(crate::terminal::MIN_ROWS);
+    let cols = cols.max(crate::terminal::MIN_COLS);
     {
-        let _gate = term.shared.stream_gate.lock().unwrap();
-        term.shared.terminal.lock().unwrap().set_size(rows, cols);
+        let _gate = gate_lock(&term.shared);
+        term_lock(&term.shared).set_size(rows, cols);
         let _ = term.master.resize(PtySize {
             rows,
             cols,
@@ -277,7 +298,7 @@ fn apply_size(term: &HostTerm, rows: u16, cols: u16) -> crate::terminal::Termina
             pixel_height: 0,
         });
     }
-    let snapshot = term.shared.terminal.lock().unwrap().snapshot_html();
+    let snapshot = term_lock(&term.shared).snapshot_html();
     term.shared
         .last_snapshot_at
         .store(now_ms(), Ordering::Relaxed);
@@ -315,7 +336,7 @@ impl Host {
         reader can enqueue live bytes into the new client between its
         handshake and attach snapshot, corrupting restore ordering. */
         for term in self.terms.lock().unwrap().values() {
-            let _gate = term.shared.stream_gate.lock().unwrap();
+            let _gate = gate_lock(&term.shared);
             term.shared.attached.store(false, Ordering::SeqCst);
         }
         let mut slot = self.client.lock().unwrap();
@@ -482,8 +503,8 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                 after the replay snapshot but before `attached=true`, which
                 would otherwise leave the renderer one chunk behind. */
                 {
-                    let _gate = shared.stream_gate.lock().unwrap();
-                    let state = shared.terminal.lock().unwrap().state_formatted();
+                    let _gate = gate_lock(&shared);
+                    let state = term_lock(&shared).state_formatted();
                     if !state.is_empty() {
                         /* The line is prebuilt before enqueue; no socket write
                         or blocking I/O happens while the gate is held. */
@@ -495,7 +516,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                 render it after releasing the hot stream gate. Attach needs
                 full html (remote may already watch this pane); the hot
                 tick afterwards sends text-only. */
-                let snapshot = shared.terminal.lock().unwrap().snapshot_html();
+                let snapshot = term_lock(&shared).snapshot_html();
                 shared.last_snapshot_at.store(now_ms(), Ordering::Relaxed);
                 send_snapshot(host, &shared.id, &snapshot);
             }
@@ -511,7 +532,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                 .get(&id)
                 .map(|t| t.shared.clone())
             {
-                let snapshot = shared.terminal.lock().unwrap().snapshot_html();
+                let snapshot = term_lock(&shared).snapshot_html();
                 let mut obj = json!({
                     "t": "snapshot",
                     "id": id,
@@ -684,50 +705,63 @@ fn spawn_term(
             match reader.read(&mut buf) {
                 Ok(0) => break, /* EOF: master closed */
                 Ok(n) => {
-                    let chunk = decode_pty_bytes(&mut carry, &buf[..n]);
-                    /* Base64/JSON work happens before the gate. Inside it we
-                    only process the parser and enqueue an already-built
-                    line, keeping the hot critical section bounded. */
-                    let encoded_chunk = chunk
-                        .as_deref()
-                        .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
-                    let attached = {
-                        let _gate = shared_r.stream_gate.lock().unwrap();
-                        shared_r.terminal.lock().unwrap().process(&buf[..n]);
-                        if shared_r.attached.load(Ordering::SeqCst) {
-                            if let Some(line) = encoded_chunk {
-                                send_line(&host_r, line);
+                    /* The parser is the only thing here that can panic, and a
+                    panic escaping this loop silently ends the pane: the
+                    child keeps writing, nothing is read again, and the pane
+                    freezes until the app restarts. Lose one chunk instead. */
+                    let processed = std::panic::catch_unwind(
+                        std::panic::AssertUnwindSafe(|| {
+                            let chunk = decode_pty_bytes(&mut carry, &buf[..n]);
+                            /* Base64/JSON work happens before the gate. Inside it we
+                            only process the parser and enqueue an already-built
+                            line, keeping the hot critical section bounded. */
+                            let encoded_chunk = chunk
+                                .as_deref()
+                                .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
+                            let attached = {
+                                let _gate = gate_lock(&shared_r);
+                                term_lock(&shared_r).process(&buf[..n]);
+                                if shared_r.attached.load(Ordering::SeqCst) {
+                                    if let Some(line) = encoded_chunk {
+                                        send_line(&host_r, line);
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            };
+                            if attached {
+                                let now = now_ms();
+                                let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);
+                                if now.saturating_sub(previous) >= SNAPSHOT_INTERVAL_MS
+                                    && shared_r
+                                        .last_snapshot_at
+                                        .compare_exchange(
+                                            previous,
+                                            now,
+                                            Ordering::Relaxed,
+                                            Ordering::Relaxed,
+                                        )
+                                        .is_ok()
+                                {
+                                    /* Full text+HTML rendering is intentionally
+                                    coalesced. Raw bytes remain realtime; runtime
+                                    and remote already tick at 250 ms. */
+                                    let snapshot = term_lock(&shared_r).snapshot();
+                                    send_snapshot(&host_r, &shared_r.id, &snapshot);
+                                    shared_r.snapshot_pending.store(false, Ordering::Relaxed);
+                                } else {
+                                    /* throttled away: the sweeper flushes one
+                                    trailing snapshot once output goes quiet */
+                                    shared_r.snapshot_pending.store(true, Ordering::Relaxed);
+                                }
                             }
-                            true
-                        } else {
-                            false
-                        }
-                    };
-                    if attached {
-                        let now = now_ms();
-                        let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);
-                        if now.saturating_sub(previous) >= SNAPSHOT_INTERVAL_MS
-                            && shared_r
-                                .last_snapshot_at
-                                .compare_exchange(
-                                    previous,
-                                    now,
-                                    Ordering::Relaxed,
-                                    Ordering::Relaxed,
-                                )
-                                .is_ok()
-                        {
-                            /* Full text+HTML rendering is intentionally
-                            coalesced. Raw bytes remain realtime; runtime
-                            and remote already tick at 250 ms. */
-                            let snapshot = shared_r.terminal.lock().unwrap().snapshot();
-                            send_snapshot(&host_r, &shared_r.id, &snapshot);
-                            shared_r.snapshot_pending.store(false, Ordering::Relaxed);
-                        } else {
-                            /* throttled away: the sweeper flushes one
-                            trailing snapshot once output goes quiet */
-                            shared_r.snapshot_pending.store(true, Ordering::Relaxed);
-                        }
+                        }),
+                    );
+                    if processed.is_err() {
+                        eprintln!(
+                            "[bentomux] pty reader skipped a chunk after a parser panic"
+                        );
                     }
                 }
                 Err(_) => break,
@@ -805,7 +839,7 @@ fn sweep_term(host: &Host, shared: &Arc<TermShared>) -> bool {
         shared.snapshot_pending.store(true, Ordering::SeqCst);
         return false;
     }
-    let snapshot = shared.terminal.lock().unwrap().snapshot();
+    let snapshot = term_lock(&shared).snapshot();
     send_snapshot(host, &shared.id, &snapshot);
     true
 }
@@ -821,7 +855,17 @@ fn snapshot_sweep(host: Arc<Host>) {
             .map(|t| t.shared.clone())
             .collect();
         for shared in terms {
-            sweep_term(&host, &shared);
+            /* A pathological vt100 state (seen: subtract-with-overflow in
+               grid.rs during a resize burst) panics mid-sweep; letting it
+               escape poisons the host's mutexes and kills the whole daemon
+               one unwrap at a time. Swallow this one panic: the next output
+               tick snapshots again from a fresh screen state. */
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                sweep_term(&host, &shared);
+            }));
+            if result.is_err() {
+                eprintln!("[bentomux] pty host snapshot panicked; skipping this tick");
+            }
         }
     }
 }

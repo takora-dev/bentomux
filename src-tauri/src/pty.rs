@@ -236,8 +236,15 @@ impl PtyManager {
             let status = match self.host_status() {
                 Ok(status) => status,
                 Err(error) => {
+                    /* A daemon whose answer threads died (e.g. one snapshot
+                       panic poisoned its mutexes) still accepts connections
+                       but never answers. Not restarting leaves every app
+                       launch for the day hitting the same 15s timeout.
+                    */
                     eprintln!("[bentomux] pty host handshake failed: {error}");
-                    return;
+                    eprintln!("[bentomux] restarting pty host (unresponsive)");
+                    self.restart_host();
+                    continue;
                 }
             };
             let verdict = host_verdict(status.version, status.terms.len(), just_spawned);
