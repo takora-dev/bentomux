@@ -796,6 +796,13 @@ pub fn pty_resize(
     pty.resize_term(&id, cols, rows)
 }
 
+/* the renderer lost buffered output for a pane and needs the daemon's
+  authoritative screen replayed (see terminal.ts bufferPending) */
+#[tauri::command]
+pub fn pty_attach(id: String, pty: State<'_, PtyManager>) -> Result<(), String> {
+    pty.resync_term(&id)
+}
+
 /* ---------------- git ---------------- */
 
 /* every git op shells out and blocks (`status -uall` walks the whole worktree,

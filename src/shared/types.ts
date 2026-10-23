@@ -548,6 +548,8 @@ export interface BentomuxApi {
   closeTab(id: string): Promise<AppState>;
   writeTab(id: string, data: string): void;
   resizeTab(id: string, cols: number, rows: number): void;
+  /** re-request a pane's screen replay after buffered output was dropped */
+  attachTab(id: string): void;
   onPtyData(cb: (id: string, chunk: string) => void): () => void;
   onPtyExit(cb: (id: string, code: number) => void): () => void;
   /* stopPanes=false keeps the background daemon (and its agents) alive */

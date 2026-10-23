@@ -186,6 +186,7 @@ const api = {
   closeTab: (id: string) => invoke<AppState>('tab_close', { id }),
   writeTab: (id: string, data: string) => { void invoke('pty_write', { id, data }); },
   resizeTab: (id: string, cols: number, rows: number) => { void invoke('pty_resize', { id, cols, rows }); },
+  attachTab: (id: string) => { void invoke('pty_attach', { id }); },
   onPtyData: (cb: (id: string, chunk: string) => void) =>
     /* backend emits `pty:data` as a 2-tuple (id, chunk) → JSON [id, chunk] */
     subscribe<[string, string]>('pty:data', p => cb(p[0], p[1])),

@@ -40,15 +40,28 @@ let outputFrame: number | null = null;
    background workspace grows that string forever; keep the tail, which is
    what the screen shows. */
 const PENDING_MAX = 256 * 1024;
+/* one frame's worth of output for a visible pane; past this the parser would
+   block on a single write instead of painting, so replay instead */
+const PTY_FRAME_MAX = 128 * 1024;
+/* how long a queued frame may wait for rAF before a timer drains it */
+const PTY_FLUSH_FALLBACK_MS = 32;
+
+/* Panes whose buffered output was dropped for size. The daemon owns the
+   authoritative vt100 screen for every pane, so a pane in this set asks for a
+   formatted replay when it mounts instead of guessing from a truncated tail. */
+const resyncNeeded = new Set<string>();
 
 function bufferPending(id: string, chunk: string): void {
-  let buf = (pending.get(id) || '') + chunk;
+  const buf = (pending.get(id) || '') + chunk;
   if (buf.length > PENDING_MAX) {
-    buf = buf.slice(buf.length - PENDING_MAX);
-    /* resume at a line start: a cut escape sequence would swallow the text
-       that follows it */
-    const nl = buf.indexOf('\n');
-    if (nl !== -1) buf = buf.slice(nl + 1);
+    /* A truncated tail cannot be replayed safely. It starts mid-escape and
+       lands on top of a screen that has scrolled on without it, so the pane
+       rendered whatever half-sequence happened to survive — the garbled text
+       users see after leaving an agent running in a background tab. Drop the
+       bytes and let the daemon replay the real screen on mount. */
+    pending.delete(id);
+    resyncNeeded.add(id);
+    return;
   }
   pending.set(id, buf);
 }
@@ -88,6 +101,17 @@ function monoFont(): string {
   return fallback;
 }
 
+/* One place decides whether the PTY hears about a grid size. Both the refit
+   path and xterm's own onResize land here, and the last-sent grid is the gate:
+   notifying twice resizes the pty twice, and a TUI answers every resize with a
+   full redraw — which is what flickers while an agent streams. */
+function notifyResize(live: Live): void {
+  if (live.term.cols === live.lastCols && live.term.rows === live.lastRows) return;
+  live.lastCols = live.term.cols;
+  live.lastRows = live.term.rows;
+  api.resizeTab(live.id, live.lastCols, live.lastRows);
+}
+
 function refitTerminal(live: Live, notifyPty = false): void {
   if (!live.host.isConnected || parking.contains(live.host)) return;
   try {
@@ -98,15 +122,16 @@ function refitTerminal(live: Live, notifyPty = false): void {
        drops below the smallest grid vt100 survives. Keep the last good grid
        and wait for a real one. */
     const proposal = live.fit.proposeDimensions();
-    if (proposal && proposal.rows < 2) return;
-    live.fit.fit();
-    /* ResizeObserver fires on every layout pass; only the PTY when the grid
-       actually changed, or each notify triggers another TUI redraw */
-    if (notifyPty && (live.term.cols !== live.lastCols || live.term.rows !== live.lastRows)) {
-      live.lastCols = live.term.cols;
-      live.lastRows = live.term.rows;
-      api.resizeTab(live.id, live.lastCols, live.lastRows);
+    if (!proposal || proposal.rows < 2) return;
+    /* fit() clears the renderer before it compares sizes, so calling it on a
+       grid that already matches still repaints every cell. ResizeObserver
+       fires on every layout pass — and a sidebar status tick is a layout
+       pass — so an unconditional fit() flickers the pane once a second while
+       an agent works. Only resize when the proposal really differs. */
+    if (proposal.cols !== live.term.cols || proposal.rows !== live.term.rows) {
+      live.fit.fit();
     }
+    if (notifyPty) notifyResize(live);
   } catch {
     /* terminal may be between tab mounts */
   }
@@ -125,21 +150,89 @@ function flushTerminalOutput(): void {
     try {
       live.term.write(output);
     } catch {
-      /* terminal may be between tab mounts */
+      /* A write can be refused outright (xterm's write buffer is bounded).
+         Swallowing it drops a frame of escape state and every byte after it
+         renders into the wrong cells, so ask the daemon for the real screen
+         instead of rendering on top of a hole. */
+      dropAndResync(live);
     }
   }
   outputQueue.clear();
 }
 
+/* this pane's local bytes can no longer be trusted: throw them away and let
+   the daemon replay its authoritative screen */
+function dropAndResync(live: Live): void {
+  pending.delete(live.id);
+  /* a pane on screen has no mount coming, so ask for the replay now. The
+     replay opens with a screen clear (terminal.rs state_formatted), so it
+     repaints over whatever partial frame is showing — and unlike
+     term.reset() it leaves the pane's input and resize handlers intact. */
+  if (live.host.isConnected && !parking.contains(live.host)) {
+    api.attachTab(live.id);
+  } else {
+    resyncNeeded.add(live.id);
+  }
+}
+
 function writeTerminalOutput(live: Live, chunk: string): void {
-  outputQueue.set(live, (outputQueue.get(live) || '') + chunk);
-  if (outputFrame === null) outputFrame = requestAnimationFrame(flushTerminalOutput);
+  /* requestAnimationFrame does not run while the window is hidden or
+     minimized, so queueing behind it during a background run grows the string
+     until the window comes back — and then one enormous write blocks the
+     parser: the pane sits frozen and then dumps everything at once. Buffer
+     through the capped path instead, which is exactly what it exists for. */
+  if (document.visibilityState === 'hidden') {
+    bufferPending(live.id, chunk);
+    return;
+  }
+  const queued = (outputQueue.get(live) || '') + chunk;
+  if (queued.length > PTY_FRAME_MAX) {
+    /* same reasoning as the pending cap: a tail this late cannot be replayed
+       onto a screen that moved on without it */
+    outputQueue.delete(live);
+    dropAndResync(live);
+    return;
+  }
+  outputQueue.set(live, queued);
+  if (outputFrame === null) {
+    outputFrame = requestAnimationFrame(flushTerminalOutput);
+    /* rAF is throttled to nothing in an occluded or minimized window even
+       though visibilityState still reads 'visible'. Without this the queue
+       only drains when the window comes back, which is the freeze-then-dump
+       the user sees. A timer keeps the stream moving; flushTerminalOutput is
+       idempotent and clears its own handle. */
+    window.setTimeout(() => {
+      if (outputFrame !== null) {
+        cancelAnimationFrame(outputFrame);
+        flushTerminalOutput();
+      }
+    }, PTY_FLUSH_FALLBACK_MS);
+  }
 }
 
 function repaintTerminals(): void {
   if (document.visibilityState !== 'visible') return;
   requestAnimationFrame(() => {
-    for (const live of lives.values()) refitTerminal(live);
+    for (const live of lives.values()) {
+      /* output that arrived while the window was hidden went to the capped
+         buffer (rAF does not run there); mount it now or the pane shows a
+         screen that stopped updating the moment the user looked away */
+      if (live.host.isConnected && !parking.contains(live.host)) {
+        /* this pane overflowed its buffer while hidden: the daemon's replay is
+           the only truthful screen left, and the pane is on screen to take it */
+        if (resyncNeeded.delete(live.id)) {
+          pending.delete(live.id);
+          api.attachTab(live.id);
+        } else {
+          const buffered = pending.get(live.id);
+          if (buffered) {
+            pending.delete(live.id);
+            writeTerminalOutput(live, buffered);
+          }
+        }
+      }
+      refitTerminal(live);
+    }
   });
 }
 
@@ -270,7 +363,10 @@ function wireXtermEvents(term: Terminal, tabId: string): void {
     return true;
   });
   term.onData(d => api.writeTab(tabId, d));
-  term.onResize(({ cols, rows }) => api.resizeTab(tabId, cols, rows));
+  term.onResize(() => {
+    const live = lives.get(tabId);
+    if (live) notifyResize(live);
+  });
   wireClipboardPaste(term, tabId);
 }
 
@@ -390,6 +486,7 @@ export function disposeTerminal(tabId: string): void {
   if (live.observer) live.observer.disconnect();
   try { live.term.dispose(); } catch { /* already gone */ }
   pending.delete(tabId);
+  resyncNeeded.delete(tabId);
   outputQueue.delete(live);
   lastFocus.delete(tabId);
   lives.delete(tabId);
@@ -602,11 +699,20 @@ export function terminalPage(start: PaneNode | string): HTMLElement {
     }
 
     for (const id of ids) {
+      const live = lives.get(id);
+      if (!live) continue;
+      /* this pane's buffered output was dropped for size: the daemon replays
+         its authoritative screen, which beats writing a truncated tail onto a
+         screen that moved on without it */
+      if (resyncNeeded.delete(id)) {
+        pending.delete(id);
+        api.attachTab(id);
+        continue;
+      }
       const buffered = pending.get(id);
       if (buffered) {
         pending.delete(id);
-        const live = lives.get(id);
-        if (live) writeTerminalOutput(live, buffered);
+        writeTerminalOutput(live, buffered);
       }
     }
 

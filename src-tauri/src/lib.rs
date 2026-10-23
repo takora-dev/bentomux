@@ -283,6 +283,7 @@ pub fn run() {
             commands::tab_close,
             commands::pty_write,
             commands::pty_resize,
+            commands::pty_attach,
             /* read-only, and on the plugin allowlist: pane cwd + file listing
                + file contents for file-viewer plugins */
             commands::pane_cwd,

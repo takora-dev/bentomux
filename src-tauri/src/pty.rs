@@ -589,6 +589,20 @@ impl PtyManager {
         let _ = self.send(json!({ "t": "attach", "id": id }));
     }
 
+    /* Re-ask for a pane's replay without disturbing the live stream. The
+    renderer drops buffered output it can no longer trust (see
+    `bufferPending`), so it needs the daemon's authoritative screen instead of
+    the bytes it lost. Attach is exactly that request: it resets the grid from
+    `state_formatted()` and leaves `attached` set. */
+    pub fn resync_term(&self, id: &str) -> Result<(), String> {
+        self.wait_ready();
+        if !self.terms.lock().unwrap().contains_key(id) {
+            return Ok(());
+        }
+        self.attach(id);
+        Ok(())
+    }
+
     pub fn create_term(
         &self,
         workspace_id: &str,
@@ -933,6 +947,22 @@ mod tests {
         let mut carry = Vec::new();
         assert_eq!(decode_pty_bytes(&mut carry, &[0xE2, 0x94]), None);
         assert_eq!(decode_pty_bytes(&mut carry, &[0x80]), Some("─".to_string()));
+    }
+
+    /* a color sequence split on a multi-byte glyph used to arrive as literal
+    `[38;5;145m`: from_utf8_lossy replaced the unfinished bytes with U+FFFD
+    and threw the tail away, so the ESC that opened the next sequence was
+    never the first byte of anything. The carry keeps those bytes for the
+    next message. */
+    #[test]
+    fn test_decode_pty_bytes_keeps_an_escape_split_off_a_partial_glyph() {
+        let mut carry = Vec::new();
+        let first = decode_pty_bytes(&mut carry, b"\x1b[38;5;145m\xe2");
+        assert_eq!(first.as_deref(), Some("\x1b[38;5;145m"));
+        assert_eq!(carry, b"\xe2");
+        let second = decode_pty_bytes(&mut carry, b"\x94\x80ok");
+        assert_eq!(second.as_deref(), Some("─ok"));
+        assert!(carry.is_empty());
     }
 
     #[test]
@@ -1299,6 +1329,64 @@ mod tests {
         assert!(mgr.write_term("t-nope", "hi").is_err());
         assert!(!mgr.kill_term("t-nope"));
         mgr.kill_term(&id);
+    }
+
+    /* The renderer drops buffered output it can no longer replay (see
+    terminal.ts bufferPending) and asks for the daemon's screen instead. That
+    request must replay the pane even though it is already attached — attach is
+    what carries `state_formatted()` — and must stay a silent no-op for a pane
+    that is gone, because the renderer can outlive a kill. */
+    #[test]
+    fn test_resync_replays_an_attached_pane_and_ignores_an_unknown_one() {
+        let (_host, mgr) = test_manager("resync");
+        let workspace = ws("resync");
+        let shell_pref = if cfg!(windows) { Some("cmd") } else { None };
+        let id = mgr
+            .create_term(&workspace.id, &workspace.path, shell_pref)
+            .expect("spawn");
+        let mut data_rx = mgr.on_term_data();
+
+        /* put a marker on the screen, then let the output settle so the
+        replay below cannot be mistaken for the echo itself */
+        mgr.write_term(&id, "echo RESYNC_MARKER\r\n").expect("write");
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let mut seen = String::new();
+        while !seen.contains("RESYNC_MARKER") && std::time::Instant::now() < deadline {
+            match data_rx.try_recv() {
+                Ok((_, chunk)) => seen.push_str(&chunk),
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                    std::thread::sleep(Duration::from_millis(50))
+                }
+                Err(_) => break,
+            }
+        }
+        assert!(seen.contains("RESYNC_MARKER"), "marker never echoed: {seen:?}");
+        std::thread::sleep(Duration::from_millis(300));
+        while data_rx.try_recv().is_ok() {}
+
+        mgr.resync_term(&id).expect("resync");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let mut replay = String::new();
+        while !replay.contains("RESYNC_MARKER") && std::time::Instant::now() < deadline {
+            match data_rx.try_recv() {
+                Ok((tid, chunk)) => {
+                    assert_eq!(tid, id);
+                    replay.push_str(&chunk);
+                }
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                    std::thread::sleep(Duration::from_millis(50))
+                }
+                Err(_) => break,
+            }
+        }
+        assert!(
+            replay.contains("RESYNC_MARKER"),
+            "resync did not replay the screen; saw {replay:?}"
+        );
+
+        mgr.kill_term(&id);
+        /* a pane the renderer still holds a reference to must not error */
+        mgr.resync_term("t-gone").expect("unknown pane is a no-op");
     }
 
     #[test]
