@@ -27,6 +27,14 @@ interface Live {
   observer: ResizeObserver | null;
   lastCols: number;
   lastRows: number;
+  /* how many times the daemon was asked to match this pane's grid, and the
+     grid it last reported. Both drive reconcileGrid(). */
+  gridRetries: number;
+  daemonRows: number;
+  daemonCols: number;
+  /* the daemon does not own this pane (a stale tab after a restart): it can
+     never be resized or replayed, so stop asking */
+  gone: boolean;
 }
 
 const lives = new Map<string, Live>();
@@ -34,15 +42,30 @@ const pending = new Map<string, string>();
 const lastFocus = new Map<string, number>();
 const outputQueue = new Map<Live, string>();
 let outputFrame: number | null = null;
+let outputTimer: number | null = null;
+
+/* xterm parses asynchronously and only calls a write's callback once the chunk
+   is through the parser. A pane whose oldest chunk has been outstanding this
+   long has a parser that stopped: its screen and its byte stream no longer
+   agree, so it gets replayed from the daemon instead of rendering over a hole. */
+const WRITE_STALL_MS = 8000;
+/* how often the stall watchdog looks at the panes it is watching */
+const WRITE_WATCHDOG_MS = 1000;
+let writeWatchdog: number | null = null;
+const stalledSince = new Map<string, number>();
 
 /* Output for a pane that is not mounted yet (its workspace is not the active
    one) is buffered until it mounts. Without a cap a busy agent in a
    background workspace grows that string forever; keep the tail, which is
    what the screen shows. */
 const PENDING_MAX = 256 * 1024;
-/* one frame's worth of output for a visible pane; past this the parser would
-   block on a single write instead of painting, so replay instead */
-const PTY_FRAME_MAX = 128 * 1024;
+/* A frame for a visible pane past this size is written immediately instead of
+   waiting for the next rAF. The queue holds that pane's bytes in order and
+   nothing moved on without them, so a big frame costs latency and never
+   correctness — replaying the daemon's screen over it would trade a slow frame
+   for a full-screen repaint, and every repaint is another chance for the pane
+   and the daemon to disagree. */
+const PTY_FRAME_MAX = 512 * 1024;
 /* how long a queued frame may wait for rAF before a timer drains it */
 const PTY_FLUSH_FALLBACK_MS = 32;
 
@@ -137,8 +160,31 @@ function refitTerminal(live: Live, notifyPty = false): void {
   }
 }
 
+/* both flush triggers are armed together and disarmed together, so one frame
+   is never written twice */
+function disarmFlush(): void {
+  if (outputFrame !== null) {
+    cancelAnimationFrame(outputFrame);
+    outputFrame = null;
+  }
+  if (outputTimer !== null) {
+    clearTimeout(outputTimer);
+    outputTimer = null;
+  }
+}
+
+function armFlush(): void {
+  if (outputFrame !== null || outputTimer !== null) return;
+  outputFrame = requestAnimationFrame(flushTerminalOutput);
+  /* rAF is throttled to nothing in an occluded or minimized window even
+     though visibilityState still reads 'visible'. Without this the queue
+     only drains when the window comes back, which is the freeze-then-dump
+     the user sees. */
+  outputTimer = window.setTimeout(flushTerminalOutput, PTY_FLUSH_FALLBACK_MS);
+}
+
 function flushTerminalOutput(): void {
-  outputFrame = null;
+  disarmFlush();
   for (const [live, output] of outputQueue) {
     /* host detached between enqueue and frame: keep the bytes for the next
        mount instead of dropping them (dropped escape state can leave the
@@ -147,17 +193,53 @@ function flushTerminalOutput(): void {
       bufferPending(live.id, output);
       continue;
     }
-    try {
-      live.term.write(output);
-    } catch {
-      /* A write can be refused outright (xterm's write buffer is bounded).
-         Swallowing it drops a frame of escape state and every byte after it
-         renders into the wrong cells, so ask the daemon for the real screen
-         instead of rendering on top of a hole. */
-      dropAndResync(live);
-    }
+    writeToTerminal(live, output);
   }
   outputQueue.clear();
+}
+
+/* Hand one chunk to xterm and put the pane on the stall watch.
+
+   Two failures live here and only one of them can be caught. When xterm's own
+   write buffer is past its flow-control ceiling, `write()` throws outright and
+   the bytes are discarded — that is the catch below. When the *parser* throws,
+   xterm rethrows it on a microtask far from this stack, skips the chunk's
+   callback, and carries on writing every later byte into a screen that is one
+   frame of escape state short. The callback is the only receipt we get, so a
+   receipt that never arrives is what the watchdog looks for. */
+function writeToTerminal(live: Live, output: string): void {
+  if (!stalledSince.has(live.id)) stalledSince.set(live.id, Date.now());
+  armWriteWatchdog();
+  try {
+    live.term.write(output, () => {
+      /* any receipt proves the parser is still moving through this pane's
+         stream, which is all the watchdog needs to know */
+      stalledSince.delete(live.id);
+    });
+  } catch {
+    stalledSince.delete(live.id);
+    dropAndResync(live);
+  }
+}
+
+function armWriteWatchdog(): void {
+  if (writeWatchdog !== null) return;
+  writeWatchdog = window.setInterval(() => {
+    if (!stalledSince.size) {
+      if (writeWatchdog !== null) window.clearInterval(writeWatchdog);
+      writeWatchdog = null;
+      return;
+    }
+    const now = Date.now();
+    for (const [id, since] of stalledSince) {
+      if (now - since < WRITE_STALL_MS) continue;
+      stalledSince.delete(id);
+      const live = lives.get(id);
+      if (!live) continue;
+      console.error('[terminal] pane stopped parsing its output, replaying screen:', id);
+      dropAndResync(live);
+    }
+  }, WRITE_WATCHDOG_MS);
 }
 
 /* this pane's local bytes can no longer be trusted: throw them away and let
@@ -165,9 +247,10 @@ function flushTerminalOutput(): void {
 function dropAndResync(live: Live): void {
   pending.delete(live.id);
   /* a pane on screen has no mount coming, so ask for the replay now. The
-     replay opens with a screen clear (terminal.rs state_formatted), so it
-     repaints over whatever partial frame is showing — and unlike
-     term.reset() it leaves the pane's input and resize handlers intact. */
+     replay opens with a screen clear and a DEC-state reset (terminal.rs
+     state_formatted), so it repaints over whatever partial frame is showing
+     and takes the pane's leftover charsets and scroll region with it — and
+     unlike term.reset() it leaves the pane's input and resize handlers intact. */
   if (live.host.isConnected && !parking.contains(live.host)) {
     api.attachTab(live.id);
   } else {
@@ -186,28 +269,12 @@ function writeTerminalOutput(live: Live, chunk: string): void {
     return;
   }
   const queued = (outputQueue.get(live) || '') + chunk;
+  outputQueue.set(live, queued);
   if (queued.length > PTY_FRAME_MAX) {
-    /* same reasoning as the pending cap: a tail this late cannot be replayed
-       onto a screen that moved on without it */
-    outputQueue.delete(live);
-    dropAndResync(live);
+    flushTerminalOutput();
     return;
   }
-  outputQueue.set(live, queued);
-  if (outputFrame === null) {
-    outputFrame = requestAnimationFrame(flushTerminalOutput);
-    /* rAF is throttled to nothing in an occluded or minimized window even
-       though visibilityState still reads 'visible'. Without this the queue
-       only drains when the window comes back, which is the freeze-then-dump
-       the user sees. A timer keeps the stream moving; flushTerminalOutput is
-       idempotent and clears its own handle. */
-    window.setTimeout(() => {
-      if (outputFrame !== null) {
-        cancelAnimationFrame(outputFrame);
-        flushTerminalOutput();
-      }
-    }, PTY_FLUSH_FALLBACK_MS);
-  }
+  armFlush();
 }
 
 function repaintTerminals(): void {
@@ -253,6 +320,44 @@ export function applyTerminalFont(): void {
   }
 }
 
+/* ---------------- grid reconciliation ----------------
+
+   A resize is a request, not a command: the daemon clamps it to 2x2 and drops
+   it silently for an id it does not have. Until it answers with the grid it
+   actually applied, the renderer cannot tell "landed" from "ignored", and a
+   pane drawing at 100 cols into a pty reflowing at 80 renders every line of a
+   TUI in the wrong place. The daemon now echoes the applied grid; this is the
+   other half — ask again when it disagrees, then draw at the pty's size. */
+function reconcileGrid(live: Live, rows: number, cols: number): void {
+  if (rows < 2 || cols < 2) return;
+  live.daemonRows = rows;
+  live.daemonCols = cols;
+  if (live.term.rows === rows && live.term.cols === cols) {
+    live.gridRetries = 0;
+    return;
+  }
+  if (live.gridRetries < 3) {
+    live.gridRetries += 1;
+    live.lastCols = live.term.cols;
+    live.lastRows = live.term.rows;
+    api.resizeTab(live.id, live.lastCols, live.lastRows);
+    return;
+  }
+  /* three requests and the daemon still runs a different grid: stop fighting
+     it. Draw at the pty's size so the pane and the shell agree, even if the
+     text area shrinks — a slightly smaller pane beats every line misplaced. */
+  console.warn(
+    '[terminal] daemon grid does not match the pane, drawing at the pty size:',
+    live.id, { daemon: [cols, rows], pane: [live.term.cols, live.term.rows] },
+  );
+  live.gridRetries = 0;
+  /* set the sent grid first so the onResize this triggers does not bounce a
+     fourth request back at the daemon */
+  live.lastCols = cols;
+  live.lastRows = rows;
+  try { live.term.resize(cols, rows); } catch { /* pane between mounts */ }
+}
+
 export function initTerminalEvents(): void {
   parking = $('#termParking');
   window.addEventListener('focus', repaintTerminals);
@@ -277,6 +382,19 @@ export function initTerminalEvents(): void {
     /* keep the dead shell visible until the user closes the pane/tab */
     const live = lives.get(id);
     if (live) live.term.write('\r\n\x1b[2m[process exited]\x1b[0m\r\n');
+  });
+  /* the grid the daemon actually applied — see reconcileGrid */
+  api.onPtyGrid((id, rows, cols) => {
+    const live = lives.get(id);
+    if (live) reconcileGrid(live, rows, cols);
+  });
+  api.onPtyGridGone(id => {
+    const live = lives.get(id);
+    if (!live || live.gone) return;
+    /* the daemon has no such pane: resize and replay are both no-ops there, so
+       stop asking and keep whatever the pane already shows */
+    live.gone = true;
+    console.warn('[terminal] pane is not running in the pty daemon:', id);
   });
   api.onFileDrop(handleFileDrop);
 }
@@ -469,7 +587,19 @@ function ensureLive(tabId: string): Live {
   let live = lives.get(tabId);
   if (!live) {
     const { term, fit, host } = createXterm(tabId);
-    live = { id: tabId, term, fit, host, observer: null, lastCols: 0, lastRows: 0 };
+    live = {
+      id: tabId,
+      term,
+      fit,
+      host,
+      observer: null,
+      lastCols: 0,
+      lastRows: 0,
+      gridRetries: 0,
+      daemonRows: 0,
+      daemonCols: 0,
+      gone: false,
+    };
     lives.set(tabId, live);
   }
   return live;
@@ -488,6 +618,7 @@ export function disposeTerminal(tabId: string): void {
   pending.delete(tabId);
   resyncNeeded.delete(tabId);
   outputQueue.delete(live);
+  stalledSince.delete(tabId);
   lastFocus.delete(tabId);
   lives.delete(tabId);
 }

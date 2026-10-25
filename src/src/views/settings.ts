@@ -14,7 +14,7 @@ import { accelFor, formatAccel, applyKeyPreset, setShortcuts, KEY_PRESETS, RESER
 import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
 import {
-  updateStatus, checkForUpdate, installUpdate, restartApp, onUpdateChange,
+  updateStatus, checkForUpdate, installUpdate, restartApp, onUpdateChange, releaseNotesUrl,
   type UpdatePhase,
 } from '../updates';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -686,6 +686,9 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
   const checkBtn    = h('button', { class: 'btn', type: 'button' }, ic('refresh'), h('span', {}, 'Check now')) as HTMLButtonElement;
   const actionBtn   = h('button', { class: 'btn primary', type: 'button', style: 'display:none' }, '') as HTMLButtonElement;
   const fallback    = h('a', { class: 'settings-hint', href: '#', style: 'display:none' }, 'Open release page') as HTMLAnchorElement;
+  /* always-visible: the tag page is where the release body lives, so this is
+     the one link that works whether or not an update was found */
+  const notesLink   = h('a', { class: 'update-notes-link', href: '#', target: '_blank', rel: 'noreferrer' }, 'Release notes') as HTMLAnchorElement;
   let unsub: (() => void) | null = null;
 
   function paintStatus(): void {
@@ -738,6 +741,9 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
     actionBtn.textContent   = showRestart ? 'Restart now' : 'Install update';
     fallback.style.display  = showFallback ? '' : 'none';
     fallback.href           = s.releaseUrl;
+    /* prefer the version the user is being offered; otherwise document the one
+       they run, which is what "what changed" usually means */
+    notesLink.href          = releaseNotesUrl(s.available || s.version);
     checkBtn.disabled       = s.phase === 'checking' || s.phase === 'downloading';
   }
 
@@ -752,8 +758,12 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
     else { void installUpdate(); }
   });
   fallback.addEventListener('click', e => { e.preventDefault(); void openUrl(updateStatus.releaseUrl); });
+  notesLink.addEventListener('click', e => {
+    e.preventDefault();
+    void openUrl(releaseNotesUrl(updateStatus.available || updateStatus.version));
+  });
 
-  const versionHint = h('div', { class: 'settings-hint' },
+  const versionHint = h('div', { class: 'settings-hint update-installed' },
     'Installed: v' + (updateStatus.version || '…'));
 
   /* keep installed version up to date if it resolved after modal open */
@@ -770,7 +780,7 @@ function buildUpdatesSection(paint: () => void): HTMLElement {
       h('div', { class: 'update-status-head' }, title, badge),
       detail,
       progressWrap,
-      h('div', { class: 'update-actions' }, checkBtn, actionBtn, fallback)),
+      h('div', { class: 'update-actions' }, checkBtn, actionBtn, fallback, notesLink)),
     versionHint);
 }
 

@@ -192,6 +192,13 @@ const api = {
     subscribe<[string, string]>('pty:data', p => cb(p[0], p[1])),
   onPtyExit: (cb: (id: string, code: number) => void) =>
     subscribe<[string, number]>('pty:exit', p => cb(p[0], p[1])),
+  /* the grid the daemon actually applied to a resize request: it clamps to a
+     2x2 floor and silently drops an unknown id, so a request is not a promise */
+  onPtyGrid: (cb: (id: string, rows: number, cols: number) => void) =>
+    subscribe<[string, number, number]>('pty:grid', p => cb(p[0], p[1], p[2])),
+  /* the daemon does not own this pane (a stale tab after a daemon restart) */
+  onPtyGridGone: (cb: (id: string) => void) =>
+    subscribe<string>('pty:grid-gone', p => cb(p)),
 
   /* quitting: stopPanes=false leaves the background daemon and its agents
      running (the default), true stops every pane first */

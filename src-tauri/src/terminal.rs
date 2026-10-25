@@ -21,6 +21,22 @@ the smallest grid the parser survives. */
 pub const MIN_ROWS: u16 = 2;
 pub const MIN_COLS: u16 = 2;
 
+/* A replay is a screen, not a session: it carries the visible grid, the input
+modes and the title, and nothing else. This prefix puts the pane back in the
+state the model assumes before the grid lands.
+
+- vt100 keeps no charset state: a run drawn with DEC line drawing is stored as
+  the plain bytes it received, so a pane left in G0 = DEC graphics would turn
+  the replay's text into box characters. SI plus (B and )B put both charsets
+  back on ASCII.
+- `[r` / `?6l` drop a scroll region and origin mode an app may have left set;
+  with them still active the replay's lines are drawn into the wrong rows.
+  `?7h` re-enables autowrap, which the formatter's wrapped rows rely on.
+- The scrollback above the screen is the user's real history, so a replay
+  clears the visible screen only (the `[2J` the formatter writes itself).
+  Erasing saved lines here (`[3J`) threw that history away on every resync. */
+const REPLAY_PREFIX: &[u8] = b"\x0f\x1b(B\x1b)B\x1b[r\x1b[?6l\x1b[?7h";
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TerminalSnapshot {
     pub text: String,
@@ -32,6 +48,13 @@ pub struct TerminalSnapshot {
     not every shell emits OSC 7, and a pane that has not been told must not
     look like one sitting in `/`. */
     pub cwd: String,
+    /* the grid the model and the pty are actually running at. A resize is a
+    request the daemon may clamp (2x2 floor) or drop (unknown id), so the
+    renderer cannot assume its own dimensions landed. */
+    #[serde(default)]
+    pub rows: u16,
+    #[serde(default)]
+    pub cols: u16,
 }
 
 pub struct TerminalModel {
@@ -80,18 +103,22 @@ impl TerminalModel {
         }
     }
 
+    /* A replay is written into a live pane, so it resets first: see
+    REPLAY_PREFIX for what a snapshot cannot carry and what it must not erase. */
     pub fn state_formatted(&self) -> Vec<u8> {
         let screen = self.term.screen();
         let mut state = if screen.alternate_screen() {
             b"\x1b[?1049h".to_vec()
         } else {
-            b"\x1b[?1049l\x1b[3J".to_vec()
+            b"\x1b[?1049l".to_vec()
         };
+        state.extend_from_slice(REPLAY_PREFIX);
         state.extend(screen.state_formatted());
         state
     }
 
     pub fn snapshot(&self) -> TerminalSnapshot {
+        let (rows, cols) = self.term.screen().size();
         TerminalSnapshot {
             text: self.text(),
             /* html is the expensive half of a snapshot (per-cell style walk
@@ -103,6 +130,8 @@ impl TerminalModel {
             progress: self.progress.clone(),
             last_data_at: self.last_data_at,
             cwd: self.cwd.clone(),
+            rows,
+            cols,
         }
     }
 
@@ -115,6 +144,7 @@ impl TerminalModel {
     }
 
     pub fn snapshot_html(&self) -> TerminalSnapshot {
+        let (rows, cols) = self.term.screen().size();
         TerminalSnapshot {
             text: self.term.screen().contents(),
             html: screen_dump_html(&self.term),
@@ -122,6 +152,8 @@ impl TerminalModel {
             progress: self.progress.clone(),
             last_data_at: self.last_data_at,
             cwd: self.cwd.clone(),
+            rows,
+            cols,
         }
     }
 }
@@ -443,6 +475,34 @@ mod tests {
         assert!(String::from_utf8(model.state_formatted())
             .unwrap()
             .contains("hello"));
+    }
+
+    /* The renderer writes a replay into a live pane, so the pane must be put
+    back in the state the replay assumes before the grid lands — and the
+    user's scrollback must survive it. */
+    #[test]
+    fn state_replay_resets_dec_state_and_keeps_scrollback() {
+        let mut model = TerminalModel::default();
+        model.process(b"history");
+        let replay = String::from_utf8(model.state_formatted()).unwrap();
+        assert!(
+            replay.starts_with("\x1b[?1049l\x0f\x1b(B\x1b)B\x1b[r\x1b[?6l\x1b[?7h"),
+            "replay must reset the pane's residual DEC state first: {replay:?}"
+        );
+        assert!(
+            !replay.contains("\x1b[3J"),
+            "a replay must not erase the pane's scrollback: {replay:?}"
+        );
+        assert!(replay.contains("history"));
+    }
+
+    #[test]
+    fn state_replay_keeps_the_alternate_screen() {
+        let mut model = TerminalModel::default();
+        model.process(b"\x1b[?1049halt screen");
+        let replay = String::from_utf8(model.state_formatted()).unwrap();
+        assert!(replay.starts_with("\x1b[?1049h\x0f"), "{replay:?}");
+        assert!(replay.contains("alt screen"));
     }
 
     #[test]

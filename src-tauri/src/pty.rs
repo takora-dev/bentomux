@@ -458,6 +458,8 @@ impl PtyManager {
                                 .and_then(Value::as_str)
                                 .unwrap_or_default()
                                 .to_string(),
+                            rows: msg.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16,
+                            cols: msg.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16,
                         };
                         crate::detect::screen::update_snapshot(&id, snapshot);
                     }
@@ -470,6 +472,29 @@ impl PtyManager {
                         let _ = exit_tx.send((id.clone(), code));
                         if let Some(app) = app.get() {
                             let _ = app.emit("pty:exit", (id, code));
+                        }
+                    }
+                    /* the grid the daemon actually applied. A resize is a
+                    request: the daemon clamps it to 2x2 and silently drops an
+                    id it does not know. Without this echo the renderer keeps
+                    drawing at a width the pty never took, and every replay it
+                    asks for is reflowed at the wrong size. */
+                    "grid" => {
+                        let rows = msg.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16;
+                        let cols = msg.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16;
+                        if rows >= 2 && cols >= 2 {
+                            if let Some(app) = app.get() {
+                                let _ = app.emit("pty:grid", (id, rows, cols));
+                            }
+                        }
+                    }
+                    /* the pane this app holds is not in the daemon (a stale tab
+                    after a daemon restart): it can never be resized or
+                    replayed, so say so instead of waiting on a grid that will
+                    never be confirmed */
+                    "grid-gone" => {
+                        if let Some(app) = app.get() {
+                            let _ = app.emit("pty:grid-gone", id);
                         }
                     }
                     /* the host is the source of truth for what exists */
@@ -581,6 +606,8 @@ impl PtyManager {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
+            rows: reply.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16,
+            cols: reply.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16,
         })
     }
 

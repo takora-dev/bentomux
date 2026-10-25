@@ -32,6 +32,15 @@ export interface UpdateStatus {
 const REPO = 'https://github.com/takora-dev/bentomux';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 h
 
+/* the GitHub tag page for a version: what the Settings "Release notes" link
+   opens. A tag carries the release body the maintainer wrote, so it is the
+   right target for "what changed" — the updater manifest only has the version
+   number and whatever body the release JSON happened to include. */
+export function releaseNotesUrl(version: string): string {
+  const tag = version.replace(/^v/, '').trim();
+  return tag ? `${REPO}/releases/tag/v${tag}` : REPO + '/releases';
+}
+
 export const updateStatus: UpdateStatus = {
   phase: 'idle',
   version: '',

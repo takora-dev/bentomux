@@ -552,6 +552,10 @@ export interface BentomuxApi {
   attachTab(id: string): void;
   onPtyData(cb: (id: string, chunk: string) => void): () => void;
   onPtyExit(cb: (id: string, code: number) => void): () => void;
+  /** the grid the daemon actually applied for a resize request */
+  onPtyGrid(cb: (id: string, rows: number, cols: number) => void): () => void;
+  /** the daemon does not own this pane (stale tab after a daemon restart) */
+  onPtyGridGone(cb: (id: string) => void): () => void;
   /* stopPanes=false keeps the background daemon (and its agents) alive */
   quitApp(stopPanes: boolean): Promise<void>;
 

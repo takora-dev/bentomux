@@ -33,6 +33,12 @@ pub fn update_snapshot(id: &str, mut snapshot: TerminalSnapshot) {
             cur.progress = snapshot.progress;
             cur.last_data_at = snapshot.last_data_at;
             cur.cwd = snapshot.cwd;
+            /* a hot tick carries the grid too; 0 means the sender had none to
+            report, so keep the last known size rather than dropping to 0 */
+            if snapshot.rows >= 2 && snapshot.cols >= 2 {
+                cur.rows = snapshot.rows;
+                cur.cols = snapshot.cols;
+            }
         }
         _ => {
             guard.insert(id.to_string(), snapshot);
@@ -104,6 +110,8 @@ mod tests {
                 progress: "3;50".into(),
                 last_data_at: 42,
                 cwd: "/tmp/a b".into(),
+                rows: 24,
+                cols: 80,
             },
         );
         assert_eq!(screen_lines("cache-test"), vec!["  ready"]);
@@ -127,6 +135,8 @@ mod tests {
                 progress: String::new(),
                 last_data_at: 1,
                 cwd: "/work".into(),
+                rows: 40,
+                cols: 120,
             },
         );
         update_snapshot(
@@ -138,10 +148,15 @@ mod tests {
                 progress: String::new(),
                 last_data_at: 2,
                 cwd: String::new(),
+                rows: 0,
+                cols: 0,
             },
         );
         assert_eq!(screen_cwd("cwd-test"), "/work");
         assert_eq!(screen_dump_html("cwd-test"), "<b>a</b>");
+        /* a tick that carries no grid must not shrink the pane to 0x0 */
+        let kept = screens().lock().unwrap().get("cwd-test").cloned().unwrap();
+        assert_eq!((kept.rows, kept.cols), (40, 120));
         clear_snapshot("cwd-test");
     }
 }

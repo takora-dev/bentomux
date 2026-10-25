@@ -2045,6 +2045,16 @@ body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
 .update-badge.danger{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
 .update-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .update-actions .settings-hint{margin:0}
+/* the installed version sits under the card, not tucked against it: the base
+   .settings-hint pulls itself up by 7px to sit under a form field */
+.settings-hint.update-installed{margin-top:2px}
+/* "Release notes" is a quiet secondary link beside the action buttons */
+.update-notes-link{
+  font-size:12px;color:var(--ink-3);text-decoration:none;
+  border-bottom:1px solid transparent;transition:color .12s,border-color .12s;
+}
+.update-notes-link:hover,.update-notes-link:focus-visible{color:var(--ink);border-bottom-color:currentColor}
+.update-notes-link:focus-visible{outline:none}
 
 /* ---------------- plugin platform ----------------
    Plugin-contributed UI renders through the same tokens and component

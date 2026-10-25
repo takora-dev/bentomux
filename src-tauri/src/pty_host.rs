@@ -40,7 +40,7 @@ pub const HOST_FLAG: &str = "--pty-host";
 daemon that answers with a different number: a daemon outlives app updates,
 so a silent mismatch would surface as confusing misbehaviour in the field
 with nothing to diagnose it. */
-pub const PROTOCOL_VERSION: u64 = 6;
+pub const PROTOCOL_VERSION: u64 = 7;
 
 /* how long to wait for the freshly spawned daemon to accept a connection */
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
@@ -401,6 +401,18 @@ fn encoded_data_line(id: &str, bytes: &[u8]) -> String {
     line
 }
 
+/* The grid this pane is actually running at. A resize is a request, not a
+command: it is dropped silently for an id this daemon does not know, and the
+app cannot tell that apart from a resize that landed. Reporting the applied
+grid lets the renderer notice the divergence and ask again, instead of drawing
+its own grid into a pty that reflows at another width. */
+fn send_grid(host: &Host, id: &str, rows: u16, cols: u16) {
+    send_json(
+        host,
+        json!({ "t": "grid", "id": id, "rows": rows, "cols": cols }),
+    );
+}
+
 fn send_snapshot(host: &Host, id: &str, snapshot: &crate::terminal::TerminalSnapshot) {
     /* html goes over the wire only when rendered (watched panes / attach /
     resize). The 500 ms hot tick sends text+meta so runtime detection stays
@@ -413,6 +425,10 @@ fn send_snapshot(host: &Host, id: &str, snapshot: &crate::terminal::TerminalSnap
         "progress": snapshot.progress,
         "lastDataAt": snapshot.last_data_at,
         "cwd": snapshot.cwd,
+        /* the grid this snapshot was rendered at, so a watcher never has to
+        guess the pty's width from its own layout */
+        "rows": snapshot.rows,
+        "cols": snapshot.cols,
     });
     if !snapshot.html.is_empty() {
         obj["html"] = snapshot.html.clone().into();
@@ -519,6 +535,10 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                 let snapshot = term_lock(&shared).snapshot_html();
                 shared.last_snapshot_at.store(now_ms(), Ordering::Relaxed);
                 send_snapshot(host, &shared.id, &snapshot);
+                /* the replay carries the grid it was rendered at, so a pane
+                that reconnects to an older daemon resyncs its own dimensions
+                instead of drawing at a width the pty does not have */
+                send_grid(host, &shared.id, snapshot.rows, snapshot.cols);
             }
         }
         "snapshot-html" => {
@@ -542,6 +562,8 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                     "progress": snapshot.progress,
                     "lastDataAt": snapshot.last_data_at,
                     "cwd": snapshot.cwd,
+                    "rows": snapshot.rows,
+                    "cols": snapshot.cols,
                 });
                 if n != 0 {
                     if let Some(o) = obj.as_object_mut() {
@@ -575,6 +597,23 @@ fn handle_line(host: &Arc<Host>, line: &str) {
             if let Some(term) = terms.get(&id) {
                 let snapshot = apply_size(term, rows, cols);
                 send_snapshot(host, &term.shared.id, &snapshot);
+                /* echo the grid that actually landed: the clamp above (and a
+                pane the daemon no longer has) can make it differ from the
+                request, and the renderer has to know */
+                send_grid(
+                    host,
+                    &term.shared.id,
+                    snapshot.rows,
+                    snapshot.cols,
+                );
+            } else {
+                /* unknown id: the app may be holding a pane this daemon never
+                spawned (a stale tab after a daemon restart). Say so instead of
+                staying silent, or the renderer keeps a grid nobody runs. */
+                send_json(
+                    host,
+                    json!({ "t": "grid-gone", "id": id }),
+                );
             }
         }
         "kill" => {

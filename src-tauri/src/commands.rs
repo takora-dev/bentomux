@@ -1816,6 +1816,8 @@ mod tests {
                 progress: String::new(),
                 last_data_at: 0,
                 cwd: "/work/here".into(),
+                rows: 24,
+                cols: 80,
             },
         );
         assert_eq!(pane_cwd("cwd-cmd-test".into()), Some("/work/here".into()));
