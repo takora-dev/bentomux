@@ -415,6 +415,14 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
        wallpaper the theme keeps an opaque color and nothing changes */
     allowTransparency: true,
     scrollback: 1000,
+    /* xterm's default is 1, and a macOS trackpad reports deltas of a few
+       pixels per event: at 1 most events land below one cell and are eaten by
+       the fractional accumulator, so a gentle flick (deltaY 2-4) scrolls a
+       couple of lines at most or nothing at all. An agent CLI in the
+       alternate screen forwards the wheel to the app as mouse reports, and
+       with almost every event dropped the app never sees a scroll. 3 is the
+       same multiplier VS Code ships for its own xterm panes. */
+    scrollSensitivity: 3,
     fastScrollSensitivity: 10,
     /* apps emit truecolor that assumes a dark canvas; on light backgrounds
        plain white must darken rather than vanish into the page */
