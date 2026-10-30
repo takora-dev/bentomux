@@ -226,7 +226,15 @@
 
 
 *{box-sizing:border-box}
-html,body{height:100%}
+/* The document itself is never a scroller: every scrollable surface in the app
+   is an inner element (.tabbody, .sidebar, .git-graph, the xterm viewport).
+   Without this a wheel event that no pane consumed — an agent CLI that has not
+   enabled mouse tracking yet, a pane whose xterm listener was torn down, or the
+   moment right after the window regains focus — falls through to the document
+   and WebKit rubber-bands the whole window: the titlebar and sidebar slide away
+   and the pane appears unscrollable. overflow:hidden plus overscroll-behavior
+   keeps that gesture inside the pane it started in. */
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{
   margin:0;
   font:13px/1.45 var(--sans);
@@ -317,7 +325,12 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .identity .sub{color:var(--ink-3);font-size:11px}
 .content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;position:relative;display:flex;flex-direction:column;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}.tab{display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 0;padding:0 8px;margin:3px 1px;border-right:0;border-radius:6px;color:var(--ink-2);font-size:12px;overflow:hidden;transition:background .14s ease,color .14s ease}.tab:hover,.tab.active{background:var(--content-bg);color:var(--ink)}.tab.active{font-weight:400;box-shadow:none}.tab .tabname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}.tab .tabx{font-size:15px;color:var(--ink-3);line-height:1;opacity:0;flex:0 0 auto;cursor:pointer}.tab:hover .tabx,.tab:focus-visible .tabx,.tab.active .tabx{opacity:1}.tab .tabx:hover{color:var(--ink)}.tabadd{width:28px;height:28px;align-self:center;flex:0 0 28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ink-2);font-size:17px;transition:background .14s ease,color .14s ease}.tabadd:hover{background:var(--tint);color:var(--ink)}.tab .tabname-edit{flex:1;min-width:0;width:100%;height:20px;padding:0 5px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
 .newtab-options{display:flex;flex-direction:column;gap:8px}.newtab-option{display:flex;flex-direction:column;gap:2px;padding:11px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}.newtab-option:hover{border-color:var(--accent);background:var(--accent-tint)}.newtab-option b{font-size:13px}.newtab-option span{font-size:12px;color:var(--ink-2)}
-.terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--content-bg);color:var(--ink);font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--content-bg)}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}.maximized .win{border-radius:0}
+.terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--content-bg);color:var(--ink);font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--content-bg)}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}
+/* A terminal route fills #tabbody exactly; the only scroller inside it is the
+   xterm viewport. Leaving .tabbody scrollable put an ancestor scroller behind
+   every pane, so one unclaimed wheel event dragged the whole window instead of
+   the terminal (see wireWheelGuard in views/terminal.ts). */
+.content.full .tabbody{overflow:hidden}.maximized .win{border-radius:0}
 :root.dark .terminal-page{background:var(--bg);color:var(--ink)}
 
 /* ---------------- sidebar nav ---------------- */
@@ -964,7 +977,7 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .mux-body{contain:layout paint}
 .terminal-host.drop-active{outline:2px dashed var(--accent);outline-offset:-3px}
 .mux-body.split .terminal-host{margin:var(--term-pad);padding:var(--term-pad-in);border:1px solid var(--line);border-radius:6px;box-sizing:content-box;transition:border-color .12s}
-.terminal-page .mux-body{position:relative;margin:0}
+.terminal-page .mux-body{position:relative;margin:0;overflow:hidden}
 .xterm,.xterm .xterm-viewport,.xterm .xterm-screen{border-radius:0}
 /* Keep xterm's native viewport in charge of scrollback. Hiding overflow
    leaves wheel/trackpad scrolling intact while avoiding a second scrollbar. */

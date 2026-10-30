@@ -448,6 +448,7 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
 
   wireXtermEvents(term, tabId);
   wireFocusIn(host, tabId);
+  wireWheelGuard(term, host);
   const result = { term, fit, host };
   return result;
 }
@@ -557,6 +558,44 @@ function markFocusedPane(host: HTMLElement, tabId: string): void {
 }
 
 /* xterm has no public focus event; its hidden textarea bubbles focusin */
+/* Last line of defence for the wheel.
+
+   xterm consumes a wheel event in two places: the Viewport scrollable element
+   (local scrollback) and the mouse-report listener it binds when the running
+   app enables wheel tracking. Both can decline the same event, and xterm's own
+   handling of a wheel over a buffer that HAS scrollback is a no-op — its `wheel`
+   listener only acts when `hasScrollback` is false (CoreBrowserTerminal.ts).
+   Nothing then cancels the event, so it bubbles out of the pane and WebKit
+   hands it to the nearest ancestor scroller. That used to be `.tabbody`: the
+   window rubber-banded, titlebar and sidebar sliding away, while the pane — the
+   thing under the cursor — did not move.
+
+   The listener sits on the host, so it runs after xterm's own handlers: a wheel
+   xterm took never reaches it (xterm's `cancel` stops propagation), and a wheel
+   nobody took is consumed here and applied to the buffer ourselves. That also
+   restores scrolling for a pane whose viewport stopped following the buffer,
+   where `scrollLines` is the only public path left that still moves it. */
+function wireWheelGuard(term: Terminal, host: HTMLElement): void {
+  host.addEventListener('wheel', (e: WheelEvent) => {
+    if (e.defaultPrevented || e.ctrlKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    /* Measure the cell from the DOM rather than from the renderer: this path
+       exists for the case where xterm's cached dimensions are wrong. */
+    const screen = host.querySelector('.xterm-screen');
+    const screenHeight = screen ? screen.getBoundingClientRect().height : 0;
+    const cellHeight = term.rows > 0 && screenHeight > 0 ? screenHeight / term.rows : 0;
+    if (e.deltaY === 0 || cellHeight <= 0) return;
+    /* the sensitivity the terminal was configured with (3), so a wheel that
+       lands here feels the same as one xterm handled */
+    const lines = Math.max(1, Math.round((Math.abs(e.deltaY) * 3) / cellHeight));
+    /* an app in the alternate screen scrolls itself and has no scrollback, so
+       this moves nothing — the gesture is still swallowed, because leaking it
+       to the window is never the right answer */
+    term.scrollLines(e.deltaY < 0 ? -lines : lines);
+  }, { passive: false });
+}
+
 function wireFocusIn(host: HTMLElement, tabId: string): void {
   host.addEventListener('focusin', () => {
     lastFocus.set(tabId, Date.now());
