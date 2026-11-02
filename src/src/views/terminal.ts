@@ -5,6 +5,7 @@
 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import '@xterm/xterm/css/xterm.css';
@@ -430,6 +431,16 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  /* xterm's built-in table is Unicode 6, and it measures every emoji as one
+     cell. Every TUI measures them as two (string-width on the JS side, the
+     Unicode width tables in the daemon's vt100 parser, and every native
+     terminal), so each cursor move the app issues after an emoji lands one
+     column off. The app paints against its own model of the screen: the cell
+     it shifted over keeps whatever used to be there — the stray character
+     users see after a long session, which scrolling moves around but never
+     repairs. Unicode 11 is the table VS Code loads for the same reason. */
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = '11';
   term.loadAddon(new WebLinksAddon((_, uri) => {
     try {
       const url = new URL(uri);

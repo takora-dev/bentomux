@@ -276,6 +276,18 @@ fn term_lock(shared: &TermShared) -> std::sync::MutexGuard<'_, TerminalModel> {
     recover(shared.terminal.lock())
 }
 
+/* The model must parse exactly the bytes the pane was sent. `decode_pty_bytes`
+holds a multi-byte glyph's leading bytes back until the rest arrive; feeding
+it the raw read instead gave vte bare continuation bytes, which it renders as
+one replacement cell per byte. The line grew a column, every later cell moved
+right, and a resync replayed that shifted screen into a TUI that repaints only
+what its own model says changed — the stale glyph users report. */
+fn feed_model(shared: &TermShared, chunk: Option<&str>) {
+    if let Some(text) = chunk {
+        term_lock(shared).process(text.as_bytes());
+    }
+}
+
 fn gate_lock(shared: &TermShared) -> std::sync::MutexGuard<'_, ()> {
     recover(shared.stream_gate.lock())
 }
@@ -759,7 +771,7 @@ fn spawn_term(
                                 .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
                             let attached = {
                                 let _gate = gate_lock(&shared_r);
-                                term_lock(&shared_r).process(&buf[..n]);
+                                feed_model(&shared_r, chunk.as_deref());
                                 if shared_r.attached.load(Ordering::SeqCst) {
                                     if let Some(line) = encoded_chunk {
                                         send_line(&host_r, line);
@@ -1029,6 +1041,22 @@ mod tests {
             stream_gate: Mutex::new(()),
             terminal: Mutex::new(TerminalModel::default()),
         })
+    }
+
+    /* A glyph split across two reads must reach the model whole. The reader
+    used to hand the parser the raw read, so vte saw the continuation bytes
+    without their lead: one replacement cell each, the line grew a column and
+    every later cell moved right — which a resync then replayed. */
+    #[test]
+    fn a_glyph_split_across_reads_reaches_the_model_whole() {
+        let shared = test_shared("split-glyph");
+        let mut carry = Vec::new();
+        let first = decode_pty_bytes(&mut carry, b"A\xe2\x94");
+        let second = decode_pty_bytes(&mut carry, b"\x80B");
+        feed_model(&shared, first.as_deref());
+        feed_model(&shared, second.as_deref());
+        let text = shared.terminal.lock().unwrap().text();
+        assert!(text.starts_with("A\u{2500}B"), "shifted model screen: {text:?}");
     }
 
     /* the dropped-final-frame race: a burst's last chunk arrives inside
