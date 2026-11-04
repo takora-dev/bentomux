@@ -455,10 +455,12 @@ pub async fn plugin_install_url(
     app: tauri::AppHandle,
     state: State<'_, AppStateManager>,
 ) -> Result<PluginRecord, String> {
-    let paths = plugin_paths(&app).map_err(String::from)?;
+    let path_app = app.clone();
     /* blocking HTTP on a worker thread: the download must not stall the
-    webview's IPC thread while the user watches a spinner */
+    webview's IPC thread while the user watches a spinner. Path resolution
+    joins it there because it reads the app data dir off disk. */
     let record = tauri::async_runtime::spawn_blocking(move || {
+        let paths = plugin_paths(&path_app)?;
         registry::install_from_url(&paths, &url, &sha256)
     })
     .await
@@ -504,28 +506,42 @@ pub async fn plugin_marketplace_index(
 ) -> Result<marketplace::Catalog, String> {
     let cache = marketplace_cache(&app).map_err(String::from)?;
     let records = state.get_state().plugins;
+    let force = force.unwrap_or(false);
 
-    if !force.unwrap_or(false) {
-        if let Some(mut cached) = marketplace::read_cache(&cache) {
-            if !marketplace::is_stale(&cached, super::now_millis()) {
-                marketplace::annotate(&mut cached.plugins, &records);
-                return Ok(cached);
-            }
+    /* every disk read below (the cache probe, the sweep's write, the read
+    back, the stale fallback) happens on the blocking pool. A cold cache
+    plus a 60-repo sweep is seconds of synchronous I/O, and doing it on a
+    runtime worker stalls every other command queued behind it. */
+    let probe_cache = cache.clone();
+    let cached = tauri::async_runtime::spawn_blocking(move || {
+        if force {
+            return None;
         }
+        let cached = marketplace::read_cache(&probe_cache)?;
+        (!marketplace::is_stale(&cached, super::now_millis())).then_some(cached)
+    })
+    .await
+    .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?;
+
+    if let Some(mut fresh) = cached {
+        marketplace::annotate(&mut fresh.plugins, &records);
+        return Ok(fresh);
     }
 
     let sweep_cache = cache.clone();
     let swept = tauri::async_runtime::spawn_blocking(move || {
         let plugins = marketplace::sweep()?;
-        marketplace::write_cache(&sweep_cache, plugins, super::now_millis())
+        marketplace::write_cache(&sweep_cache, plugins, super::now_millis())?;
+        Ok::<Option<marketplace::Catalog>, PluginError>(marketplace::read_cache(&sweep_cache))
     })
     .await
     .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e));
 
     let mut catalog = match swept {
-        Ok(Ok(())) => marketplace::read_cache(&cache).unwrap_or_default(),
-        Ok(Err(e)) => stale_or_fail(&cache, e.to_string())?,
-        Err(json) => stale_or_fail(&cache, json)?,
+        Ok(Ok(Some(cached))) => cached,
+        Ok(Ok(None)) => marketplace::Catalog::default(),
+        Ok(Err(e)) => stale_or_fail(&cache, e.to_string()).await?,
+        Err(json) => stale_or_fail(&cache, json).await?,
     };
     /* The sweep knows nothing about this machine's installs, so the join is
     done here, on every response — cached or fresh. Doing it inside the
@@ -536,8 +552,18 @@ pub async fn plugin_marketplace_index(
 
 /// Serve the saved catalog with the reason it is out of date, or report the
 /// failure outright when there is nothing saved to fall back on.
-fn stale_or_fail(cache: &std::path::Path, reason: String) -> Result<marketplace::Catalog, String> {
-    match marketplace::read_cache(cache) {
+///
+/// Async because the fallback still reads the cache off disk, and that read
+/// belongs on the blocking pool like every other one in this command.
+async fn stale_or_fail(
+    cache: &std::path::Path,
+    reason: String,
+) -> Result<marketplace::Catalog, String> {
+    let path = cache.to_path_buf();
+    let cached = tauri::async_runtime::spawn_blocking(move || marketplace::read_cache(&path))
+        .await
+        .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?;
+    match cached {
         Some(mut cached) => {
             cached.stale = true;
             cached.stale_reason = reason;
