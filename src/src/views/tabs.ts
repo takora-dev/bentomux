@@ -1,6 +1,6 @@
 /* ---------------- tabs (titlebar tabstrip; terminals + resource pages) ---------------- */
 
-import { $, h } from '../dom';
+import { $, h, markup } from '../dom';
 import type { TabRec } from '../../shared/types';
 import { leafNode, leafIds, firstLeafId, splitLeaf, removeLeaf, setSplitDir, newNodeKey, treeHasKey, type PaneNode } from '../../shared/split-tree';
 import { ui, type Route, type TabEntry } from '../state';
@@ -13,6 +13,7 @@ import { refreshChangesPill } from './gitPanel';
 import { tabRenderer } from '../plugin/registry';
 import { ensureActive, pluginDisplayName } from '../plugin/loader';
 import { emitTabActivated, emitTabClosed } from '../main';
+import { IC } from '../icons';
 import api from '../../preload/bentomux';
 
 const TAB_TITLE_MAX = 80;
@@ -568,6 +569,28 @@ function tabWorkspaceKey(t: TabEntry): string {
   return t.workspaceId || 'other';
 }
 
+/* Workspace identity colours for the tab tiles. A fixed set rather than a
+   hash-to-hue, so every hue is one that survives both themes and the pastel
+   palettes; the index is derived from the workspace id so a workspace keeps
+   its colour across restarts and reorderings. */
+const TILE_COLORS = ['#2F6F4E', '#4B5CC4', '#2C7A80', '#A2542F', '#6C4BA8', '#3A6EA8', '#8A6B1F', '#A2436B'];
+
+function tileColor(workspaceId: string | undefined): string {
+  if (!workspaceId) return 'var(--ink-3)';
+  let hash = 0;
+  for (let i = 0; i < workspaceId.length; i++) hash = (hash * 31 + workspaceId.charCodeAt(i)) | 0;
+  return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
+}
+
+/* the glyph inside the tile: a prompt for a terminal, and the icon that says
+   what kind of page the tab actually holds for everything else */
+function tileGlyph(t: TabEntry): string {
+  if (t.route.view === 'diff') return IC.lines;
+  if (t.route.view === 'commit') return IC.git;
+  if (t.route.view === 'plugin') return IC.board;
+  return IC.prompt;
+}
+
 function tabButton(t: TabEntry): HTMLElement {
   const title = tabTitle(t);
   /* diff and commit tabs carry a repo-relative path or a sha in their route —
@@ -617,22 +640,23 @@ function tabButton(t: TabEntry): HTMLElement {
         tabContextMenu(e.clientX, e.clientY, t.id);
       },
     },
+    markup('span', { class: 'tab-tile', style: '--tile:' + tileColor(t.workspaceId) }, tileGlyph(t)),
     h('span', { class: 'tabname' }, title),
-    h('span', {
+    markup('span', {
       class: 'tabx',
       onpointerdown: (e: Event) => e.stopPropagation(),
       onclick: (e: Event) => { e.stopPropagation(); void closeTab(t.id); },
-    }, '×'),
+    }, IC.close),
   );
 }
 
 function addTabButton(): HTMLElement {
-  return h('button', {
+  return markup('button', {
     class: 'tabadd',
     title: db.activeWorkspaceId ? 'New terminal in active workspace' : 'Add a workspace folder first',
     disabled: !db.activeWorkspaceId,
     onclick: () => void newTerminalTab(),
-  }, '+');
+  }, IC.plus);
 }
 
 function wireWheelOnce(strip: HTMLElement): void {

@@ -52,7 +52,10 @@ function patchPaneRow(btn: HTMLElement, paneId: string): boolean {
   if (!statusEl || !(agentEl instanceof HTMLElement)) return false;
   const wantClass = 'agent-status ' + status;
   if (statusEl.className !== wantClass) statusEl.className = wantClass;
-  if (statusEl.textContent !== status) statusEl.textContent = status;
+  /* the status element holds the pulse child too, so patch the label span by
+     itself — writing textContent here would drop the ripple */
+  const labelEl = statusEl.querySelector('.agent-status-label');
+  if (labelEl && labelEl.textContent !== status) labelEl.textContent = status;
   if (agentEl.textContent !== agent) agentEl.textContent = agent;
   const timeEl = btn.querySelector('.workspace-time');
   if (timeEl instanceof HTMLElement) {
@@ -185,7 +188,12 @@ function paneItem(row: PaneRow, pad: number, reveal: boolean = false, draggable:
           h('span', { class: 'workspace-name' }, m.branch || m.workspaceName),
           h('time', { class: 'workspace-time', 'data-ts': String(m.timestamp), title: abs(m.timestamp) }, rel(m.timestamp))),
         h('span', { class: 'workspace-agent' },
-          h('span', { class: 'agent-status ' + m.status }, m.status),
+          /* .pulse is the second ripple; the first is the element's own ::after.
+             Two, offset half a period, make the indicator beat continuously
+             instead of flashing once and pausing. */
+          h('span', { class: 'agent-status ' + m.status },
+            h('span', { class: 'pulse' }),
+            h('span', { class: 'agent-status-label' }, m.status)),
           h('span', { class: 'agent-sep' }, '·'),
           h('span', {}, m.agent || 'shell'))),
       close));

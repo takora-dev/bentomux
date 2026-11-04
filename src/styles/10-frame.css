@@ -48,8 +48,36 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 }
 .identity .who{display:flex;flex-direction:column;line-height:1.3}
 .identity .sub{color:var(--ink-3);font-size:11px}
-.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;position:relative;display:flex;flex-direction:column;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}.tab{display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 0;padding:0 8px;margin:3px 1px;border-right:0;border-radius:6px;color:var(--ink-2);font-size:12px;overflow:hidden;transition:background .14s ease,color .14s ease}.tab:hover,.tab.active{background:var(--content-bg);color:var(--ink)}.tab.active{font-weight:400;box-shadow:none}.tab .tabname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}.tab .tabx{font-size:15px;color:var(--ink-3);line-height:1;opacity:0;flex:0 0 auto;cursor:pointer}.tab:hover .tabx,.tab:focus-visible .tabx,.tab.active .tabx{opacity:1}.tab .tabx:hover{color:var(--ink)}.tabadd{width:28px;height:28px;align-self:center;flex:0 0 28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ink-2);font-size:17px;transition:background .14s ease,color .14s ease}.tabadd:hover{background:var(--tint);color:var(--ink)}.tab .tabname-edit{flex:1;min-width:0;width:100%;height:20px;padding:0 5px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
-.newtab-options{display:flex;flex-direction:column;gap:8px}.newtab-option{display:flex;flex-direction:column;gap:2px;padding:11px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}.newtab-option:hover{border-color:var(--accent);background:var(--accent-tint)}.newtab-option b{font-size:13px}.newtab-option span{font-size:12px;color:var(--ink-2)}
+.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;position:relative;display:flex;flex-direction:column;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
+
+/* ---------------- a titlebar tab ----------------
+   Tile + label + close. Only the active tab is a pill; inactive tabs stay
+   flat so a strip of ten tabs does not turn into ten competing buttons. The
+   tile is deliberately small (16px) and the glyph inside it smaller still —
+   it is an identity chip, not a button, so it must not compete with the
+   label for attention. */
+.tab{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 0;height:28px;padding:0 9px 0 6px;margin:0 1px;border:0;border-radius:var(--r-full);background:transparent;color:var(--ink-2);font-size:12px;overflow:hidden;cursor:pointer;transition:background .14s ease,color .14s ease,box-shadow .14s ease}
+.tab:hover{background:var(--tint);color:var(--ink)}
+.tab.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10),0 0 0 1px color-mix(in srgb,var(--ink) 7%,transparent)}
+.tab.active:hover{background:var(--surface)}
+/* the identity tile: fixed square so labels line up across tabs. The glyph is
+   drawn at 11px inside a 16px box — at 18px it read as a button sitting next
+   to the label instead of a colour mark in front of it. */
+.tab-tile{display:flex;align-items:center;justify-content:center;flex:0 0 17px;width:17px;height:17px;border-radius:var(--r-sm);background:var(--tile,var(--ink-3));color:#fff;opacity:.6;transition:opacity .14s ease}
+.tab-tile svg{width:12px;height:12px;display:block}
+/* Lucide's terminal glyph sits in the upper-left of its 24-unit box (ink bbox
+   x4..20, y5..19), so a flex-centred SVG box reads 1px high and 1px left inside
+   a square tile. Nudging it by the difference between the box centre and the
+   ink centre centres the strokes, not the box. */
+.tab-tile svg{margin:1px 0 0 1px}
+.tab.active .tab-tile,.tab:hover .tab-tile{opacity:1}
+.tab .tabname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.tab .tabx{display:flex;align-items:center;justify-content:center;flex:0 0 16px;width:16px;height:16px;border-radius:var(--r-sm);color:var(--ink-3);line-height:1;opacity:0;flex:0 0 auto;cursor:pointer;transition:opacity .14s ease,background .14s ease,color .14s ease}
+.tab:hover .tabx,.tab:focus-visible .tabx,.tab.active .tabx{opacity:1}
+.tab .tabx:hover{background:var(--tint);color:var(--ink)}
+.tabadd{width:24px;height:24px;align-self:center;flex:0 0 24px;margin-left:2px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-full);color:var(--ink-2);transition:background .14s ease,color .14s ease}.tabadd:hover{background:var(--tint);color:var(--ink)}.tabadd:disabled{opacity:.4;cursor:default}.tabadd:disabled:hover{background:transparent;color:var(--ink-2)}
+.tab .tabname-edit{flex:1;min-width:0;width:100%;height:20px;padding:0 5px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
+.newtab-options{display:flex;flex-direction:column;gap:8px}.newtab-option{display:flex;flex-direction:column;gap:2px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}.newtab-option:hover{border-color:var(--accent);background:var(--accent-tint)}.newtab-option b{font-size:13px}.newtab-option span{font-size:12px;color:var(--ink-2)}
 .terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--content-bg);color:var(--ink);font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--content-bg)}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}
 /* A terminal route fills #tabbody exactly; the only scroller inside it is the
    xterm viewport. Leaving .tabbody scrollable put an ancestor scroller behind
@@ -68,7 +96,7 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .nav-item{
   display:flex;align-items:center;gap:8px;
   width:100%;height:30px;padding:0 9px;
-  border-radius:6px;color:var(--ink-2);
+  border-radius:var(--r-md);color:var(--ink-2);
   transition:background .1s,color .1s;
   user-select:none;
 }
@@ -82,17 +110,56 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
   margin-left:auto;
   font:11px/16px var(--mono);
   background:var(--line);color:var(--ink-2);
-  border-radius:9px;padding:0 6px;
+  border-radius:var(--r-md);padding:0 6px;
 }
 .nav-item.sub{padding-left:24px}
-.nav-item .dot{width:5px;height:5px;border-radius:50%;background:var(--ink-3);opacity:.7;flex:0 0 auto}.workspace-row{display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1}.branch-icon{display:flex;align-items:flex-start;padding-top:2px;flex:0 0 14px;color:var(--ink-3);line-height:14px}.workspace-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}.workspace-main,.workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}.agent-status{display:inline-flex;align-items:center;gap:4px;text-transform:lowercase}.agent-status::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}.agent-status.idle{color:#668b6f}.agent-status.running{color:#b18a32}.agent-status.working{color:#b18a32}.agent-status.blocked{color:#b23c2b}.agent-sep{color:var(--line-2)}.workspace-child{height:42px;position:relative;cursor:grab;touch-action:none}.workspace-child:active{cursor:grabbing}.workspace-child.drop-above,.workspace-child.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}.pane-close{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:4px;color:var(--ink-3);font-size:16px;line-height:1;opacity:0;cursor:pointer}
+.nav-item .dot{width:5px;height:5px;border-radius:var(--r-full);background:var(--ink-3);opacity:.7;flex:0 0 auto}.workspace-row{display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1}.branch-icon{display:flex;align-items:flex-start;padding-top:2px;flex:0 0 14px;color:var(--ink-3);line-height:14px}.workspace-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}.workspace-main{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* the agent row must NOT clip: it holds the status ripple, which expands to 3.2x its 7px core. overflow:hidden here sliced the ripple into a square. The row's own text is short (a state word and a runtime name), so it clips its children instead of itself. */
+.workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}/* 9px of gap, not 5px: the ripple grows to 3.2x its 7px core, so it reaches
+   14.7px from the element's left edge. At a 5px gap the label started at 12px
+   and the ring washed over its first letter. 9px puts the text at 16px, which
+   clears the widest ripple by ~1.3px and still leaves the dot and the word
+   reading as one unit at rest. */
+.agent-status{position:relative;display:inline-flex;align-items:center;gap:9px;text-transform:lowercase;color:var(--state-idle)}
+/* The indicator is three layers on one 7px core:
+     ::before  the core itself, with a static halo ring for weight at small size
+     ::after   a single ripple that leaves the core, expands and fades
+     the dot   a second ripple, offset half a period, so the beat is continuous
+   Two ripples rather than one is what makes it read as a pulse instead of a
+   blink. Every state ripples — the colour says which state, the rhythm says
+   the agent is alive — but each state gets its own tempo so they stay
+   distinguishable in a list where several panes are visible at once. */
+.agent-status::before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:var(--r-full);background:currentColor;box-shadow:0 0 0 2px color-mix(in srgb,currentColor 24%,transparent)}
+.agent-status::after{content:"";position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:var(--r-full);background:currentColor;opacity:0;pointer-events:none;z-index:0}
+.agent-status.idle{color:var(--state-idle)}
+.agent-status.running,.agent-status.working{color:var(--state-busy)}
+.agent-status.blocked{color:var(--state-blocked)}
+/* the second ripple lives on a child so both can be timed independently;
+   panes without one still get the single ::after ripple */
+.agent-status .pulse{position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:var(--r-full);background:currentColor;opacity:0;pointer-events:none;z-index:0}
+/* the label sits above both ripples, otherwise the expanding ring washes over
+   the first letter and the state stops being readable mid-beat */
+.agent-status-label{position:relative;z-index:1}
+/* each state names its own period and offsets the second ripple by half of it,
+   so the two never land on the same frame */
+.agent-status.idle::after{animation:agent-ping 3.2s cubic-bezier(0,0,.2,1) infinite}
+.agent-status.idle .pulse{animation:agent-ping 3.2s cubic-bezier(0,0,.2,1) -1.6s infinite}
+.agent-status.working::after,.agent-status.running::after{animation:agent-ping 1.8s cubic-bezier(0,0,.2,1) infinite}
+.agent-status.working .pulse,.agent-status.running .pulse{animation:agent-ping 1.8s cubic-bezier(0,0,.2,1) -.9s infinite}
+/* blocked is the state that needs the user: slowest beat */
+.agent-status.blocked::after{animation:agent-ping 2.6s cubic-bezier(0,0,.2,1) infinite}
+.agent-status.blocked .pulse{animation:agent-ping 2.6s cubic-bezier(0,0,.2,1) -1.3s infinite}
+@keyframes agent-ping{0%{transform:scale(1);opacity:.45}70%,100%{transform:scale(3.2);opacity:0}}
+/* the halo is a static weight cue, so it survives reduced motion; only the
+   ripples stop */
+@media (prefers-reduced-motion:reduce){.agent-status::after,.agent-status .pulse{animation:none!important}}
+.agent-sep{color:var(--line-2)}.workspace-child{height:42px;position:relative;cursor:grab;touch-action:none}.workspace-child:active{cursor:grabbing}.workspace-child.drop-above,.workspace-child.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}.pane-close{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:var(--r-sm);color:var(--ink-3);font-size:16px;line-height:1;opacity:0;cursor:pointer}
 /* a clickable control inside a draggable row must not inherit the row's grab
    cursor; the row's own cursor rule is more specific, so restate it here */
-.workspace-child .pane-close,.ws-flyout .pane-close{cursor:pointer}.workspace-child:hover .pane-close,.workspace-child:focus-visible .pane-close,.pane-close:focus-visible{opacity:1}.pane-close:hover{background:var(--tint);color:var(--ink)}.workspace-child.drop-above::before,.workspace-child.drop-below::after{content:"";position:absolute;left:12px;right:8px;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none;z-index:2}.workspace-child.drop-above::before{top:-2px}.workspace-child.drop-below::after{bottom:-2px}.workspace-child.reveal{animation:workspace-reveal .22s ease both}.workspace-child.reveal:nth-child(2){animation-delay:.02s}.workspace-child.reveal:nth-child(3){animation-delay:.04s}.workspace-child.reveal:nth-child(4){animation-delay:.06s}@keyframes workspace-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.workspace-child .pane-close,.ws-flyout .pane-close{cursor:pointer}.workspace-child:hover .pane-close,.workspace-child:focus-visible .pane-close,.pane-close:focus-visible{opacity:1}.pane-close:hover{background:var(--tint);color:var(--ink)}.workspace-child.drop-above::before,.workspace-child.drop-below::after{content:"";position:absolute;left:12px;right:8px;height:3px;border-radius:var(--r-sm);background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none;z-index:2}.workspace-child.drop-above::before{top:-2px}.workspace-child.drop-below::after{bottom:-2px}.workspace-child.reveal{animation:workspace-reveal .22s ease both}.workspace-child.reveal:nth-child(2){animation-delay:.02s}.workspace-child.reveal:nth-child(3){animation-delay:.04s}.workspace-child.reveal:nth-child(4){animation-delay:.06s}@keyframes workspace-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .folder{
   display:flex;align-items:center;gap:6px;
   width:100%;height:30px;padding:0 9px 0 7px;
-  border-radius:6px;color:var(--ink-2);
+  border-radius:var(--r-md);color:var(--ink-2);
   transition:background .1s,color .1s;
   user-select:none;
 }
@@ -103,7 +170,7 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 body.workspace-dragging{user-select:none;cursor:grabbing}
 body.workspace-dragging .folder{cursor:grabbing}body.pane-dragging{user-select:none;cursor:grabbing}body.pane-dragging .workspace-child{cursor:grabbing}
 .folder.drop-above,.folder.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}
-.folder.drop-above::before,.folder.drop-below::after{content:"";position:absolute;left:5px;right:5px;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none}
+.folder.drop-above::before,.folder.drop-below::after{content:"";position:absolute;left:5px;right:5px;height:3px;border-radius:var(--r-sm);background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none}
 .folder.drop-above::before{top:-2px}
 .folder.drop-below::after{bottom:-2px}
 .empty-note{padding:2px 9px 2px 40px;color:var(--ink-3);font-size:12px}
@@ -125,7 +192,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 .ws-rail::-webkit-scrollbar{width:6px}
 .ws-rail-item{
   position:relative;flex:0 0 auto;
-  width:44px;height:44px;border-radius:10px;
+  width:44px;height:44px;border-radius:var(--r-lg);
   display:flex;align-items:center;justify-content:center;
   background:var(--surface);border:1px solid var(--line);
   color:var(--ink-2);
@@ -138,7 +205,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 /* loudest pane state in the workspace, drawn on the button's corner.
    A workspace with no terminals has no state, so no dot. */
 .ws-rail-status{
-  position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:50%;
+  position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:var(--r-full);
   pointer-events:none;display:none;
 }
 .ws-rail-status.idle,.ws-rail-status.running,.ws-rail-status.working,.ws-rail-status.blocked{display:block}
@@ -153,7 +220,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   position:fixed;z-index:55;width:264px;max-height:min(60vh,420px);
   display:flex;flex-direction:column;
   background:var(--surface);border:1px solid var(--line-2);
-  border-radius:12px;box-shadow:0 12px 36px rgba(32,29,25,.18);
+  border-radius:var(--r-lg);box-shadow:0 12px 36px rgba(32,29,25,.18);
   padding:8px;overflow:hidden;
 }
 .ws-flyout-head{display:flex;flex-direction:column;gap:1px;padding:4px 6px 8px;min-width:0}
@@ -162,7 +229,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 .ws-flyout-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
 /* rows reuse .workspace-child, so status dot, branch, time, and close button
    match the expanded sidebar exactly; only the drag affordance is dropped */
-.ws-flyout .workspace-child{cursor:default;height:auto;min-height:40px;border-radius:7px;padding-top:4px;padding-bottom:4px;padding-right:6px}
+.ws-flyout .workspace-child{cursor:default;height:auto;min-height:40px;border-radius:var(--r-md);padding-top:4px;padding-bottom:4px;padding-right:6px}
 .ws-flyout .workspace-child:active{cursor:default}
 .ws-flyout-empty{padding:2px 6px;color:var(--ink-3);font-size:12px}
 .ws-flyout-foot{flex:0 0 auto;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
