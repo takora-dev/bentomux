@@ -1319,7 +1319,9 @@ fn reap_orphaned_tunnels(port: u16) {
 }
 
 /* the pid of a cloudflared serving `target` that has no parent left to kill
-it. Split out from the process list so the rule is testable. */
+it. Split out from the process list so the rule is testable. Windows has no
+`ps`, so the reaper and this rule only exist on the unix side. */
+#[cfg(not(windows))]
 fn orphan_tunnel_pid(line: &str, target: &str) -> Option<u32> {
     let mut field = line.split_whitespace();
     let pid: u32 = field.next()?.parse().ok()?;
@@ -1604,6 +1606,7 @@ mod tests {
         assert!(s.contains("\"state\":\"working\""));
         assert!(!s.contains('_'));
     }
+    #[cfg(not(windows))]
     #[test]
     fn a_tunnel_left_behind_by_a_dead_app_is_reclaimed() {
         let target = "http://127.0.0.1:8765";
