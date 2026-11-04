@@ -1,33 +1,119 @@
-/* ---------------- icons & glyphs ---------------- */
+/* ---------------- icons & glyphs ----------------
+   One icon family for the whole app: Lucide (`lucide`), which ships each
+   icon as an array of `[tag, attrs]` pairs. We render those ourselves into
+   a plain <svg> string instead of using lucide's createElement wrapper so
+   the existing `markup()` contract holds — the SVG is a compile-time
+   constant built from a trusted package, never file or user content.
+
+   `IC` is the 14px default set, kept as a map of SVG strings because
+   `plugin/icons.ts` resolves a plugin's `{ type: 'builtin', name }` against
+   it by key. `icon(name, size)` renders the same glyph at another size for
+   the handful of places (window controls, tab tiles, chips) that need one. */
 
 import { h, markup } from './dom';
+import {
+  Bell, Bot, ChevronLeft, ChevronRight, Clock, Columns2, Copy, Diamond,
+  Download, Ellipsis, Folder, FolderPlus, GitBranch, Image, Info, KeyRound,
+  LayoutGrid, List, MessageSquare, Minus, Moon, PanelLeft, Plus, RefreshCw,
+  Search, Settings, SlidersHorizontal, Smartphone, Square, SquareStack, Sun,
+  Terminal, Trash2, X,
+  type IconNode,
+} from 'lucide';
 
-export const DIA = '<svg width="9" height="9" viewBox="0 0 10 10"><rect x="2.2" y="2.2" width="5.6" height="5.6" transform="rotate(45 5 5)" fill="currentColor"/></svg>';
+/* Lucide's own defaults: a 24-unit box drawn in currentColor with a 2-unit
+   round stroke. `size` only sets the box, so a caller that renders a 14px
+   icon gets the same optical weight as a 20px one. */
+function svg(node: IconNode, size: number): string {
+  const body = node
+    .map(([tag, attrs]) => '<' + tag + ' ' + attrsToMarkup(attrs) + '/>')
+    .join('');
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"'
+    + ' fill="none" stroke="currentColor" stroke-width="2"'
+    + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + body + '</svg>';
+}
 
-export const IC = {
-  lines:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>',
-  plus:   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
-  git2:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12.5h10M3 6.5h7M3 3.5h10M3 9.5h10"/><circle cx="11.5" cy="6.5" r="1.2" fill="currentColor"/></svg>',
-  chat:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.5h11v7h-6l-3.5 3v-3h-1.5z"/></svg>',
-  chev:   '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5 7.5 6 4 9.5"/></svg>',
-  board:  '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="3.4" height="10" rx="1"/><rect x="6.3" y="3" width="3.4" height="7" rx="1"/><rect x="10.6" y="3" width="3.4" height="8.6" rx="1"/></svg>',
-  git:    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="4" r="1.5"/><circle cx="12" cy="4" r="1.5"/><circle cx="8" cy="12" r="1.5"/><path d="M5.5 4h5M4 5.5v2.2c0 1.2 1 2.3 2.3 2.3H8m4-4.5v2.2c0 1.2-1 2.3-2.3 2.3H8"/></svg>',
-  folder: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"><path d="M2 4.5h4l1.3 1.5H14v6.5H2z"/><path d="M2 4.5v-1h4l1.3 1.5"/></svg>',
-  clock:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2.2 1.3"/></svg>',
-  bot:    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"><rect x="3" y="5.5" width="10" height="7" rx="1.5"/><path d="M6 5.5V3.5h4v2"/><circle cx="6" cy="9" r="0.8" fill="currentColor"/><circle cx="10" cy="9" r="0.8" fill="currentColor"/><path d="M6.5 11.2h3"/></svg>',
-  search: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
-  gear:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  term:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6.5 8 3 11.5"/><path d="M8.5 12H13"/></svg>',
-  key:    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="10.5" r="2.5"/><path d="M7.5 8.5 13 3"/><path d="m10.5 5.5 2 2M8.5 7.5l1.5 1.5"/></svg>',
-  dots:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.8" cy="8" r="1.3"/></svg>',
-  bell:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2a4 4 0 0 0-4 4c0 3.2-1.3 4.6-1.3 4.6h10.6S12 9.4 12 6.2a4 4 0 0 0-4-4z"/><path d="M6.8 13.3a1.3 1.3 0 0 0 2.4 0"/></svg>',
-  phone:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2" stroke-linecap="round"/></svg>',
-  image:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.8" cy="6.4" r="1.1"/><path d="m2.5 11.5 3.3-3 2.4 2 2.6-2.6 2.7 2.7"/></svg>',
-  trash:  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11"/><path d="M6.5 2.5h3"/><path d="m4 4.5.7 8.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8l.7-8.2"/><path d="M6.7 7.2v3.4M9.3 7.2v3.4"/></svg>',
-  sliders:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 5h3.2M9.3 5h4.2M2.5 11h5.2M11.3 11h2.2"/><circle cx="7.5" cy="5" r="1.6"/><circle cx="9.5" cy="11" r="1.6"/></svg>',
-  info:   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.3"/><circle cx="8" cy="5.3" r="0.7" fill="currentColor" stroke="none"/></svg>',
-  refresh:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-3.95"/><path d="M13.5 2.6V6H10.1"/></svg>',
-  download:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7.2"/><path d="m4.9 6.9 3.1 3.1 3.1-3.1"/><path d="M3 13h10"/></svg>',
+/* Lucide attribute values are authored inside the package, but escape them
+   anyway: `markup()` writes with innerHTML, so this is the one place a stray
+   quote would break out of the tag. */
+function attrsToMarkup(attrs: Record<string, string | number | undefined>): string {
+  return Object.entries(attrs)
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => k + '="' + String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"')
+    .join(' ');
+}
+
+/* Every glyph the app draws. Sizes are chosen per role below; the map is the
+   contract a plugin's `builtin` icon name resolves against, so a key added
+   here becomes a name plugins may use. */
+const NODES = {
+  /* navigation & chrome */
+  lines: List,
+  board: LayoutGrid,
+  chev: ChevronRight,
+  back: ChevronLeft,
+  dots: Ellipsis,
+  /* git & workspaces */
+  git: GitBranch,
+  folder: Folder,
+  folderPlus: FolderPlus,
+  clock: Clock,
+  /* agents & runtime */
+  bot: Bot,
+  chat: MessageSquare,
+  term: Terminal,
+  /* settings & actions */
+  search: Search,
+  gear: Settings,
+  sliders: SlidersHorizontal,
+  key: KeyRound,
+  bell: Bell,
+  phone: Smartphone,
+  image: Image,
+  trash: Trash2,
+  info: Info,
+  refresh: RefreshCw,
+  download: Download,
+  copy: Copy,
+  /* window controls & toggles */
+  pane: PanelLeft,
+  moon: Moon,
+  sun: Sun,
+  minus: Minus,
+  square: Square,
+  stack: SquareStack,
+  close: X,
+  plus: Plus,
+  /* the tab tile glyph: a shell prompt, which is what a pane actually is */
+  prompt: Terminal,
+  /* bullet for the agent chip and other inline markers */
+  diamond: Diamond,
+  columns: Columns2,
 };
 
-export const ic = (name: keyof typeof IC): HTMLElement => markup('span', { class: 'ic' }, IC[name]);
+export type IconName = keyof typeof NODES;
+
+/* render one glyph at an explicit size — for the few surfaces whose icon is
+   not the 14px default */
+export const icon = (name: IconName, size: number): string => svg(NODES[name], size);
+
+/* Sizes that predate the switch to Lucide and that layout depends on: the
+   chevron sits inside 12px menu rows, and the chip diamond is a bullet, not a
+   button glyph. Everything else is the 14px default. */
+const SIZE: Partial<Record<IconName, number>> = {
+  chev: 12,
+  plus: 12,
+  close: 12,
+  diamond: 9,
+};
+
+export const IC: Record<IconName, string> = Object.fromEntries(
+  (Object.entries(NODES) as Array<[IconName, IconNode]>)
+    .map(([name, node]) => [name, svg(node, SIZE[name] ?? 14)]),
+) as Record<IconName, string>;
+
+/* Kept as a named export because `components/chip.ts` imports it directly;
+   it is the same diamond the Lucide set draws, at chip size. */
+export const DIA = IC.diamond;
+
+export const ic = (name: IconName): HTMLElement => markup('span', { class: 'ic' }, IC[name]);

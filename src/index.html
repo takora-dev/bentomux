@@ -60,9 +60,9 @@
   <div class="win" id="win">
     <header class="titlebar" id="titlebar">
       <div class="top-tools">
-        <button id="paneTopBtn" class="tbtn" title="Show workspace pane" aria-label="Show workspace pane"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
-        <button id="backTopBtn" class="tbtn" title="Back" aria-label="Back"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5 5 8l4.5 4.5"/></svg></button>
-        <button id="redoTopBtn" class="tbtn" title="Forward" aria-label="Forward"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 3.5 4.5 4.5-4.5 4.5"/></svg></button>
+        <button id="paneTopBtn" class="tbtn" title="Show workspace pane" aria-label="Show workspace pane"></button>
+        <button id="backTopBtn" class="tbtn" title="Back" aria-label="Back"></button>
+        <button id="redoTopBtn" class="tbtn" title="Forward" aria-label="Forward"></button>
         <div class="top-tabs" id="tabstrip"></div>
       </div>
       <span class="tspacer"></span>
@@ -77,22 +77,22 @@
            tauri.windows.conf.json), so the OS buttons live here instead.
            `.win-btn` is hidden unless <html> carries `.windows`. -->
       <div class="win-controls">
-        <button id="themeBtn" class="tbtn" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
-        <button id="winMinBtn" class="tbtn win-btn" title="Minimize" aria-label="Minimize"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
-        <button id="winMaxBtn" class="tbtn win-btn" title="Maximize" aria-label="Maximize"><svg class="ico-max" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><rect x="4.5" y="4.5" width="7" height="7" rx="1"/></svg><svg class="ico-restore" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><rect x="3" y="5.5" width="7" height="7" rx="1"/><path d="M5.5 5.5V4.2a1 1 0 0 1 1-1h5.3a1 1 0 0 1 1 1v5.3a1 1 0 0 1-1 1H11"/></svg></button>
-        <button id="winCloseBtn" class="tbtn tclose win-btn" title="Close" aria-label="Close"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+        <button id="themeBtn" class="tbtn" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+        <button id="winMinBtn" class="tbtn win-btn" title="Minimize" aria-label="Minimize"></button>
+        <button id="winMaxBtn" class="tbtn win-btn" title="Maximize" aria-label="Maximize"><svg class="ico-max" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg><svg class="ico-restore" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M7 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg></button>
+        <button id="winCloseBtn" class="tbtn tclose win-btn" title="Close" aria-label="Close"></button>
       </div>
     </header>
     <div class="win-body" id="winBody">
       <aside id="sidebar" class="sidebar">
         <div class="side-tools">
-          <button id="compactAddBtn" class="tbtn compact-sidebar-btn" title="Add workspace" aria-label="Add workspace"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"><path d="M2 4.5h4l1.3 1.5H14v6.5H2z"/><path d="M2 4.5v-1h4l1.3 1.5"/><path d="M8 8v3M6.5 9.5h3" stroke-linecap="round"/></svg></button>
+          <button id="compactAddBtn" class="tbtn compact-sidebar-btn" title="Add workspace" aria-label="Add workspace"></button>
           <!-- Both icons live in the button and CSS swaps them: the compact rail
                shows the app mark at rest and the panel icon on hover, so the mark
                is the affordance instead of sitting next to a second logo. -->
-          <button id="paneBtn" class="tbtn" title="Hide workspace pane" aria-label="Toggle workspace pane"><svg class="ico-pane" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg><svg class="ico-logo" width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect width="48" height="48" rx="10" fill="currentColor" opacity=".08"/><rect x="8" y="8" width="14" height="14" rx="2" fill="currentColor" opacity=".7"/><rect x="26" y="8" width="14" height="14" rx="2" fill="currentColor"/><rect x="8" y="26" width="14" height="14" rx="2" fill="currentColor"/><rect x="26" y="26" width="14" height="14" rx="2" fill="currentColor" opacity=".5"/></svg></button>
-          <button id="backBtn" class="tbtn" title="Back" aria-label="Back"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5 5 8l4.5 4.5"/></svg></button>
-          <button id="redoBtn" class="tbtn" title="Forward" aria-label="Forward"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 3.5 4.5 4.5-4.5 4.5"/></svg></button>
+          <button id="paneBtn" class="tbtn" title="Hide workspace pane" aria-label="Toggle workspace pane"><svg class="ico-pane" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg><svg class="ico-logo" width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect width="48" height="48" rx="10" fill="currentColor" opacity=".08"/><rect x="8" y="8" width="14" height="14" rx="2" fill="currentColor" opacity=".7"/><rect x="26" y="8" width="14" height="14" rx="2" fill="currentColor"/><rect x="8" y="26" width="14" height="14" rx="2" fill="currentColor"/><rect x="26" y="26" width="14" height="14" rx="2" fill="currentColor" opacity=".5"/></svg></button>
+          <button id="backBtn" class="tbtn" title="Back" aria-label="Back"></button>
+          <button id="redoBtn" class="tbtn" title="Forward" aria-label="Forward"></button>
         </div>
         <nav id="nav" class="nav"></nav>
         <!-- compact mode (body.pane-hidden): one button per workspace, hover opens
@@ -100,7 +100,7 @@
         <div id="wsRail" class="ws-rail"></div>
         <div id="sidebarBottom" class="sidebar-bottom"></div>
         <div class="compact-sidebar-footer">
-          <button id="compactSettingsBtn" class="tbtn compact-sidebar-btn" title="Open settings" aria-label="Open settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a1.65 1.65 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          <button id="compactSettingsBtn" class="tbtn compact-sidebar-btn" title="Open settings" aria-label="Open settings"></button>
         </div>
         <div id="sidebarResize" class="sidebar-resize" title="Resize workspace pane"></div>
       </aside>

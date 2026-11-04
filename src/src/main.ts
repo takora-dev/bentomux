@@ -4,7 +4,7 @@
    ============================================================ */
 
 import '../styles.css';
-import { $, $$, h } from './dom';
+import { $, $$, h, markup } from './dom';
 import { rel, abs } from './time';
 import { ui, type Route, type TabEntry } from './state';
 import { db, setDb, branches, runtime, activity } from './store';
@@ -31,6 +31,7 @@ import { openPluginTab } from './views/tabs';
 import { openModal, currentModal } from './components/modal';
 import { initPlugins, ensureActive, pluginAssetUrl, onPluginsChanged, bindHost, onTeardown } from './plugin/loader';
 import { contributionIcon, contributionLabel } from './plugin/icons';
+import { IC, icon } from './icons';
 import api from '../preload/bentomux';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 document.documentElement.classList.toggle('macos', /Mac/.test(navigator.platform));
@@ -355,6 +356,39 @@ export function disposePluginViews(pluginId?: string): void {
 
 /* ---------------- app bar wiring ---------------- */
 
+/* The titlebar's static buttons ship as empty elements in index.html and get
+   their glyph here, from the one icon set the whole app draws from. Doing it
+   at boot instead of in the markup keeps index.html free of hand-written SVG
+   that drifts from `icons.ts`. */
+const STATIC_GLYPHS: Array<[string, () => string]> = [
+  ['#paneTopBtn', () => icon('pane', 15)],
+  ['#backTopBtn', () => icon('back', 14)],
+  /* forward is the same chevron as the submenu affordance, mirrored */
+  ['#redoTopBtn', () => icon('chev', 14)],
+  ['#backBtn', () => icon('back', 14)],
+  ['#redoBtn', () => icon('chev', 14)],
+  ['#compactAddBtn', () => icon('folderPlus', 16)],
+  ['#compactSettingsBtn', () => icon('gear', 18)],
+  ['#winMinBtn', () => icon('minus', 12)],
+  ['#winCloseBtn', () => icon('close', 12)],
+];
+
+function paintStaticIcons(): void {
+  for (const [sel, svg] of STATIC_GLYPHS) {
+    const el = $(sel);
+    if (el) el.innerHTML = svg();
+  }
+  paintThemeGlyph();
+}
+
+/* the theme button shows the mode it switches to, so it repaints on toggle */
+function paintThemeGlyph(): void {
+  const el = $('#themeBtn');
+  if (!el) return;
+  const dark = document.documentElement.classList.contains('dark');
+  el.innerHTML = icon(dark ? 'sun' : 'moon', 14);
+}
+
 function togglePaneHidden(): void {
   clearTerminalSelections();
   /* the rail flyout is a body-level popover, so the stylesheet hiding the rail
@@ -399,6 +433,7 @@ function toggleTheme(): void {
   db.prefs.theme = db.prefs.theme === 'dark' ? 'light' : 'dark';
   void api.setPrefs({ theme: db.prefs.theme });
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
+  paintThemeGlyph();
   /* terminals re-theme in place: the palette comes from CSS tokens, so a
      content repaint is enough and the panes keep their focus */
   repaintContent();
@@ -409,6 +444,7 @@ export function setThemeMode(mode: 'light' | 'dark' | 'system'): void {
   db.prefs.theme = mode;
   void api.setPrefs({ theme: mode });
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
+  paintThemeGlyph();
   repaintContent();
 }
 
@@ -527,6 +563,7 @@ function wireSidebarResize(): void {
 }
 
 function wireAppBar(): void {
+  paintStaticIcons();
   wirePaneToggle();
   wireHistory();
   wireScrim();
