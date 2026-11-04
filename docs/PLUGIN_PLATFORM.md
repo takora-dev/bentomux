@@ -93,7 +93,7 @@ Installed at `app_data_dir/plugins/<id>/<version>/`. Plugin **code** never lives
 | `minAppVersion` | no | Semver. **Soft gate** — a mismatch warns, it does not refuse. Refusing a plugin that works fine because the app moved on is worse than the warning. |
 | `description`, `author` | no | Shown in Plugin Studio. |
 | `entry` | yes | Path relative to the plugin root. |
-| `icon` | no | `{ "type": "builtin", "name": <one of IC> }` or `{ "type": "image", "path": "icon.svg" }`. Never inline HTML — see §11. |
+| `icon` | no | `{ "type": "builtin", "name": <one of IC> }` or `{ "type": "image", "path": "icon.svg" }`. Never inline HTML — see §11. The builtin names are the keys of `IC` in `src/src/icons.ts` (`board`, `folder`, `git`, `clock`, `bot`, `term`, `gear`, `search`, `bell`, `trash`, …), all drawn from the Lucide set. |
 | `permissions` | no | Defaults to `[]`. Unknown names are a validation error. |
 | `contributes` | no | Defaults to `{}`. Unknown keys are a validation error. |
 
