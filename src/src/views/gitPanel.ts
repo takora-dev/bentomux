@@ -12,7 +12,6 @@ import { go } from '../router';
 import type {
   GitStatusResult, GitRemoteInfo, GitStatusEntry, GitHistoryResult,
 } from '../../shared/types';
-import { graphBody } from './gitGraph';
 import api from '../../preload/bentomux';
 
 interface PanelState {
@@ -194,9 +193,24 @@ function buildHistory(state: PanelState): HTMLElement {
     wrap.append(h('div', { class: 'git-empty' }, 'No commits yet.'));
   } else {
     const key = graphKey(commits);
-    if (state.graph?.key !== key) state.graph = { key, node: graphBody(commits, activeWsId() ?? '') };
-    markActive(state.graph.node, activeCommitOid());
-    wrap.append(state.graph.node);
+    if (state.graph?.key === key) {
+      markActive(state.graph.node, activeCommitOid());
+      wrap.append(state.graph.node);
+      return wrap;
+    }
+    /* The commit graph draws its own SVG and is the heaviest thing in this
+       panel, while the panel opens on the file list. Load its module on first
+       need, then keep the node — the key above already says when it is stale. */
+    wrap.append(h('div', { class: 'git-empty' }, 'Loading graph…'));
+    void import('./gitGraph').then(m => {
+      if (state.graph?.key === key) return;
+      state.graph = { key, node: m.graphBody(commits, activeWsId() ?? '') };
+      /* the panel may have been repainted, or closed, while the module
+         loaded: only swap in place if this container is still on screen */
+      if (!wrap.isConnected) return;
+      markActive(state.graph.node, activeCommitOid());
+      wrap.replaceChildren(state.graph.node);
+    });
   }
   return wrap;
 }

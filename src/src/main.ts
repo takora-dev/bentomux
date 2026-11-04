@@ -11,7 +11,6 @@ import { db, setDb, branches, runtime, activity } from './store';
 import { registerRenderers, render, repaintContent, noteMountedPage, pageKey, mountedPageKey } from './render';
 import { renderTabs, activate, stepHistory, registerRestoredTab, closeFocusedPaneOrTab } from './views/tabs';
 import { openAddWorkspaceMenu, renderSidebar, patchPaneStatuses, toggleGitPanel, closeRailFlyout } from './views/sidebar';
-import { agentsPage, agentDetailPage } from './views/agents';
 import { welcomePage, disposeWidgets } from './views/welcome';
 import {
   initTerminalEvents,
@@ -230,8 +229,16 @@ function renderContentInner(route: Route): void {
     body.innerHTML = '';
     body.append(welcomePage());
   } else if (route.view === 'agentDetail') {
+    /* the agent detail page is a drill-down most sessions never reach, so its
+       module (and the resource editors it pulls in) loads on first open */
     body.innerHTML = '';
-    body.append(agentDetailPage(route.agentId, route.tab));
+    body.append(h('div', { class: 'page' }, h('p', {}, 'Loading agent…')));
+    const wanted = pageKey(route);
+    void import('./views/agents').then(m => {
+      if (pageKey(ui.route) !== wanted) return;
+      body.innerHTML = '';
+      body.append(m.agentDetailPage(route.agentId, route.tab));
+    });
   } else if (route.view === 'diff') {
     /* shiki (core + grammars, ~1.3 MB) loads lazily with the diff view —
        never part of first paint. Plain loading text holds the slot. */
