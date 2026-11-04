@@ -60,6 +60,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test:ts
+      - run: npm run test:renderer
       - run: npm run build
       - run: cargo check --manifest-path src-tauri/Cargo.toml
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check

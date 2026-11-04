@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:ts": "node --test src/shared/*.test.ts",
+    "test:renderer": "vitest run",
     "test:backend": "node scripts/test-backend.mjs",
     "check:remote-page": "node scripts/check-remote-page.mjs",
     "check:csp-inline-styles": "node scripts/check-csp-inline-styles.mjs",
@@ -42,7 +43,9 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
     "@types/node": "^26.6.6",
+    "happy-dom": "^21.0.4",
     "typescript": "^7.0.2",
-    "vite": "^7.3.0"
+    "vite": "^7.3.0",
+    "vitest": "^5.1.0"
   }
 }
