@@ -39,10 +39,15 @@ document.documentElement.classList.toggle('macos', /Mac/.test(navigator.platform
 document.documentElement.classList.toggle('windows', /Win/.test(navigator.platform));
 
 /* Suppress native browser context menu everywhere except inside
-   .terminal-page which wires its own contextmenu handler. */
+   .terminal-page which wires its own contextmenu handler.
+   Installed once for the life of the window and never torn down — there is
+   only ever one document, and a second handler would double-preventDefault. */
 document.addEventListener('contextmenu', e => {
   if (!(e.target as Element).closest('.terminal-page')) e.preventDefault();
 });
+
+/* window-level drag listeners, replaced (not stacked) on every wire */
+let windowDrag = new AbortController();
 
 const MIN_SIDEBAR_WIDTH = 248;
 const MAX_SIDEBAR_RATIO = 0.5;
@@ -469,6 +474,11 @@ const DRAG_SKIP = 'button, a, input, select, textarea, .tab';
 
 function wireWindowDrag(): void {
   const bar = $('#titlebar');
+  /* the drag listeners live on the window for the life of the app; one
+     signal keeps a re-wire from stacking a second set */
+  windowDrag.abort();
+  windowDrag = new AbortController();
+  const opts = { signal: windowDrag.signal };
   let armed: { x: number; y: number } | null = null;
   bar.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
@@ -482,8 +492,8 @@ function wireWindowDrag(): void {
     if (Math.hypot(e.clientX - armed.x, e.clientY - armed.y) < 4) return;
     armed = null;
     void getCurrentWindow().startDragging();
-  });
-  window.addEventListener('mouseup', () => { armed = null; });
+  }, opts);
+  window.addEventListener('mouseup', () => { armed = null; }, opts);
   bar.addEventListener('dblclick', e => {
     if ((e.target as Element).closest(DRAG_SKIP)) return;
     api.toggleMaximize();
@@ -680,6 +690,10 @@ const lastAgentStates: Record<string, string | null | undefined> = {};
 window.addEventListener('unhandledrejection', e => {
   console.error('[unhandled-rejection]', e.reason);
 });
+/* both handlers above are app-lifetime by design: one document, one window,
+   and the app never re-initialises. Everything that is created and destroyed
+   more than once (menus, flyouts, panels, panes, key capture) hangs off an
+   AbortController instead. */
 
 async function playAgentStatusSound(kind: 'finished' | 'blocked' | 'idle'): Promise<void> {
   if (db.prefs.notifEnabled === false || db.prefs.notifSound === false) return;

@@ -17,6 +17,8 @@ import api from '../../preload/bentomux';
 let info: RemotePairing | null = null;
 let fetched = false;
 let panel: HTMLElement | null = null;
+/* every listener the open panel installs hangs off this signal */
+let panelDismiss = new AbortController();
 let pollTimer = 0;
 let pollAttempt = 0;
 
@@ -99,15 +101,18 @@ function openPanel(): void {
     panel.style.bottom = Math.round(window.innerHeight - r.top + 8) + 'px';
   }
   paintPanel();
-  window.addEventListener('pointerdown', onOutside, true);
-  window.addEventListener('keydown', onKey, true);
+  const opts = { capture: true, signal: panelDismiss.signal };
+  window.addEventListener('pointerdown', onOutside, opts);
+  window.addEventListener('keydown', onKey, opts);
 }
 
 function closePanel(): void {
   panel?.remove();
   panel = null;
-  window.removeEventListener('pointerdown', onOutside, true);
-  window.removeEventListener('keydown', onKey, true);
+  /* one signal owns both listeners, so a panel opened twice cannot leave the
+     previous one's handlers behind */
+  panelDismiss.abort();
+  panelDismiss = new AbortController();
   document.querySelector('.sidebar-remote')?.classList.remove('active');
 }
 

@@ -673,6 +673,9 @@ function renderWorkspaces(): void {
    otherwise destroy an open flyout. */
 
 let railFlyout: HTMLElement | null = null;
+/* one controller per flyout open: aborting it removes the three window
+   listeners the flyout installed */
+let railDismiss = new AbortController();
 let railFlyoutWs: string | null = null;
 let railFlyoutAnchor: HTMLElement | null = null;
 let railFlyoutList: HTMLElement | null = null;
@@ -712,9 +715,7 @@ export function closeRailFlyout(): void {
   railFlyoutAnchor = null;
   railFlyoutList = null;
   railFlyoutIds = '';
-  window.removeEventListener('keydown', onRailKey, true);
-  window.removeEventListener('pointerdown', onRailOutside, true);
-  window.removeEventListener('blur', closeRailFlyout);
+  railDismiss.abort();
 }
 
 function scheduleRailClose(): void {
@@ -814,9 +815,14 @@ function openRailFlyout(wsId: string, anchor: HTMLElement): void {
   document.body.append(railFlyout);
   paintRailFlyout();
   positionRailFlyout(anchor);
-  window.addEventListener('keydown', onRailKey, true);
-  window.addEventListener('pointerdown', onRailOutside, true);
-  window.addEventListener('blur', closeRailFlyout);
+  /* the flyout is rebuilt on every open, so it owns one controller: aborting
+     it in closeRailFlyout removes all three listeners at once */
+  railDismiss.abort();
+  railDismiss = new AbortController();
+  const opts = { capture: true, signal: railDismiss.signal };
+  window.addEventListener('keydown', onRailKey, opts);
+  window.addEventListener('pointerdown', onRailOutside, opts);
+  window.addEventListener('blur', closeRailFlyout, { signal: railDismiss.signal });
 }
 
 /* the flyout stays open across renders. Rows are rebuilt only when the pane

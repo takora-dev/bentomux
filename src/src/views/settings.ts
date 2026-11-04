@@ -544,10 +544,11 @@ function accelClash(accel: string, self: ActionId): string | null {
 function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void): void {
   chip.classList.add('capturing');
   chip.textContent = 'Press keys…';
-  const cleanup = (): void => {
-    window.removeEventListener('keydown', onKey, true);
-    window.removeEventListener('pointerdown', onOutside, true);
-  };
+  /* one signal owns both listeners, so every exit path below — escape, a
+     clash, a click outside, or the chip being rebuilt by paint() — leaves
+     nothing listening on the window */
+  const capture = new AbortController();
+  const cleanup = (): void => capture.abort();
   function onKey(e: KeyboardEvent): void {
     e.preventDefault();
     e.stopPropagation();
@@ -571,8 +572,9 @@ function startKeyCapture(action: KeyAction, chip: HTMLElement, paint: () => void
     cleanup();
     paint();
   }
-  window.addEventListener('keydown', onKey, true);
-  window.addEventListener('pointerdown', onOutside, true);
+  const opts = { capture: true, signal: capture.signal };
+  window.addEventListener('keydown', onKey, opts);
+  window.addEventListener('pointerdown', onOutside, opts);
 }
 
 function buildKeysSection(paint: () => void): HTMLElement {

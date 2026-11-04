@@ -28,6 +28,9 @@ let current: HTMLElement | null = null;
 let toggleAnchor: Element | null = null;
 let dismissFn: ((e: Event) => void) | null = null;
 let keyFn: ((e: KeyboardEvent) => void) | null = null;
+/* one controller per open menu: aborting it removes every listener the menu
+   installed, including the deferred ones below */
+let dismiss = new AbortController();
 /* the one open submenu flyout, its owning row, and the grace timer that keeps
    it alive while the pointer crosses from the row into the flyout */
 let submenuEl: HTMLElement | null = null;
@@ -62,16 +65,11 @@ function scheduleSubmenuClose(): void {
 export function closeContextMenu(): void {
   closeSubmenu();
   toggleAnchor = null;
-  if (dismissFn) {
-    document.removeEventListener('pointerdown', dismissFn, true);
-    document.removeEventListener('contextmenu', dismissFn, true);
-    dismissFn = null;
-  }
-  if (keyFn) {
-    document.removeEventListener('keydown', keyFn, true);
-    keyFn = null;
-  }
-  window.removeEventListener('blur', closeContextMenu);
+  /* every listener the menu installed hangs off this one signal */
+  dismiss.abort();
+  dismiss = new AbortController();
+  dismissFn = null;
+  keyFn = null;
   current?.remove();
   current = null;
 }
@@ -171,6 +169,10 @@ export function openContextMenu(x: number, y: number, entries: MenuEntry[], togg
   menu.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
   current = menu;
   toggleAnchor = toggleAnchorEl ?? null;
+  /* opening again without closing first must not leave the previous menu's
+     listeners attached to the new controller */
+  dismiss.abort();
+  dismiss = new AbortController();
 
   dismissFn = (e: Event): void => {
     if (toggleAnchor && e.target instanceof Node && toggleAnchor.contains(e.target)) return;
@@ -180,9 +182,10 @@ export function openContextMenu(x: number, y: number, entries: MenuEntry[], togg
   /* defer so the very event that opened the menu can't dismiss it */
   setTimeout(() => {
     if (!current || !dismissFn || !keyFn) return;
-    document.addEventListener('pointerdown', dismissFn, true);
-    document.addEventListener('contextmenu', dismissFn, true);
-    document.addEventListener('keydown', keyFn, true);
-    window.addEventListener('blur', closeContextMenu);
+    const opts = { capture: true, signal: dismiss.signal };
+    document.addEventListener('pointerdown', dismissFn, opts);
+    document.addEventListener('contextmenu', dismissFn, opts);
+    document.addEventListener('keydown', keyFn, opts);
+    window.addEventListener('blur', closeContextMenu, { signal: dismiss.signal });
   }, 0);
 }

@@ -96,6 +96,8 @@ function bufferPending(id: string, chunk: string): void {
 /* per-axis divider position within a session ('%' of the axis) */
 const ratioByNode = new Map<string, number>();
 let parking: HTMLElement;
+/* the two window-level listeners, kept in one place so init is idempotent */
+let appEvents = new AbortController();
 
 const MIN_RATIO_PCT = 15;
 const MAX_RATIO_PCT = 85;
@@ -365,8 +367,13 @@ function reconcileGrid(live: Live, rows: number, cols: number): void {
 
 export function initTerminalEvents(): void {
   parking = $('#termParking');
-  window.addEventListener('focus', repaintTerminals);
-  document.addEventListener('visibilitychange', repaintTerminals);
+  /* app-level, not per-pane: these two live as long as the window, but they
+     still hang off one signal so a second init cannot stack a second pair */
+  appEvents.abort();
+  appEvents = new AbortController();
+  const appOpts = { signal: appEvents.signal };
+  window.addEventListener('focus', repaintTerminals, appOpts);
+  document.addEventListener('visibilitychange', repaintTerminals, appOpts);
   api.onPtyData((id, chunk) => {
     const live = lives.get(id);
 
