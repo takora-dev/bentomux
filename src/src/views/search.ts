@@ -11,7 +11,6 @@ import { go } from '../router';
 import { openModal, currentModal } from '../components/modal';
 import { leavesOf, activate, tabTitle } from './tabs';
 import { primePaneFocus } from './terminal';
-import { openSettingsModal } from './settings';
 import { commandEntries } from '../plugin/registry';
 import { ensureActive } from '../plugin/loader';
 import { contributionLabel } from '../plugin/icons';
@@ -35,7 +34,7 @@ function buildSearchItems(): Section[] {
 
   const navItems: SearchItem[] = [
     { kind: 'nav', id: 'nav:settings', label: 'Settings', sub: 'Theme, palette, terminal font', icon: 'gear',
-      onPick: () => openSettingsModal() },
+      onPick: () => { void import('./settings').then(m => m.openSettingsModal()); } },
   ];
   sections.push({ title: 'Menu', items: navItems });
 

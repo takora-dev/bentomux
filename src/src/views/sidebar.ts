@@ -16,7 +16,6 @@ import {
 import { openModal } from '../components/modal';
 import { closeContextMenu, contextMenuAnchoredTo, openContextMenu, type MenuEntry } from '../components/menu';
 import { openSearchModal } from './search';
-import { openSettingsModal } from './settings';
 import { remoteDockButton } from './remote';
 import { gitPanelPage, stopPanelPoll, refreshChangesPill } from './gitPanel';
 import { dockEntries, sidebarEntries } from '../plugin/registry';
@@ -421,7 +420,7 @@ function settingsGearButton(): HTMLElement {
   return h('button', {
     class: 'iconbtn sidebar-gear',
     type: 'button',
-    onclick: () => openSettingsModal(),
+    onclick: () => { void import('./settings').then(m => m.openSettingsModal()); },
     title: 'Open settings',
     'aria-label': 'Open settings',
   }, ic('gear'));

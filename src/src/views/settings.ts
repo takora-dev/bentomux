@@ -21,7 +21,6 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { settingsSectionEntries } from '../plugin/registry';
 import { onPluginsChanged } from '../plugin/loader';
 import { contributionLabel } from '../plugin/icons';
-import { buildPluginsSection } from './pluginStudio';
 import { renderTabs } from './tabs';
 import { ensureNotifyPermission } from '../notify-permission';
 import api from '../../preload/bentomux';
@@ -832,7 +831,7 @@ interface SettingsSection {
   id: string;
   label: string;
   icon: keyof typeof IC;
-  build: (paint: () => void) => HTMLElement;
+  build: (paint: () => void) => HTMLElement | Promise<HTMLElement>;
 }
 
 const SECTIONS: SettingsSection[] = [
@@ -840,7 +839,16 @@ const SECTIONS: SettingsSection[] = [
   { id: 'keys', label: 'Keybindings', icon: 'key', build: buildKeysSection },
   { id: 'notifications', label: 'Notifications', icon: 'bell', build: buildNotificationsSection },
   { id: 'sessions', label: 'Sessions', icon: 'term', build: buildSessionsSection },
-  { id: 'plugins', label: 'Plugins', icon: 'board', build: buildPluginsSection },
+  /* the plugin studio is the largest section in this modal and most sessions
+     never open it, so it is fetched on first paint rather than bundled into
+     the app's first-paint chunk */
+  {
+    id: 'plugins',
+    label: 'Plugins',
+    icon: 'board',
+    build: (paint: () => void) =>
+      import('./pluginStudio').then(m => m.buildPluginsSection(paint)),
+  },
   { id: 'updates', label: 'Updates', icon: 'gear', build: buildUpdatesSection },
 ];
 
@@ -898,8 +906,21 @@ export function openSettingsModal(): void {
 
   function paint(): void {
     const section = sections.find(s => s.id === activeId) ?? sections[0];
+    const wanted = section.id;
     contentHost.innerHTML = '';
-    contentHost.append(section.build(paint));
+    const built = section.build(paint);
+    if (built instanceof HTMLElement) {
+      contentHost.append(built);
+    } else {
+      /* a section that fetches its own module paints a placeholder first, then
+         swaps in — unless the user moved on to another section meanwhile */
+      contentHost.append(h('p', { class: 'settings-loading' }, 'Loading…'));
+      void built.then(el => {
+        if (activeId !== wanted) return;
+        contentHost.innerHTML = '';
+        contentHost.append(el);
+      });
+    }
     for (const { btn, id } of menuItems) btn.classList.toggle('active', id === activeId);
   }
 
