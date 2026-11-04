@@ -1,0 +1,170 @@
+/* ---------------- frame ---------------- */
+
+.sidebar{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--bg)}
+body.pane-hidden .win{grid-template-columns:72px minmax(0,1fr) 0}
+body.pane-hidden.git-panel-open .win{grid-template-columns:72px minmax(0,1fr) 340px}
+.nav{flex:1;overflow-y:auto;padding:12px 12px 16px}
+.sidebar{grid-column:1;grid-row:1 / -1;position:relative;
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+  background:var(--surface);opacity:1;transition:opacity .32s cubic-bezier(.22,.61,.36,1), border-color .32s ease;
+}
+body.pane-hidden .sidebar{opacity:1;pointer-events:auto;border-color:var(--line)}
+body.pane-hidden .sidebar .nav,body.pane-hidden .sidebar .sidebar-bottom{display:none}
+body.pane-hidden .sidebar .side-tools{height:auto;flex:0 0 auto;flex-direction:column;justify-content:flex-start;padding:12px 0 8px;gap:8px}
+body.pane-hidden .sidebar .side-tools #paneBtn{order:1;margin:0}
+body.pane-hidden .sidebar .side-tools #compactAddBtn{order:2}
+body.pane-hidden .sidebar .side-tools #backBtn,body.pane-hidden .sidebar .side-tools #redoBtn{display:none}
+body:not(.pane-hidden) .sidebar .side-tools #compactAddBtn{display:none!important}
+body.pane-hidden .top-tools #paneTopBtn{display:none}
+body.pane-hidden .top-tools #backTopBtn,body.pane-hidden .top-tools #redoTopBtn{display:inline-flex}
+.macos body.pane-hidden .sidebar .side-tools{padding-top:42px}
+body.pane-hidden .sidebar .compact-sidebar-footer{display:flex}
+body.pane-hidden .sidebar .compact-sidebar-footer .compact-sidebar-btn{display:flex;width:28px;height:28px;margin:0 auto}
+body.pane-hidden .sidebar .compact-sidebar-footer .compact-sidebar-btn svg{width:14px;height:14px}
+body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-select:none!important}
+.side-tools{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:2px;padding:0 8px}.sidebar-resize{position:absolute;top:0;right:-3px;bottom:0;width:6px;cursor:col-resize;z-index:20}.sidebar-resize:hover{background:var(--accent-tint)}
+.macos .side-tools{height:38px;flex-basis:38px;align-items:center;justify-content:flex-end;padding:0 8px}
+.macos body.pane-hidden .titlebar .top-tools{padding-left:8px}
+/* macOS fullscreen hides the traffic lights: the side-tools no longer need to
+   hug the right edge, and the collapsed-rail traffic-light pad goes away. */
+.macos.fullscreen .side-tools{justify-content:flex-start}
+.macos.fullscreen body.pane-hidden .sidebar .side-tools{padding-top:12px}
+.sidebar-bottom{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:6px 10px 8px;border-top:1px solid var(--line);background:var(--bg);min-height:34px}
+.compact-sidebar-footer{display:none;flex:0 0 40px;align-items:center;border-top:1px solid var(--line);background:var(--bg)}
+.side-tools .tbtn{width:30px;height:28px}
+/* The pane toggle carries both glyphs and swaps them: the app mark at rest,
+   the panel icon on hover/focus. Same pattern as the maximize button's
+   .ico-max/.ico-restore, so the mark is the affordance instead of a second
+   non-interactive logo sitting next to the button. */
+#paneBtn .ico-logo{display:block}
+#paneBtn .ico-pane{display:none}
+#paneBtn:hover .ico-logo,#paneBtn:focus-visible .ico-logo{display:none}
+#paneBtn:hover .ico-pane,#paneBtn:focus-visible .ico-pane{display:block}
+.nav{flex:1;overflow-y:auto;padding:12px 12px 16px}
+.identity{
+  border-top:1px solid var(--line);
+  padding:10px 16px;display:flex;align-items:center;gap:9px;
+}
+.identity .who{display:flex;flex-direction:column;line-height:1.3}
+.identity .sub{color:var(--ink-3);font-size:11px}
+.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;position:relative;display:flex;flex-direction:column;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}.tab{display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 0;padding:0 8px;margin:3px 1px;border-right:0;border-radius:6px;color:var(--ink-2);font-size:12px;overflow:hidden;transition:background .14s ease,color .14s ease}.tab:hover,.tab.active{background:var(--content-bg);color:var(--ink)}.tab.active{font-weight:400;box-shadow:none}.tab .tabname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}.tab .tabx{font-size:15px;color:var(--ink-3);line-height:1;opacity:0;flex:0 0 auto;cursor:pointer}.tab:hover .tabx,.tab:focus-visible .tabx,.tab.active .tabx{opacity:1}.tab .tabx:hover{color:var(--ink)}.tabadd{width:28px;height:28px;align-self:center;flex:0 0 28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ink-2);font-size:17px;transition:background .14s ease,color .14s ease}.tabadd:hover{background:var(--tint);color:var(--ink)}.tab .tabname-edit{flex:1;min-width:0;width:100%;height:20px;padding:0 5px;border:1px solid var(--accent);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
+.newtab-options{display:flex;flex-direction:column;gap:8px}.newtab-option{display:flex;flex-direction:column;gap:2px;padding:11px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}.newtab-option:hover{border-color:var(--accent);background:var(--accent-tint)}.newtab-option b{font-size:13px}.newtab-option span{font-size:12px;color:var(--ink-2)}
+.terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--content-bg);color:var(--ink);font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--content-bg)}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}
+/* A terminal route fills #tabbody exactly; the only scroller inside it is the
+   xterm viewport. Leaving .tabbody scrollable put an ancestor scroller behind
+   every pane, so one unclaimed wheel event dragged the whole window instead of
+   the terminal (see wireWheelGuard in views/terminal.ts). */
+.content.full .tabbody{overflow:hidden}.maximized .win{border-radius:0}
+:root.dark .terminal-page{background:var(--bg);color:var(--ink)}
+
+/* ---------------- sidebar nav ---------------- */
+
+.nav-label{
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);margin:16px 12px 5px;
+}
+.nav-label:first-child{margin-top:4px}
+.nav-item{
+  display:flex;align-items:center;gap:8px;
+  width:100%;height:30px;padding:0 9px;
+  border-radius:6px;color:var(--ink-2);
+  transition:background .1s,color .1s;
+  user-select:none;
+}
+.nav-item:hover{background:var(--tint);color:var(--ink)}
+.nav-item.active{background:var(--accent-tint);color:var(--accent-ink);font-weight:550}
+/* keep hover/active backgrounds from visually merging between stacked rows */
+.nav-item + .nav-item{margin-top:3px}
+.nav-item .ic{display:flex;flex:0 0 auto;opacity:.75}
+.nav-item.active .ic{opacity:1}
+.nav-item .badge{
+  margin-left:auto;
+  font:11px/16px var(--mono);
+  background:var(--line);color:var(--ink-2);
+  border-radius:9px;padding:0 6px;
+}
+.nav-item.sub{padding-left:24px}
+.nav-item .dot{width:5px;height:5px;border-radius:50%;background:var(--ink-3);opacity:.7;flex:0 0 auto}.workspace-row{display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1}.branch-icon{display:flex;align-items:flex-start;padding-top:2px;flex:0 0 14px;color:var(--ink-3);line-height:14px}.workspace-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}.workspace-main,.workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}.agent-status{display:inline-flex;align-items:center;gap:4px;text-transform:lowercase}.agent-status::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}.agent-status.idle{color:#668b6f}.agent-status.running{color:#b18a32}.agent-status.working{color:#b18a32}.agent-status.blocked{color:#b23c2b}.agent-sep{color:var(--line-2)}.workspace-child{height:42px;position:relative;cursor:grab;touch-action:none}.workspace-child:active{cursor:grabbing}.workspace-child.drop-above,.workspace-child.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}.pane-close{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:4px;color:var(--ink-3);font-size:16px;line-height:1;opacity:0;cursor:pointer}
+/* a clickable control inside a draggable row must not inherit the row's grab
+   cursor; the row's own cursor rule is more specific, so restate it here */
+.workspace-child .pane-close,.ws-flyout .pane-close{cursor:pointer}.workspace-child:hover .pane-close,.workspace-child:focus-visible .pane-close,.pane-close:focus-visible{opacity:1}.pane-close:hover{background:var(--tint);color:var(--ink)}.workspace-child.drop-above::before,.workspace-child.drop-below::after{content:"";position:absolute;left:12px;right:8px;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none;z-index:2}.workspace-child.drop-above::before{top:-2px}.workspace-child.drop-below::after{bottom:-2px}.workspace-child.reveal{animation:workspace-reveal .22s ease both}.workspace-child.reveal:nth-child(2){animation-delay:.02s}.workspace-child.reveal:nth-child(3){animation-delay:.04s}.workspace-child.reveal:nth-child(4){animation-delay:.06s}@keyframes workspace-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.folder{
+  display:flex;align-items:center;gap:6px;
+  width:100%;height:30px;padding:0 9px 0 7px;
+  border-radius:6px;color:var(--ink-2);
+  transition:background .1s,color .1s;
+  user-select:none;
+}
+.folder-name{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.folder-icon{display:flex;color:var(--ink-3)}
+.folder{position:relative}
+.folder.dragging{opacity:.45;transform:scale(.98);background:var(--surface-2);box-shadow:0 4px 12px color-mix(in srgb,var(--ink) 16%,transparent)}
+body.workspace-dragging{user-select:none;cursor:grabbing}
+body.workspace-dragging .folder{cursor:grabbing}body.pane-dragging{user-select:none;cursor:grabbing}body.pane-dragging .workspace-child{cursor:grabbing}
+.folder.drop-above,.folder.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.folder.drop-above::before,.folder.drop-below::after{content:"";position:absolute;left:5px;right:5px;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none}
+.folder.drop-above::before{top:-2px}
+.folder.drop-below::after{bottom:-2px}
+.empty-note{padding:2px 9px 2px 40px;color:var(--ink-3);font-size:12px}
+
+/* ---------------- compact workspace rail (sidebar minimized) ----------------
+   With body.pane-hidden the nav is hidden and the sidebar is a 72px rail.
+   #wsRail fills the space between the tool column and the dock: one square
+   button per workspace. Hover/focus opens .ws-flyout — a body-level popover
+   (never inside #nav, which renderSidebar() rebuilds on every status tick)
+   listing that workspace's terminals. */
+
+.ws-rail{display:none}
+body.pane-hidden .sidebar .ws-rail{
+  display:flex;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  flex-direction:column;align-items:center;gap:6px;
+  padding:8px 0;border-top:1px solid var(--line);
+}
+body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
+.ws-rail::-webkit-scrollbar{width:6px}
+.ws-rail-item{
+  position:relative;flex:0 0 auto;
+  width:44px;height:44px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--line);
+  color:var(--ink-2);
+  font:600 12px/1 var(--sans);letter-spacing:.02em;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.ws-rail-item:hover{background:var(--tint);border-color:var(--line-2);color:var(--ink)}
+.ws-rail-item.active{background:var(--accent-tint);border-color:var(--accent);color:var(--accent-ink)}
+.ws-rail-initials{pointer-events:none;text-transform:uppercase}
+/* loudest pane state in the workspace, drawn on the button's corner.
+   A workspace with no terminals has no state, so no dot. */
+.ws-rail-status{
+  position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:50%;
+  pointer-events:none;display:none;
+}
+.ws-rail-status.idle,.ws-rail-status.running,.ws-rail-status.working,.ws-rail-status.blocked{display:block}
+.ws-rail-status.idle{background:#668b6f}
+.ws-rail-status.running,.ws-rail-status.working{background:#b18a32}
+.ws-rail-status.blocked{background:#b23c2b}
+
+/* hover flyout for one rail button. z-index sits above the sidebar (50 in the
+   narrow-viewport layout) but below the modal overlay (60), so an open dialog
+   still dims it. */
+.ws-flyout{
+  position:fixed;z-index:55;width:264px;max-height:min(60vh,420px);
+  display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--line-2);
+  border-radius:12px;box-shadow:0 12px 36px rgba(32,29,25,.18);
+  padding:8px;overflow:hidden;
+}
+.ws-flyout-head{display:flex;flex-direction:column;gap:1px;padding:4px 6px 8px;min-width:0}
+.ws-flyout-name{font-size:12.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-flyout-path{font:10px var(--mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-flyout-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+/* rows reuse .workspace-child, so status dot, branch, time, and close button
+   match the expanded sidebar exactly; only the drag affordance is dropped */
+.ws-flyout .workspace-child{cursor:default;height:auto;min-height:40px;border-radius:7px;padding-top:4px;padding-bottom:4px;padding-right:6px}
+.ws-flyout .workspace-child:active{cursor:default}
+.ws-flyout-empty{padding:2px 6px;color:var(--ink-3);font-size:12px}
+.ws-flyout-foot{flex:0 0 auto;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.ws-flyout-new{height:28px;color:var(--ink-2)}
+.ws-flyout-new .ic{display:flex;flex:0 0 auto;opacity:.75}

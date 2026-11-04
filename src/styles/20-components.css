@@ -1,0 +1,594 @@
+/* ---------------- pages ---------------- */
+
+.page{padding:22px 28px 70px}
+.resource-lede{margin:2px 0 0;color:var(--ink-2)}
+.resource-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:16px}
+.resource-card{
+  display:flex;flex-direction:column;gap:10px;text-align:left;
+  padding:14px 14px 12px;border:1px solid var(--line);border-radius:9px;
+  background:var(--surface);cursor:pointer;width:100%;
+  min-height:0;height:100%;
+  transition:border-color .12s,background .12s;
+}
+.resource-card:hover{border-color:var(--accent);background:var(--accent-tint)}
+.resource-card-head{display:flex;align-items:center;gap:9px}
+.resource-card-head b{flex:1;text-align:left;font-size:13px;font-weight:600;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.resource-icon{display:flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:5px;background:var(--tint);color:var(--ink-2);flex:0 0 auto}
+.resource-icon .ic{width:13px;height:13px}
+.resource-card-preview{
+  margin:0;text-align:left;color:var(--ink-2);
+  font-size:12.5px;line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;
+  overflow:hidden;word-break:break-word;white-space:pre-wrap;
+  min-height:0;
+}
+.resource-card.off{opacity:.6}
+.resource-card .res-switch{padding:0;flex:0 0 auto}
+
+.dected-empty,.detected{margin-top:30px;border-top:1px solid var(--line);padding-top:14px}
+.dected-empty .detected-list,.detected-list{display:flex;gap:10px;flex-wrap:wrap}
+.agent-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:6px}
+.agent-checks label{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;cursor:pointer;text-align:left;transition:border-color .1s,background .1s}
+.agent-checks label:hover{border-color:var(--line-2);background:var(--tint)}
+.agent-checks label:has(input:checked){border-color:var(--accent);background:var(--accent-tint)}
+.agent-checks label:has(input:disabled){opacity:.55;cursor:default}
+.agent-checks input{accent-color:var(--accent);margin:0}
+.search-page-input{width:min(300px,45vw);height:30px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:0 10px}
+.search-page-input:focus{border-color:var(--accent);outline:none}
+
+/* resources: toolbar (search + view mode), switch, list rows */
+.res-toolbar{
+  display:flex;align-items:center;gap:10px;
+  margin-top:18px;flex-wrap:wrap;
+  padding-bottom:10px;border-bottom:1px solid var(--line);
+}
+.res-toolbar .search-page-input{width:min(320px,55vw);flex:1 1 220px;height:30px}
+.res-toolbar .seg{margin-left:auto}
+.resource-list{display:flex;flex-direction:column;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.resource-list .res-row{border-radius:0;border-bottom:1px solid var(--line)}
+.resource-list .res-row:last-child{border-bottom:none}
+.res-row{cursor:pointer;padding:10px 12px}
+.res-row .row-title{font-weight:550;color:var(--ink);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-row.off{opacity:.65}
+.res-switch{display:inline-flex;align-items:center;flex:0 0 auto;padding:2px;cursor:pointer}
+.page.ph{max-width:none;padding:22px 28px 6px}
+h1.pg{font-size:16px;font-weight:650;margin:0 0 6px}
+.page-head{display:flex;align-items:flex-start;gap:12px}
+.page-head .grow{flex:1;min-width:0}
+.crumbs{display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12px;margin-bottom:2px;flex-wrap:wrap}
+.crumbs .sep{opacity:.55}
+.link{color:var(--accent-ink);border-radius:3px}
+.link:hover{text-decoration:underline}
+
+/* segmented toggle (list/board switch, remote on/off, Yes/No toggles).
+   .seg-opt is the span variant, used where the control sits inside a
+   real <button> and nested buttons are invalid HTML. */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px;background:var(--surface);flex:0 0 auto}
+.seg button,
+.seg .seg-opt{
+  height:24px;padding:0 10px;border-radius:5px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  color:var(--ink-2);font-size:12px;
+  transition:background .1s,color .1s;
+}
+.seg button:hover,.seg .seg-opt:hover{color:var(--ink)}
+.seg button.on,.seg .seg-opt.on{background:var(--accent-tint);color:var(--accent-ink);font-weight:550}
+
+/* ---------------- rows (the one row component) ---------------- */
+
+.group{margin-top:14px}
+.group:first-of-type{margin-top:8px}
+.group-h{
+  display:flex;align-items:center;gap:7px;
+  padding:6px 4px;
+  color:var(--ink-2);font-size:12.5px;font-weight:550;
+  border-bottom:1px solid var(--line-2);
+}
+.group-h .path{color:var(--ink-3);font-weight:450}
+.group-h .glyph{display:flex;color:var(--ink-2)}
+button.group-h{width:100%;transition:background .1s;border-radius:6px 6px 0 0}
+button.group-h:hover{background:var(--tint)}
+.group-h .chev{margin-left:auto;display:flex;color:var(--ink-3);transition:transform .12s}
+.group-h .chev.closed{transform:rotate(-90deg)}
+.rows{display:flex;flex-direction:column}
+.row{
+  display:flex;align-items:center;gap:10px;
+  width:100%;height:38px;padding:0 6px;
+  border-bottom:1px solid var(--line);
+  user-select:none;transition:background .08s;
+}
+.row:hover{background:var(--tint)}
+.row.selected{background:var(--accent-tint);box-shadow:inset 2px 0 0 var(--accent)}
+.row .glyph{display:flex;flex:0 0 auto;color:var(--ink-2)}
+.row .glyph.st-done{opacity:.5}
+.row-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .when,.card .when{font:11px var(--mono);color:var(--ink-3);flex:0 0 auto}
+.row .tid{font:11px var(--mono);color:var(--ink-3);width:46px;text-align:right;flex:0 0 auto}
+
+/* ---------------- actor chip (humans & agents, one component) ---------------- */
+
+.chip{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);flex:0 0 auto}
+.chip .av{
+  width:18px;height:18px;border-radius:50%;
+  border:1px solid var(--line-2);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:8.5px;font-weight:650;letter-spacing:.03em;
+  color:var(--ink-2);text-transform:uppercase;flex:0 0 auto;
+}
+.chip .dia{display:flex;color:var(--ink-2);flex:0 0 auto}
+.chip .nm{font-size:12px;white-space:nowrap}
+.chip.muted{color:var(--ink-3)}
+.chip.lg .av{width:22px;height:22px;font-size:9.5px}
+
+/* ---------------- empty state (one sentence, at most one button) ---------------- */
+
+.empty{display:flex;flex-direction:column;align-items:center;gap:14px;padding:96px 20px;color:var(--ink-2)}
+.empty p{margin:0;font-size:13px}
+
+/* richer empty state used by resource tabs (icon + title + sub + CTA) */
+.empty.rich-empty{
+  padding:64px 24px;gap:8px;
+  border:1px dashed var(--line);border-radius:10px;
+  background:var(--surface);
+}
+.empty.rich-empty .empty-icon{
+  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  border-radius:10px;background:var(--tint);color:var(--ink-2);margin-bottom:6px;
+}
+.empty.rich-empty .empty-icon .ic{width:22px;height:22px}
+.empty.rich-empty .empty-title{margin:0;font-size:14px;font-weight:600;color:var(--ink)}
+.empty.rich-empty .empty-sub{margin:0 0 6px;font-size:12.5px;color:var(--ink-2);text-align:center;max-width:420px;line-height:1.45}
+
+/* ---------------- board ---------------- */
+
+.boardwrap{overflow-x:auto;padding:10px 28px 34px;scroll-behavior:auto}
+.board{display:flex;gap:14px;align-items:stretch;min-height:min-content}
+.col{flex:1 0 236px;min-width:236px;display:flex;flex-direction:column}
+.col-h{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 4px 8px;
+  color:var(--ink-2);font-size:12.5px;font-weight:550;
+  border-bottom:1px solid var(--line-2);margin-bottom:10px;
+  user-select:none;
+}
+.col-h .glyph{display:flex}
+.cards{display:flex;flex-direction:column;gap:8px;flex:1;min-height:56px;border-radius:8px;transition:background .1s;padding:2px}
+.cards.drop{background:var(--accent-tint)}
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;
+  padding:10px 12px;
+  cursor:grab;user-select:none;-webkit-user-select:none;
+  touch-action:pan-y;
+  transition:border-color .1s, box-shadow .1s;
+}
+.card:hover{border-color:var(--line-2)}
+.card.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.card .c-title{
+  font-size:13px;line-height:1.35;margin-bottom:8px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.card .c-meta{display:flex;align-items:center;gap:8px}
+.card .c-meta .when{margin-left:auto}
+.card.drag-src{opacity:.35}
+.card.ghost{
+  position:fixed;z-index:99;pointer-events:none;
+  box-shadow:0 8px 24px rgba(32,29,25,.18);
+  border-color:var(--line-2);
+  cursor:grabbing;
+}
+html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !important}
+
+/* ---------------- task detail ---------------- */
+
+.detail{max-width:720px}
+.detail-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.detail-top .tid{font:11px var(--mono);color:var(--ink-3)}
+.d-title{
+  font-size:17px;font-weight:650;line-height:1.35;
+  margin:0 0 12px;padding:2px 5px;margin-left:-5px;
+  cursor:text;border-radius:5px;transition:background .1s;
+  overflow-wrap:break-word;
+}
+.d-title:hover{background:var(--tint)}
+.d-title-input,.d-desc-input{
+  width:100%;border:1px solid var(--accent);border-radius:6px;
+  background:var(--surface);padding:4px 8px;
+}
+.d-title-input{font-size:17px;font-weight:650;margin:0 0 12px}
+.d-meta{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;
+  color:var(--ink-2);font-size:12.5px;margin-bottom:20px;
+}
+.state-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line-2);border-radius:99px;
+  padding:3px 10px;font-size:12px;color:var(--ink-2);
+}
+.state-pill .glyph{display:flex}
+.meta-item{display:inline-flex;align-items:center;gap:6px}
+.selectwrap{position:relative;display:inline-flex;align-items:center}
+.selectwrap select{
+  appearance:none;-webkit-appearance:none;
+  font-size:12.5px;color:var(--ink);
+  background:transparent;border:0;
+  border-bottom:1px dashed var(--line-2);
+  padding:1px 20px 1px 2px;cursor:pointer;
+}
+.selectwrap select:hover{border-bottom-color:var(--ink-3)}
+.selectwrap .caret{position:absolute;right:4px;pointer-events:none;display:flex;color:var(--ink-3)}
+.d-desc{
+  font-size:13.5px;line-height:1.6;white-space:pre-wrap;
+  color:var(--ink);cursor:text;border-radius:5px;
+  padding:3px 5px;margin:-3px -5px 20px;
+  transition:background .1s;overflow-wrap:break-word;
+}
+.d-desc:hover{background:var(--tint)}
+.d-desc.placeholder{color:var(--ink-3)}
+.d-desc-input{font-size:13.5px;line-height:1.6;min-height:96px;resize:vertical;margin:-3px -5px 20px;padding:6px 9px}
+.d-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:30px}
+.act-h{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+.act-list{list-style:none;margin:0 0 30px;padding:0;display:flex;flex-direction:column;gap:13px}
+.act-li{display:flex;gap:10px;align-items:flex-start}
+.act-line{display:flex;gap:7px;align-items:baseline;flex:1;min-width:0;flex-wrap:wrap}
+.act-line b{font-weight:600}
+.act-line .when{margin-left:auto;font:11px var(--mono);color:var(--ink-3)}
+.act-note{
+  margin:5px 0 0;padding:6px 10px;
+  border-left:2px solid var(--line-2);
+  background:var(--tint);border-radius:0 5px 5px 0;
+  color:var(--ink-2);font-size:12.5px;
+}
+.d-foot{border-top:1px solid var(--line);padding-top:14px}
+
+/* ---------------- buttons ---------------- */
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:30px;padding:0 12px;border-radius:6px;
+  border:1px solid var(--line-2);background:var(--surface);
+  font-size:12.5px;font-weight:500;color:var(--ink);
+  transition:background .1s,border-color .1s,color .1s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--tint)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:none;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--tint);color:var(--ink)}
+/* danger keeps the plain `.btn` border so it sits flush with its neighbours;
+   only the label and hover tint differ */
+.btn.danger{background:none;color:var(--danger)}
+.btn.danger:hover{background:color-mix(in srgb,var(--danger) 8%,transparent)}
+.iconbtn{
+  width:30px;height:30px;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;color:var(--ink-2);
+  transition:background .1s,color .1s;
+}
+.iconbtn:hover{background:var(--tint);color:var(--ink)}
+
+/* ---------------- modal (one modal, every use) ---------------- */
+
+/* The overlay sits above the titlebar (z-index:100) so a modal covers the
+   whole chrome like it covers the sidebar, but below .ctx-menu (300): menus
+   opened from inside a modal (palette picker, selects) must render on top. */
+.overlay{
+  position:fixed;inset:0;z-index:150;
+  background:rgba(32,29,25,.28);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:12vh 16px 16px;
+  animation:tk-fade .12s ease-out;
+}
+.dialog{
+  width:min(440px,100%);
+  background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 16px 40px rgba(32,29,25,.16);
+  animation:tk-pop .13s ease-out;
+}
+/* A browsing surface — the plugin marketplace catalog — needs a real width to
+   lay a search field and three buttons on one row. The narrow dialog is 440px,
+   which leaves 408px after .dialog-b padding, so a body child must never ask
+   for more than that or it spills past the panel instead of wrapping. */
+.dialog-wide{width:min(680px,100%)}
+.dialog-h{padding:14px 16px 2px;font-size:13.5px;font-weight:650;display:flex;align-items:center;gap:8px}
+.dialog-h-icon{
+  width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:5px;background:var(--tint);color:var(--ink-2);flex:0 0 auto;
+}
+.dialog-h-icon .ic{width:13px;height:13px}
+.dialog-b{padding:14px 16px;display:flex;flex-direction:column;gap:13px}
+.dialog-f{display:flex;justify-content:flex-end;gap:8px;padding:2px 16px 14px}
+.dialog-f-row{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%}
+.dialog-f-left,.dialog-f-right{display:flex;gap:8px;align-items:center}
+.dialog-f-left{margin-right:auto}
+.resource-body{font-family:var(--mono);font-size:12.5px;line-height:1.55;min-height:120px;resize:vertical}
+.confirm-p{margin:0;font-size:13px;line-height:1.55;color:var(--ink-2)}
+.confirm-p b{color:var(--ink);font-weight:600}
+.field label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:5px}
+/* .select-input (the shared selectEl component) shares the field-input look
+   wherever it lands, including outside .field wrappers (background area) */
+.field input,.field select,.select-input{
+  width:100%;height:32px;
+  border:1px solid var(--line-2);border-radius:6px;
+  background:var(--surface);padding:0 10px;
+  font-size:12.5px;
+}
+.field input:focus,.field select:focus,.select-input:focus{border-color:var(--accent);outline:none}
+.field textarea{
+  width:100%;min-height:80px;
+  border:1px solid var(--line-2);border-radius:6px;
+  background:var(--surface);padding:8px 10px;
+  resize:vertical;
+  font-size:12.5px;
+}
+.field textarea:focus{border-color:var(--accent);outline:none}
+.field select,.select-input{
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:32px;
+  cursor:pointer;
+}
+.field select:hover,.select-input:hover{border-color:var(--line);background-color:var(--tint)}
+
+@keyframes tk-fade{from{opacity:0}to{opacity:1}}
+@keyframes tk-pop{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:none}}
+
+/* ---------------- search palette (sidebar trigger) ---------------- */
+
+.dialog.cmd-palette{width:min(540px,100%)}
+/* the sidebar search button sits flush with the rest of the nav items
+   (no background, no border); hover only lifts the colour to --ink so
+   the affordance is still visible. */
+.search-trigger{
+  color:var(--ink-2);
+  margin-bottom:4px;
+}
+.search-trigger:hover,.search-trigger:active{background:transparent;color:var(--ink)}
+.search-trigger .shortcut{
+  margin-left:auto;font:10.5px var(--mono);color:var(--ink-3);
+  border:1px solid var(--line);border-radius:3px;padding:0 5px;line-height:16px;
+  background:var(--surface);
+}
+.search-trigger:hover .shortcut{border-color:var(--line-2)}
+/* gear in the bottom dock of the sidebar; always visible because it's the
+   primary settings entry point */
+.sidebar-gear{width:28px;height:28px;border-radius:6px}
+.sidebar-gear .ic{width:15px;height:15px;opacity:.8}
+.sidebar-gear:hover .ic{opacity:1}
+.search-palette-input-wrap{position:relative}
+.search-palette-input{
+  width:100%;height:36px;
+  border:1px solid var(--line-2);border-radius:6px;
+  background:var(--surface);padding:0 10px 0 34px;
+  font-size:13.5px;color:var(--ink);
+  transition:border-color .12s;
+}
+.search-palette-input:focus{border-color:var(--accent);outline:none}
+.search-palette-input-wrap > .ic.search-palette-ico{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--ink-3);opacity:.85;pointer-events:none;
+  display:flex;align-items:center;width:14px;height:14px;
+}
+.search-palette-input-wrap > .ic.search-palette-ico svg{width:14px;height:14px}
+.search-palette-list{display:flex;flex-direction:column;gap:1px;max-height:380px;overflow-y:auto;padding:2px 0}
+.search-palette-section{
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);margin:8px 4px 2px;padding:0 4px;
+}
+.search-palette-section:first-child{margin-top:2px}
+.search-palette-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px;border-radius:6px;
+  color:var(--ink-2);font-size:12.5px;cursor:pointer;
+  user-select:none;list-style:none;
+}
+.search-palette-item:hover{background:var(--tint);color:var(--ink)}
+.search-palette-item.active{background:var(--accent-tint);color:var(--accent-ink)}
+.search-palette-item .ic{display:flex;flex:0 0 auto;opacity:.75}
+.search-palette-item.active .ic{opacity:1}
+.search-palette-item .item-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-palette-item .item-sub{color:var(--ink-3);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
+.search-palette-item.active .item-sub{color:var(--accent-ink);opacity:.75}
+.search-palette-empty{padding:14px 4px;color:var(--ink-3);font-size:12px;text-align:center}
+
+/* ---------------- session chat (GUI / terminal — same data) ---------------- */
+
+.content.full{overflow:hidden;display:flex}
+.content.fullbleed{padding:0}
+.session{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.sess-top{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 20px;border-bottom:1px solid var(--line);flex:0 0 auto;
+}
+.sess-title{
+  font-size:15px;font-weight:650;margin:0;
+  cursor:text;border-radius:5px;padding:2px 5px;margin-left:-5px;
+  transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw;
+}
+.sess-title:hover{background:var(--tint)}
+.sess-title-input{font-size:15px;font-weight:650;border:1px solid var(--accent);border-radius:6px;background:var(--surface);padding:2px 8px}
+
+.messages{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:14px;padding:20px 20px 10px}
+.msg{max-width:72%;display:flex;flex-direction:column;gap:3px}
+.msg .m-meta{font:10.5px var(--mono);color:var(--ink-3);display:flex;gap:6px;align-items:baseline}
+.msg .m-text{
+  font-size:13.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:break-word;
+}
+.msg.agent{align-self:flex-start;align-items:flex-start}
+.msg.agent .m-text{background:var(--surface);border:1px solid var(--line);border-radius:4px 10px 10px 10px;padding:8px 12px}
+.msg.you{align-self:flex-end;align-items:flex-end}
+.msg.you .m-text{background:var(--accent-tint);border-radius:10px 4px 10px 10px;padding:8px 12px}
+.msg.you .m-meta{flex-direction:row-reverse}
+
+.messages.term{gap:0;padding:14px 20px 8px;font-family:var(--mono)}
+.tline{font-size:12.5px;line-height:1.75;white-space:pre-wrap;overflow-wrap:break-word}
+.tline .t{color:var(--ink-3);margin-right:8px;font-size:11px}
+.tline .who{font-weight:650}
+.tline.you .who{color:var(--accent-ink)}
+
+.thinking{display:inline-flex;gap:4px;padding:4px 2px;align-items:center}
+.thinking i{width:4px;height:4px;border-radius:50%;background:var(--ink-3);animation:tk-blink 1.1s infinite}
+.thinking i:nth-child(2){animation-delay:.18s}
+.thinking i:nth-child(3){animation-delay:.36s}
+@keyframes tk-blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+.chatbar{
+  border-top:1px solid var(--line);flex:0 0 auto;
+  padding:12px 20px 16px;display:flex;gap:10px;align-items:flex-end;
+}
+.chatbar .prompt{font:14px/1 var(--mono);color:var(--ink-3);padding-bottom:11px;flex:0 0 auto}
+.chatbar textarea{
+  flex:1;resize:none;min-height:38px;max-height:120px;
+  border:1px solid var(--line-2);border-radius:8px;background:var(--surface);
+  padding:9px 12px;font-size:13.5px;line-height:1.5;
+  font-family:inherit;transition:border-color .12s;
+}
+.chatbar.term textarea{font-family:var(--mono);font-size:13px}
+.chatbar textarea:focus{border-color:var(--accent);outline:none}
+.chatbar .btn{height:38px;flex:0 0 auto}
+
+/* ---------------- responsive ---------------- */
+
+.scrim{display:none}
+
+@media (max-width:900px){
+  .win{grid-template-columns:minmax(0,1fr);grid-template-rows:38px minmax(0,1fr)}
+  .sidebar{grid-column:1;grid-row:1 / -1}
+  .content{grid-column:1;grid-row:2}
+  .body{grid-template-columns:minmax(0,1fr)}
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:280px;z-index:50;
+    transform:translateX(-103%);
+    transition:transform .32s cubic-bezier(.22,.61,.36,1), opacity .32s ease;
+    box-shadow:none;
+  }
+  .sidebar.open{transform:none;box-shadow:8px 0 24px rgba(32,29,25,.08)}
+  .scrim.show{display:block;position:fixed;inset:48px 0 0 0;z-index:40;background:rgba(32,29,25,.16)}
+  .page{padding:16px 16px 60px}
+  .page.ph{padding:16px 16px 4px}
+  .boardwrap{padding:8px 16px 28px}
+  .detail-top{margin-bottom:10px}
+  .sess-top{padding:8px 14px}
+  .messages{padding:14px 14px 8px}
+  .messages.term{padding:12px 14px 6px}
+  .chatbar{padding:10px 14px 12px}
+  .sess-title{max-width:none}
+}
+
+@media (max-width:640px){
+  .searchwrap .kbd{display:none}
+  #newBtn{width:32px;height:30px;padding:0}
+  #newBtn .lbl{display:none}
+  .wordmark{margin-right:0}
+  .row .tid{display:none}
+  .d-title{font-size:16px}
+  .appbar{gap:8px;padding:0 12px}
+  .msg{max-width:88%}
+  .sess-top .chip .nm{display:none}
+  .chatbar .btn .lbl{display:none}
+  .chatbar .btn{width:44px}
+}
+
+@media (max-width:560px){
+  .row .chip .nm{display:none}
+  .card .chip .nm{display:none}
+  .d-meta{gap:6px 12px}
+  .sess-top{gap:8px}
+  .sess-top .seg{margin-left:auto}
+}
+
+/* ============================================================
+   Bentomux desktop additions — real window chrome + workspace rows.
+   No visual change to the prototype design itself.
+   ============================================================ */
+
+
+.ws-label{display:flex;align-items:center;gap:4px;margin:16px 7px 5px;padding-right:2px}
+.ws-label>span:first-child{flex:1}
+.ws-label .nav-label{margin:0;flex:1}
+.ws-label .ws-add{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--line);color:var(--ink-2);transition:background .1s,border-color .1s,color .1s}
+.ws-label .ws-add .ic{display:flex}
+.ws-label .ws-add:hover{background:var(--tint);border-color:var(--line-2);color:var(--ink)}
+.ws-menu{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ink-2);transition:background .1s,color .1s;cursor:pointer;flex:0 0 auto}
+.ws-menu-icon{display:flex}
+.ws-menu:hover{color:var(--ink);background:var(--tint)}
+.tabadd[disabled]{opacity:.35;cursor:default}
+.tabadd[disabled]:hover{background:none;color:var(--ink-2)}
+
+#termParking{position:absolute;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;visibility:hidden}
+/* single terminal renders full-bleed; with 2+ terminals each becomes a
+   bordered card floated on --term-pad margins, so real gaps open up
+   between them (pad + divider + pad). content-box keeps FitAddon's
+   measurements equal to the usable text area. */
+/* containment: xterm canvas/DOM churn must not relayout the whole window */
+.terminal-host{position:absolute;inset:0;contain:layout paint}
+.mux-body{contain:layout paint}
+.terminal-host.drop-active{outline:2px dashed var(--accent);outline-offset:-3px}
+.mux-body.split .terminal-host{margin:var(--term-pad);padding:var(--term-pad-in);border:1px solid var(--line);border-radius:6px;box-sizing:content-box;transition:border-color .12s}
+.terminal-page .mux-body{position:relative;margin:0;overflow:hidden}
+.xterm,.xterm .xterm-viewport,.xterm .xterm-screen{border-radius:0}
+/* Keep xterm's native viewport in charge of scrollback. Hiding overflow
+   leaves wheel/trackpad scrolling intact while avoiding a second scrollbar. */
+.xterm .xterm-viewport{overflow-y:scroll!important;scrollbar-width:none}
+.xterm .xterm-viewport::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* split view: recursive panes in one tab — 'v' axes side by side, 'h' stacked.
+   Each pane renders as a bordered card; axes start at a 50/50 flex split. */
+.mux-body.split{display:flex;min-width:0;min-height:0}
+.split-axis{display:flex;flex:1 1 auto;width:100%;height:100%;min-width:0;min-height:0}
+/* nested axes share space exactly like sibling panes do (basis 0), so a
+   50/50 split of one pane never resizes unrelated branches */
+.split-axis .split-axis{flex:1 1 0}
+.split-axis.stacked{flex-direction:column}
+.split-axis .pane{position:relative;flex:1 1 0;min-width:0;min-height:0;overflow:hidden;contain:layout paint}
+.pane-divider{flex:0 0 3px;cursor:col-resize;transition:background .12s}
+.split-axis.stacked > .pane-divider{cursor:row-resize}
+.pane-divider:hover,body.resizing-panes .pane-divider,body.resizing-stacked .pane-divider{background:var(--accent)}
+body.resizing-panes{cursor:col-resize;user-select:none}
+body.resizing-stacked{cursor:row-resize;user-select:none}
+/* the focused pane's card lights up its border instead of a separate marker */
+.pane.focused .terminal-host{border-color:var(--accent)}
+
+/* tabs are the core of the desktop app: keep the strip visible with the sidebar open too */
+body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
+.titlebar.has-tabs .top-tools{flex:1 1 auto;min-width:0}
+.titlebar.has-tabs .tspacer{display:none}
+
+/* Window controls bundled into one group: theme → minimize → maximize → close.
+   Only Windows shows the three OS buttons and the capsule around them — the
+   frame there is ours (decorations:false in tauri.windows.conf.json). On macOS
+   the traffic lights are native and on Linux the frame is native, so the group
+   holds just the theme toggle and lays out exactly as it did before. */
+.win-controls{display:flex;align-items:center;height:28px;flex:0 0 auto}
+.win-controls .win-btn{display:none}
+.windows .win-controls{margin-left:6px;padding:0 3px;border-radius:8px;background:var(--surface)}
+.windows .win-controls .tbtn{width:32px;height:24px}
+.windows .win-controls .win-btn{display:inline-flex}
+/* maximize button swaps glyph on the same `maximized` class the drag handler
+   already toggles, so the icon stays right for OS-driven maximize too
+   (`.maximized` lands on <body>, `.windows` on <html>) */
+.windows #winMaxBtn .ico-restore{display:none}
+.windows body.maximized #winMaxBtn .ico-max{display:none}
+.windows body.maximized #winMaxBtn .ico-restore{display:block}
+
+/* ---------------- context menu (right-click) ---------------- */
+
+.ctx-menu{position:fixed;z-index:300;min-width:170px;padding:4px;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;box-shadow:0 8px 24px rgba(32,29,25,.18)}
+.ctx-menu.ctx-sub{min-width:200px;max-width:340px}
+.ctx-item{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 10px;border-radius:5px;font-size:12.5px;color:var(--ink);transition:background .08s}
+.ctx-item:hover{background:var(--accent-tint);color:var(--accent-ink)}
+.ctx-item.disabled{opacity:.45;cursor:default}
+.ctx-icon{display:flex;flex:0 0 auto;color:var(--ink-3)}
+.ctx-swatch{display:inline-flex;gap:2px;flex:0 0 auto}
+.ctx-swatch>span{width:10px;height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.12)}
+.ctx-item:hover .ctx-icon{color:inherit}
+.ctx-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:11px;color:var(--ink-3)}
+.ctx-chev{display:flex;flex:0 0 auto;margin-left:auto;color:var(--ink-3)}
+.ctx-item:hover .ctx-chev{color:inherit}

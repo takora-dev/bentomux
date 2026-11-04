@@ -1,0 +1,241 @@
+/* ---------------- classic + e-ink: component overrides ----------------
+   Classic flattens every border-radius (hard squares are the
+   aesthetic); !important is deliberate — a theme-wide override must
+   beat any component rule regardless of its specificity (the rounded
+   terminal host is .mux-body.split .terminal-host at (0,3,0), which a
+   plain (0,2,0) root rule loses in light mode). Both dark variants
+   have a light accent, so the hardcoded #fff text on primary buttons
+   swaps to the dark canvas color. E-ink drives its status colors off
+   ink/bg so they stay achromatic. */
+:root.palette-classic *,
+:root.dark.palette-classic *{border-radius:0 !important}
+:root.dark.palette-classic .btn.primary{color:#1a1c2c}
+:root.dark.palette-eink .btn.primary{color:#000000}
+:root.palette-eink .git-pill .git-pill-add{color:var(--ink)}
+:root.palette-eink .diff-line.diff-add{background:rgba(0,0,0,.09)}
+:root.palette-eink .diff-line.diff-add .sign{color:#000000}
+:root.palette-eink .diff-line.diff-del{background:rgba(0,0,0,.04)}
+:root.dark.palette-eink .diff-line.diff-add{background:rgba(255,255,255,.12)}
+:root.dark.palette-eink .diff-line.diff-add .sign{color:#ffffff}
+:root.dark.palette-eink .diff-line.diff-del{background:rgba(255,255,255,.05)}
+
+/* ---------------- pastel-pixel: pixel-art personality ----------------
+   The cozy-pixel layer on top of the tokens: chunky 2px edges on the
+   things you click, solid hard offset shadows instead of blur (the
+   8-bit tell), a faint 4px checker dither on the big chrome surfaces,
+   and buttons that press down into their own shadow. Corners stay
+   rounded — cozy, not arcade. Terminals keep their 1px border on
+   purpose: xterm only refits on resize, so a border-width change here
+   could clip glyphs until the next fit. The --px-* tokens live in the
+   palette block above. */
+
+:root.palette-pastel-pixel .btn,
+:root.dark.palette-pastel-pixel .btn{
+  border-width:2px;border-radius:7px;
+  box-shadow:2px 2px 0 0 var(--px-shadow);
+}
+:root.palette-pastel-pixel .btn.ghost,
+:root.palette-pastel-pixel .btn.danger{border-width:1px;box-shadow:none}
+:root.palette-pastel-pixel .btn:not(.ghost):not(.danger):active{
+  transform:translate(2px,2px);
+  box-shadow:0 0 0 0 var(--px-shadow);
+}
+/* pastel fill + deep-brown text + darker outline is the pixel button */
+:root.palette-pastel-pixel .btn.primary,
+:root.dark.palette-pastel-pixel .btn.primary{
+  color:#4a2810;
+  border-color:color-mix(in srgb,var(--accent) 68%,var(--ink));
+}
+:root.palette-pastel-pixel .btn.primary:hover{
+  background:color-mix(in srgb,var(--accent) 82%,#fff);
+}
+:root.palette-pastel-pixel .btn.danger-strong{color:#4d2433}
+:root.palette-pastel-pixel .welcome-step-num{border-radius:6px;color:#4a2810}
+
+/* cards and popovers carry the same hard shadow */
+:root.palette-pastel-pixel .card,
+:root.palette-pastel-pixel .agent-card,
+:root.palette-pastel-pixel .palette-card,
+:root.palette-pastel-pixel .widget-card,
+:root.palette-pastel-pixel .plugin-row{box-shadow:2px 2px 0 0 var(--px-shadow)}
+:root.palette-pastel-pixel .card.selected{box-shadow:0 0 0 1px var(--accent),2px 2px 0 0 var(--px-shadow)}
+
+:root.palette-pastel-pixel .dialog,
+:root.palette-pastel-pixel .ctx-menu,
+:root.palette-pastel-pixel .remote-pop,
+:root.palette-pastel-pixel .update-banner,
+:root.palette-pastel-pixel .update-status-card{
+  border-width:2px;
+  box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(92,58,24,.10);
+}
+
+/* inputs and small chips get the chunky edge too */
+:root.palette-pastel-pixel .field input,
+:root.palette-pastel-pixel .select-input,
+:root.palette-pastel-pixel .field textarea,
+:root.palette-pastel-pixel .search-palette-input,
+:root.palette-pastel-pixel .chatbar textarea,
+:root.palette-pastel-pixel .git-commit textarea,
+:root.palette-pastel-pixel .commit-message,
+:root.palette-pastel-pixel .resource-editor,
+:root.palette-pastel-pixel .key-chip{border-width:2px}
+
+/* pastel accents are too faint for small text on the cream canvas, so
+   every accent-as-text spot steps up to --accent-ink */
+:root.palette-pastel-pixel .termbar .prompt,
+:root.palette-pastel-pixel .agent-card-go,
+:root.palette-pastel-pixel .agent-resource-go,
+:root.palette-pastel-pixel .agent-subtab:hover:not(.off):not(:disabled),
+:root.palette-pastel-pixel .editor-back:hover,
+:root.palette-pastel-pixel .plugin-status.status-active,
+:root.palette-pastel-pixel .palette-check{color:var(--accent-ink)}
+
+/* warm dim under modals, squared status pixels, pixel scrollbar thumbs */
+:root.palette-pastel-pixel .overlay{background:rgba(92,58,24,.32)}
+:root.dark.palette-pastel-pixel .overlay{background:rgba(28,18,10,.5)}
+:root.palette-pastel-pixel .thinking i,
+:root.palette-pastel-pixel .dock-dot,
+:root.palette-pastel-pixel .nav-item .dot,
+:root.palette-pastel-pixel .agent-status::before{border-radius:1px}
+:root.palette-pastel-pixel *::-webkit-scrollbar-thumb{border-radius:2px}
+
+/* faint checker dither on the large empty chrome surfaces */
+:root.palette-pastel-pixel .sidebar,
+:root.palette-pastel-pixel .titlebar,
+:root.palette-pastel-pixel .right-sidebar,
+:root.palette-pastel-pixel .closed,
+:root.palette-pastel-pixel .welcome-page,
+:root.dark.palette-pastel-pixel .sidebar,
+:root.dark.palette-pastel-pixel .titlebar,
+:root.dark.palette-pastel-pixel .right-sidebar,
+:root.dark.palette-pastel-pixel .closed,
+:root.dark.palette-pastel-pixel .welcome-page{
+  background-image:conic-gradient(var(--px-tex) 25%,transparent 0 50%,var(--px-tex) 0 75%,transparent 0);
+  background-size:4px 4px;
+}
+
+/* ---------------- pixelated: pixel-art personality ----------------
+   The structural layer, independent of hue: Silkscreen on the chrome, hard
+   2px edges, and square corners throughout — arcade, not the rounded cozy
+   look pastel-pixel goes for. Buttons depress into their own shadow, and the
+   large chrome surfaces carry a faint dot-matrix grid rather than a checker
+   dither, so the two pixel palettes do not read as the same skin. Terminals
+   keep their 1px border and their own font on purpose: xterm only refits on
+   resize, so a border-width change here could clip glyphs until the next
+   fit, and neither bundled pixel face has box-drawing glyphs. The --px-*
+   tokens live in the palette block above. */
+
+:root.palette-pixelated .btn,
+:root.dark.palette-pixelated .btn{
+  border-width:2px;border-radius:0;
+  box-shadow:2px 2px 0 0 var(--px-shadow);
+}
+:root.palette-pixelated .btn.ghost,
+:root.palette-pixelated .btn.danger{border-width:1px;box-shadow:none}
+:root.palette-pixelated .btn:not(.ghost):not(.danger):active{
+  transform:translate(2px,2px);
+  box-shadow:0 0 0 0 var(--px-shadow);
+}
+/* a darker outline than the fill is the pixel button tell */
+:root.palette-pixelated .btn.primary,
+:root.dark.palette-pixelated .btn.primary{
+  border-color:color-mix(in srgb,var(--accent) 68%,var(--ink));
+}
+:root.palette-pixelated .welcome-step-num{border-radius:0;color:var(--surface)}
+
+/* cards and popovers carry the same hard shadow */
+:root.palette-pixelated .card,
+:root.palette-pixelated .agent-card,
+:root.palette-pixelated .palette-card,
+:root.palette-pixelated .widget-card,
+:root.palette-pixelated .plugin-row{box-shadow:2px 2px 0 0 var(--px-shadow)}
+:root.palette-pixelated .card.selected{box-shadow:0 0 0 1px var(--accent),2px 2px 0 0 var(--px-shadow)}
+
+:root.palette-pixelated .dialog,
+:root.palette-pixelated .ctx-menu,
+:root.palette-pixelated .remote-pop,
+:root.palette-pixelated .update-banner,
+:root.palette-pixelated .update-status-card{
+  border-width:2px;
+  box-shadow:5px 5px 0 0 var(--px-shadow),0 18px 40px rgba(60,56,53,.12);
+}
+
+/* inputs and small chips get the chunky edge too */
+:root.palette-pixelated .field input,
+:root.palette-pixelated .field select,
+:root.palette-pixelated .field textarea,
+:root.palette-pixelated .search-palette-input,
+:root.palette-pixelated .chatbar textarea,
+:root.palette-pixelated .git-commit textarea,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor,
+:root.palette-pixelated .key-chip{border-width:2px}
+
+/* status pixels and scrollbar thumbs are square */
+:root.palette-pixelated .thinking i,
+:root.palette-pixelated .dock-dot,
+:root.palette-pixelated .nav-item .dot,
+:root.palette-pixelated .agent-status::before{border-radius:1px}
+:root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
+
+/* soft dim under modals */
+:root.palette-pixelated .overlay{background:rgba(60,56,53,.30)}
+:root.dark.palette-pixelated .overlay{background:rgba(0,0,0,.55)}
+
+/* square chrome: inputs, chips, cards, menus, tabs and the round bits
+   (dots, status pips) all drop their radius */
+:root.palette-pixelated .field input,
+:root.palette-pixelated .field select,
+:root.palette-pixelated .field textarea,
+:root.palette-pixelated .search-palette-input,
+:root.palette-pixelated .chatbar textarea,
+:root.palette-pixelated .git-commit textarea,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor,
+:root.palette-pixelated .key-chip,
+:root.palette-pixelated .card,
+:root.palette-pixelated .agent-card,
+:root.palette-pixelated .palette-card,
+:root.palette-pixelated .widget-card,
+:root.palette-pixelated .plugin-row,
+:root.palette-pixelated .ctx-menu,
+:root.palette-pixelated .dialog,
+:root.palette-pixelated .tab,
+:root.palette-pixelated .chip,
+:root.palette-pixelated .palette-select,
+:root.palette-pixelated .git-pill,
+:root.palette-pixelated .seg,
+:root.palette-pixelated .seg button,
+:root.palette-pixelated .update-progress-track,
+:root.palette-pixelated .update-progress-fill,
+:root.palette-pixelated .update-badge{border-radius:0}
+:root.palette-pixelated .thinking i,
+:root.palette-pixelated .dock-dot,
+:root.palette-pixelated .nav-item .dot,
+:root.palette-pixelated .agent-status::before{border-radius:1px}
+:root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
+
+/* Silkscreen is a small-caps bitmap face: it needs the extra tracking and
+   slightly larger optical size to stay legible, and it must not be asked to
+   synthesize a weight it does not have */
+:root.palette-pixelated .btn,
+:root.palette-pixelated .tab,
+:root.palette-pixelated .nav-item,
+:root.palette-pixelated .palette-name,
+:root.palette-pixelated .settings-section-title,
+:root.palette-pixelated .titlebar{letter-spacing:.02em}
+
+/* faint dot-matrix grid on the large empty chrome surfaces */
+:root.palette-pixelated .sidebar,
+:root.palette-pixelated .titlebar,
+:root.palette-pixelated .right-sidebar,
+:root.palette-pixelated .closed,
+:root.palette-pixelated .welcome-page,
+:root.dark.palette-pixelated .sidebar,
+:root.dark.palette-pixelated .titlebar,
+:root.dark.palette-pixelated .right-sidebar,
+:root.dark.palette-pixelated .closed,
+:root.dark.palette-pixelated .welcome-page{
+  background-image:radial-gradient(var(--px-tex) 1px,transparent 1px);
+  background-size:3px 3px;
+}

@@ -1,0 +1,72 @@
+/* ---------------- settings modal (left menu + section content) ---------------- */
+
+.dialog.settings-dialog{width:min(900px,100%);overflow:hidden}
+.dialog.settings-dialog .dialog-b{padding:0;gap:0}
+.settings-modal{
+  display:grid;grid-template-columns:190px minmax(0,1fr);
+  min-height:520px;
+}
+.settings-menu{padding:10px 8px;border-right:1px solid var(--line)}
+/* the app's own sections end with Updates; plugin-contributed sections are set
+   off by a divider and a heading so they never read as built-in entries */
+.settings-menu-divide{border-top:1px solid var(--line);margin:10px 4px}
+.settings-menu-label{margin:0 5px 5px}
+.settings-content{padding:16px 18px 18px;max-height:70vh;overflow-y:auto}
+/* a section that fetches its own module paints this for one frame */
+.settings-loading{margin:0;color:var(--ink-3);font-size:13px}
+.settings-section{display:flex;flex-direction:column;gap:12px}
+.settings-section-h{
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 2px;
+}
+.settings-hint{font-size:11.5px;color:var(--ink-3);margin-top:-7px}
+.keys-list{display:flex;flex-direction:column;gap:3px}
+.keys-row{display:flex;align-items:center;gap:10px;height:30px;padding:0 9px;border-radius:6px}
+.keys-row:hover{background:var(--tint)}
+.keys-label{flex:1;min-width:0;font-size:12.5px;color:var(--ink-2)}
+.key-chip{
+  font:11.5px var(--mono);
+  border:1px solid var(--line-2);border-radius:5px;
+  padding:3px 9px;background:var(--surface);color:var(--ink-2);
+  cursor:pointer;flex:0 0 auto;
+  transition:border-color .12s,color .12s;
+}
+.key-chip:hover{color:var(--ink)}
+.key-chip.capturing{border-color:var(--accent);color:var(--accent-ink)}
+.key-chip.unbound{border-style:dashed;color:var(--ink-3,var(--ink-2));opacity:.75}
+.key-chip.static{cursor:default;background:transparent}
+/* per-row remove affordance: fixed-width slot keeps every chip aligned whether
+   or not the row has an override; the button is always visible so clearing a
+   binding is discoverable, and brightens on row hover */
+.key-remove-slot{width:24px;height:24px;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.key-remove{width:24px;height:24px;opacity:.55}
+.keys-row:hover .key-remove,.key-remove:focus-visible{opacity:1}
+.key-preset-controls{display:flex;gap:8px;align-items:center}
+.key-preset-controls .select-input{flex:1;min-width:0}
+.key-preset-controls .btn{flex:0 0 auto}
+.palette-picker{display:flex;flex-direction:column;gap:8px}
+.palette-select{
+  display:flex;align-items:center;gap:9px;width:100%;height:32px;
+  padding:0 10px;border:1px solid var(--line-2);border-radius:6px;
+  background:var(--surface);cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.palette-select:hover{border-color:var(--line);background:var(--tint)}
+.palette-caret{display:flex;margin-left:auto;transform:rotate(90deg);color:var(--ink-3)}
+.palette-caret svg{width:12px;height:12px}
+.palette-swatch{display:inline-flex;gap:3px;align-items:center;flex:0 0 auto}
+.palette-swatch>span{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.08)}
+.palette-name{font-size:12.5px;font-weight:550;color:var(--ink)}
+.palette-custom{display:flex;flex-direction:column;gap:6px}
+.palette-custom .settings-hint{margin-top:2px}
+.color-row{display:flex;align-items:center;gap:8px}
+.color-label{width:74px;flex:0 0 auto;font-size:12px;color:var(--ink-2)}
+.color-row .color-pick{
+  width:28px;height:28px;flex:0 0 auto;padding:2px;
+  border:1px solid var(--line-2);border-radius:6px;background:var(--surface);
+  cursor:pointer;
+}
+.color-row .color-text{
+  flex:1 1 auto;min-width:0;height:28px;padding:0 8px;
+  font:11.5px var(--mono);text-transform:lowercase;
+}

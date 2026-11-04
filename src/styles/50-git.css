@@ -1,0 +1,499 @@
+/* ---------------- right-side panel (Git Tools) ----------------
+   Sits in the last .win grid column, next to the main content. Width and
+   visibility are driven by body.git-panel-open; the .win
+   grid-template-columns transition handles the slide and the
+   overflow:hidden on the aside clips contents while the column animates. */
+.right-sidebar{
+  grid-column:3;grid-row:2;
+  border-left:1px solid var(--line);
+  background:var(--surface);
+  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+}
+.right-sidebar-h{
+  padding:12px 14px 8px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--line);
+}
+.right-sidebar-h .grow{min-width:0;flex:1}
+.right-sidebar-h b{font-size:12.5px;font-weight:600;letter-spacing:.01em}
+.right-sidebar-h .muted{font-size:11px;color:var(--ink-3)}
+.git-panel-body{
+  flex:1;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+/* the mounted panel root has to fill the slot, otherwise it grows to content
+   height and the aside's overflow:hidden clips it instead of scrolling */
+.git-panel-root{
+  flex:1;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.git-section{padding:10px 14px;border-bottom:1px solid var(--line)}
+.git-section:last-child{border-bottom:0}
+.git-section-h{
+  display:flex;align-items:center;gap:6px;
+  font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:6px;
+}
+.git-section-h .grow{flex:1;min-width:0}
+.git-files{
+  flex:1;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.git-files-list{
+  flex:1;min-height:0;overflow-y:auto;
+  display:flex;flex-direction:column;gap:1px;padding:4px 8px 8px;
+}
+.git-file-row{
+  display:flex;align-items:center;gap:8px;
+  width:100%;padding:6px 8px;
+  border-radius:5px;color:var(--ink-2);
+  background:transparent;border:0;outline:0;cursor:pointer;
+  font:12px/1.3 var(--mono);text-align:left;
+  transition:background .1s,color .1s;
+}
+.git-file-row:hover{background:var(--tint);color:var(--ink)}
+.git-file-row.active{background:var(--accent-tint);color:var(--accent-ink)}
+.git-file-row .xy{
+  font:10.5px/1 var(--mono);
+  width:24px;flex:0 0 24px;text-align:center;
+  color:var(--ink-3);
+}
+.git-file-row.active .xy{color:var(--accent-ink)}
+.git-file-row .name{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.git-diff{
+  padding:10px 12px;
+  border-top:1px solid var(--line);
+  background:var(--bg);
+  min-height:140px;max-height:42vh;overflow:auto;
+}
+.git-diff pre{
+  margin:0;
+  font:11.5px/1.5 var(--mono);
+  color:var(--ink);
+  white-space:pre;tab-size:4;
+}
+.git-diff-empty{color:var(--ink-3);font-size:12px;padding:4px 2px}
+.git-commit{padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px}
+.git-commit textarea{
+  width:100%;min-height:64px;max-height:160px;resize:vertical;
+  padding:8px 10px;border:1px solid var(--line);border-radius:6px;
+  background:var(--bg);color:var(--ink);font:12.5px/1.5 var(--mono);
+  outline:none;
+}
+.git-empty{padding:18px 14px;color:var(--ink-3);font-size:12px;text-align:center}
+
+/* ---------------- commit graph ----------------
+   The graph column is one SVG sized to the lane count; the label column sits
+   beside it and both scroll inside .git-graph. Rows stay aligned because both
+   halves use the same 22px row height (ROW_H in gitGraph.ts). */
+.git-history{
+  flex:1;min-height:0;min-width:0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.git-graph{
+  flex:1;min-height:0;overflow:auto;
+  display:flex;align-items:flex-start;
+  padding:0 0 8px;
+}
+.git-graph-svg{flex:0 0 auto;display:block}
+.git-graph-rows{flex:1;min-width:0}
+.git-graph-row{
+  display:flex;align-items:center;gap:6px;
+  width:100%;height:22px;overflow:hidden;
+  padding:0;border:0;outline:0;background:transparent;cursor:pointer;text-align:left;
+  font:11.5px/1 var(--mono);color:var(--ink-2);
+}
+.git-graph-row:hover{background:var(--tint);color:var(--ink)}
+.git-graph-row.active{background:var(--accent-tint);color:var(--accent-ink)}
+.git-graph-subject{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.git-graph-meta{flex:0 0 auto;color:var(--ink-3);font-size:10.5px}
+.git-ref{
+  flex:0 0 auto;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:1px 5px;border-radius:4px;font-size:10px;line-height:1.4;
+  border:1px solid var(--line);color:var(--ink-3);
+}
+.git-ref-head{color:var(--accent-ink);border-color:var(--accent-tint);background:var(--accent-tint)}
+.git-ref-remote{color:#4c8dff;border-color:#4c8dff66}
+.git-ref-tag{color:#e3b341;border-color:#e3b34166}
+
+/* ---------------- commit detail page ----------------
+   Reuses .diff-page / .diff-editor for the patch rows; only the header,
+   message, and the collapsible file list are new. */
+.commit-page .commit-body{
+  flex:1;min-height:0;overflow-y:auto;
+  padding:14px 18px 24px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.commit-subject{font-size:15px;line-height:1.35;white-space:normal}
+.commit-refs{display:flex;flex-wrap:wrap;gap:6px}
+.commit-message{
+  margin:0;padding:10px 12px;
+  border:1px solid var(--line);border-radius:6px;background:var(--bg);
+  font:12.5px/1.6 var(--mono);color:var(--ink);
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.commit-parents{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.commit-label{
+  font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);
+}
+.commit-parent{
+  padding:2px 7px;border:1px solid var(--line);border-radius:5px;
+  background:transparent;color:var(--ink-2);cursor:pointer;
+  font:11.5px/1.5 var(--mono);
+}
+.commit-parent:hover{border-color:var(--accent-tint);color:var(--accent-ink)}
+.commit-note{margin:0;font-size:11.5px;color:var(--ink-3)}
+.commit-summary{
+  display:flex;align-items:center;gap:10px;
+  padding-top:4px;font-size:12px;color:var(--ink-2);
+}
+.commit-summary .add,.commit-file-stat .add{color:#3fb950}
+.commit-summary .del,.commit-file-stat .del{color:#ff7b72}
+.commit-file{border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.commit-file + .commit-file{margin-top:6px}
+.commit-file-row{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:7px 10px;border:0;outline:0;background:transparent;cursor:pointer;
+  font:12px/1.3 var(--mono);color:var(--ink-2);text-align:left;
+}
+.commit-file-row:hover{background:var(--tint);color:var(--ink)}
+.commit-file-row.open{background:var(--tint);color:var(--ink)}
+.commit-file-caret{width:10px;flex:0 0 10px;color:var(--ink-3);font-size:10px}
+.commit-file-row .xy{
+  width:24px;flex:0 0 24px;text-align:center;font-size:10.5px;color:var(--ink-3);
+}
+.commit-file-row .name{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.commit-file-stat{flex:0 0 auto;display:flex;gap:6px;font-size:11px}
+.commit-file-patch{border-top:1px solid var(--line)}
+.commit-file-patch .diff-editor{max-height:52vh;overflow:auto}
+
+/* ---------------- diff page (text-editor style) ----------------
+   4-column grid per row: old line number | new line number | sign | code.
+   Per-line background tints additions (green) and deletions (red) and
+   surfaces hunk headers. Green uses a literal token (no --ok in the
+   palette) so it stays readable across all 6 themes. */
+.diff-page{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--content-bg);padding:0}
+.diff-head{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;
+  border-bottom:1px solid var(--line);
+  background:var(--surface);
+  flex:0 0 auto;
+}
+.diff-head .back-btn{margin:0;padding:0 6px;height:26px}
+.diff-head .grow{min-width:0;flex:1}
+.diff-path{
+  font:600 13px/1.3 var(--mono);
+  word-break:break-all;
+  margin:0;
+}
+.diff-page .resource-lede{margin:2px 0 0}
+.diff-editor{
+  flex:1;min-height:0;overflow:auto;
+  background:var(--content-bg);
+  font:var(--term-font-size,12.5px)/1.5 var(--term-font,var(--mono));
+  color:var(--ink);
+}
+.diff-editor.diff-empty{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);font-size:12.5px;
+  padding:24px;
+}
+.diff-line{
+  display:grid;
+  grid-template-columns:56px 56px 22px minmax(0,1fr);
+  align-items:stretch;
+  white-space:pre;
+}
+.diff-line:hover{background:var(--tint)}
+.diff-line .gutter{
+  text-align:right;padding:0 8px;
+  color:var(--ink-3);user-select:none;
+  background:var(--surface);
+  border-right:1px solid var(--line);
+}
+.diff-line .sign{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);user-select:none;font-weight:600;
+}
+.diff-line .code{
+  padding:0 10px;overflow:hidden;overflow-wrap:anywhere;
+  white-space:pre-wrap;
+}
+.diff-line.diff-add{background:rgba(26,127,55,.10)}
+.diff-line.diff-add .sign{color:#1a7f37}
+.diff-line.diff-del{background:rgba(220,38,38,.08)}
+.diff-line.diff-del .sign{color:var(--danger)}
+:root.dark .diff-line.diff-add{background:rgba(46,160,67,.15)}
+:root.dark .diff-line.diff-add .sign{color:#7ee787}
+:root.dark .diff-line.diff-del{background:rgba(248,81,73,.15)}
+.diff-line.diff-ctx .sign{color:transparent}
+.diff-line.diff-hunk{
+  background:var(--surface);color:var(--ink-2);
+  font-style:italic;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.diff-line.diff-hunk .gutter,.diff-line.diff-hunk .sign{border-right:0;background:transparent}
+.diff-err{
+  margin:8px;padding:10px 12px;
+  background:color-mix(in srgb,var(--danger) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);
+  border-radius:6px;color:var(--danger);
+  font:12px/1.4 var(--mono);
+  white-space:pre-wrap;
+}
+
+/* ---------------- syntax highlight tokens (diff page) ----------------
+   Token kinds: kw=str/num/cmt/fn/type/var/op/punc/prop. Base colors are
+   the standard VS Code light/dark token colors so they read on the
+   default palette's white/charcoal canvas; per-palette overrides below
+   pick the equivalent accent from each palette's own token vocabulary
+   (e.g. catppuccin keyword = mauve, rose-pine = iris, etc.). */
+.diff-line .code .syn-kw   { color:#0000ff;font-weight:600 }
+.diff-line .code .syn-str  { color:#a31515 }
+.diff-line .code .syn-cmt  { color:var(--ink-3);font-style:italic }
+.diff-line .code .syn-num  { color:#098658 }
+.diff-line .code .syn-fn   { color:#795e26 }
+.diff-line .code .syn-type { color:#267f99 }
+.diff-line .code .syn-var  { color:var(--ink) }
+.diff-line .code .syn-prop { color:var(--ink-2) }
+.diff-line .code .syn-op   { color:var(--ink-2) }
+.diff-line .code .syn-punc { color:var(--ink-2) }
+:root.dark .diff-line .code .syn-kw   { color:#569cd6 }
+:root.dark .diff-line .code .syn-str  { color:#ce9178 }
+:root.dark .diff-line .code .syn-cmt  { color:var(--ink-3);font-style:italic }
+:root.dark .diff-line .code .syn-num  { color:#b5cea8 }
+:root.dark .diff-line .code .syn-fn   { color:#dcdcaa }
+:root.dark .diff-line .code .syn-type { color:#4ec9b0 }
+:root.dark .diff-line .code .syn-var  { color:var(--ink) }
+:root.dark .diff-line .code .syn-prop { color:var(--ink-2) }
+
+/* catppuccin: keyword=mauve, string=green, number=peach, function=blue, type=mauve */
+:root.palette-catppuccin .diff-line .code .syn-kw,
+:root.palette-catppuccin-frappe .diff-line .code .syn-kw,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-kw,
+:root.palette-catppuccin-mocha .diff-line .code .syn-kw { color:#8839ef }
+:root.palette-catppuccin .diff-line .code .syn-str,
+:root.palette-catppuccin-frappe .diff-line .code .syn-str,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-str,
+:root.palette-catppuccin-mocha .diff-line .code .syn-str { color:#40a02b }
+:root.palette-catppuccin .diff-line .code .syn-num,
+:root.palette-catppuccin-frappe .diff-line .code .syn-num,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-num,
+:root.palette-catppuccin-mocha .diff-line .code .syn-num { color:#fe640b }
+:root.palette-catppuccin .diff-line .code .syn-fn,
+:root.palette-catppuccin-frappe .diff-line .code .syn-fn,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-fn,
+:root.palette-catppuccin-mocha .diff-line .code .syn-fn { color:#1e66f5 }
+:root.palette-catppuccin .diff-line .code .syn-type,
+:root.palette-catppuccin-frappe .diff-line .code .syn-type,
+:root.palette-catppuccin-macchiato .diff-line .code .syn-type,
+:root.palette-catppuccin-mocha .diff-line .code .syn-type { color:#8839ef }
+:root.dark.palette-catppuccin .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-kw,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-kw { color:#cba6f7 }
+:root.dark.palette-catppuccin .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-str,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-str { color:#a6e3a1 }
+:root.dark.palette-catppuccin .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-num,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-num { color:#fab387 }
+:root.dark.palette-catppuccin .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-fn,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-fn { color:#89b4fa }
+:root.dark.palette-catppuccin .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-frappe .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-macchiato .diff-line .code .syn-type,
+:root.dark.palette-catppuccin-mocha .diff-line .code .syn-type { color:#cba6f7 }
+
+/* rose-pine: keyword=iris, string=foam (cyan), number=rose, function=foam, type=iris */
+:root.palette-rose-pine .diff-line .code .syn-kw   { color:#575279 }
+:root.palette-rose-pine .diff-line .code .syn-str  { color:#286983 }
+:root.palette-rose-pine .diff-line .code .syn-num  { color:#b4637a }
+:root.palette-rose-pine .diff-line .code .syn-fn   { color:#286983 }
+:root.palette-rose-pine .diff-line .code .syn-type { color:#575279 }
+:root.dark.palette-rose-pine .diff-line .code .syn-kw   { color:#c4a7e7 }
+:root.dark.palette-rose-pine .diff-line .code .syn-str  { color:#9ccfd8 }
+:root.dark.palette-rose-pine .diff-line .code .syn-num  { color:#eb6f92 }
+:root.dark.palette-rose-pine .diff-line .code .syn-fn   { color:#9ccfd8 }
+:root.dark.palette-rose-pine .diff-line .code .syn-type { color:#c4a7e7 }
+
+/* gruvbox: keyword=red, string=green, number=purple, function=blue, type=yellow */
+:root.palette-gruvbox .diff-line .code .syn-kw   { color:#9d0006 }
+:root.palette-gruvbox .diff-line .code .syn-str  { color:#79740e }
+:root.palette-gruvbox .diff-line .code .syn-num  { color:#8f3f71 }
+:root.palette-gruvbox .diff-line .code .syn-fn   { color:#076678 }
+:root.palette-gruvbox .diff-line .code .syn-type { color:#b57614 }
+:root.dark.palette-gruvbox .diff-line .code .syn-kw   { color:#fb4934 }
+:root.dark.palette-gruvbox .diff-line .code .syn-str  { color:#b8bb26 }
+:root.dark.palette-gruvbox .diff-line .code .syn-num  { color:#d3869b }
+:root.dark.palette-gruvbox .diff-line .code .syn-fn   { color:#83a598 }
+:root.dark.palette-gruvbox .diff-line .code .syn-type { color:#fabd2f }
+
+/* dracula: light darkens the official hues (pink/yellow/purple/green/cyan);
+   dark keeps keyword=pink, string=yellow, number=purple, function=green, type=cyan */
+:root.palette-dracula .diff-line .code .syn-kw   { color:#a626a4 }
+:root.palette-dracula .diff-line .code .syn-str  { color:#986801 }
+:root.palette-dracula .diff-line .code .syn-num  { color:#6f42c1 }
+:root.palette-dracula .diff-line .code .syn-fn   { color:#1b7c3c }
+:root.palette-dracula .diff-line .code .syn-type { color:#0e7a8d }
+:root.dark.palette-dracula .diff-line .code .syn-kw   { color:#ff79c6 }
+:root.dark.palette-dracula .diff-line .code .syn-str  { color:#f1fa8c }
+:root.dark.palette-dracula .diff-line .code .syn-num  { color:#bd93f9 }
+:root.dark.palette-dracula .diff-line .code .syn-fn   { color:#50fa7b }
+:root.dark.palette-dracula .diff-line .code .syn-type { color:#8be9fd }
+
+/* nord: keyword=blue, string=green, number=red, function=blue, type=cyan
+   (light darkens aurora green/red/cyan so tokens stay readable on Snow Storm) */
+:root.palette-nord .diff-line .code .syn-kw   { color:#5e81ac }
+:root.palette-nord .diff-line .code .syn-str  { color:#5e8b46 }
+:root.palette-nord .diff-line .code .syn-num  { color:#a6424d }
+:root.palette-nord .diff-line .code .syn-fn   { color:#5e81ac }
+:root.palette-nord .diff-line .code .syn-type { color:#2e85a0 }
+:root.dark.palette-nord .diff-line .code .syn-kw   { color:#81a1c1 }
+:root.dark.palette-nord .diff-line .code .syn-str  { color:#a3be8c }
+:root.dark.palette-nord .diff-line .code .syn-num  { color:#bf616a }
+:root.dark.palette-nord .diff-line .code .syn-fn   { color:#81a1c1 }
+:root.dark.palette-nord .diff-line .code .syn-type { color:#8fbcbb }
+
+/* classic: retro hues darkened to stay readable on the cream canvas
+   (keyword=purple, string=green, number=orange, function=blue, type=teal);
+   dark keeps the full-saturation arcade set on the deep navy canvas */
+:root.palette-classic .diff-line .code .syn-kw   { color:#7e2553 }
+:root.palette-classic .diff-line .code .syn-str  { color:#0b7d3f }
+:root.palette-classic .diff-line .code .syn-num  { color:#a35c00 }
+:root.palette-classic .diff-line .code .syn-fn   { color:#1169b0 }
+:root.palette-classic .diff-line .code .syn-type { color:#0f7f86 }
+:root.dark.palette-classic .diff-line .code .syn-kw   { color:#ff77a8 }
+:root.dark.palette-classic .diff-line .code .syn-str  { color:#a7f070 }
+:root.dark.palette-classic .diff-line .code .syn-num  { color:#ffcd75 }
+:root.dark.palette-classic .diff-line .code .syn-fn   { color:#82c8ff }
+:root.dark.palette-classic .diff-line .code .syn-type { color:#59d3b8 }
+
+/* e-ink: strict black & white — every token shares the ink color;
+   structure comes from the base keyword weight and comment italic */
+:root.palette-eink .diff-line .code .syn-kw   { color:#000000 }
+:root.palette-eink .diff-line .code .syn-str  { color:#000000 }
+:root.palette-eink .diff-line .code .syn-num  { color:#000000 }
+:root.palette-eink .diff-line .code .syn-fn   { color:#000000 }
+:root.palette-eink .diff-line .code .syn-type { color:#000000 }
+:root.dark.palette-eink .diff-line .code .syn-kw   { color:#ffffff }
+:root.dark.palette-eink .diff-line .code .syn-str  { color:#ffffff }
+:root.dark.palette-eink .diff-line .code .syn-num  { color:#ffffff }
+:root.dark.palette-eink .diff-line .code .syn-fn   { color:#ffffff }
+:root.dark.palette-eink .diff-line .code .syn-type { color:#ffffff }
+
+:root.palette-tokyo-night .diff-line .code .syn-kw   { color:#7c3aed }
+:root.palette-tokyo-night .diff-line .code .syn-str  { color:#59873d }
+:root.palette-tokyo-night .diff-line .code .syn-num  { color:#b15a00 }
+:root.palette-tokyo-night .diff-line .code .syn-fn   { color:#2e7de9 }
+:root.palette-tokyo-night .diff-line .code .syn-type { color:#00938e }
+:root.dark.palette-tokyo-night .diff-line .code .syn-kw   { color:#bb9af7 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-str  { color:#9ece6a }
+:root.dark.palette-tokyo-night .diff-line .code .syn-num  { color:#ff9e64 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-fn   { color:#7aa2f7 }
+:root.dark.palette-tokyo-night .diff-line .code .syn-type { color:#7dcfff }
+
+/* pastel-pixel: the pastel set deepened just enough to read on the cream
+   canvas (keyword=burnt orange, string=sage, number=peach, function=blue,
+   type=mint); dark lifts the same five hues to full pastel on soft navy */
+:root.palette-pastel-pixel .diff-line .code .syn-kw   { color:#cf5a17 }
+:root.palette-pastel-pixel .diff-line .code .syn-str  { color:#5d9450 }
+:root.palette-pastel-pixel .diff-line .code .syn-num  { color:#c56a2b }
+:root.palette-pastel-pixel .diff-line .code .syn-fn   { color:#3f7fc1 }
+:root.palette-pastel-pixel .diff-line .code .syn-type { color:#2f8f83 }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-kw   { color:#f5a75e }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-str  { color:#a8d494 }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-num  { color:#f2b98a }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-fn   { color:#9cc0f0 }
+:root.dark.palette-pastel-pixel .diff-line .code .syn-type { color:#8fd4c9 }
+
+/* pi-web: keyword/function=violet, string/type=teal, number=amber */
+:root.palette-pi-web .diff-line .code .syn-kw   { color:#6430d8 }
+:root.palette-pi-web .diff-line .code .syn-str  { color:#008c82 }
+:root.palette-pi-web .diff-line .code .syn-num  { color:#b05f00 }
+:root.palette-pi-web .diff-line .code .syn-fn   { color:#6430d8 }
+:root.palette-pi-web .diff-line .code .syn-type { color:#008c82 }
+:root.dark.palette-pi-web .diff-line .code .syn-kw   { color:#b7a2ff }
+:root.dark.palette-pi-web .diff-line .code .syn-str  { color:#00f0d8 }
+:root.dark.palette-pi-web .diff-line .code .syn-num  { color:#ffb000 }
+:root.dark.palette-pi-web .diff-line .code .syn-fn   { color:#b7a2ff }
+:root.dark.palette-pi-web .diff-line .code .syn-type { color:#00f0d8 }
+
+/* pixelated: cool pastel syntax, darkened just enough to clear AA on the
+   light canvas (4.5:1+) while staying pastel-bright on the dark one */
+:root.palette-pixelated .diff-line .code .syn-kw   { color:#5F6FAC }
+:root.palette-pixelated .diff-line .code .syn-str  { color:#4E7A68 }
+:root.palette-pixelated .diff-line .code .syn-num  { color:#9A6A40 }
+:root.palette-pixelated .diff-line .code .syn-fn   { color:#4A6AA0 }
+:root.palette-pixelated .diff-line .code .syn-type { color:#8A6285 }
+:root.dark.palette-pixelated .diff-line .code .syn-kw   { color:#B0BCE8 }
+:root.dark.palette-pixelated .diff-line .code .syn-str  { color:#9DCFBB }
+:root.dark.palette-pixelated .diff-line .code .syn-num  { color:#E2BC90 }
+:root.dark.palette-pixelated .diff-line .code .syn-fn   { color:#A8C2EC }
+:root.dark.palette-pixelated .diff-line .code .syn-type { color:#D3AED0 }
+
+/* VT323 on the code surfaces: the bundled pixel mono finally has a job.
+   Scoped to diff/editor text and never the terminal — it has no box-drawing
+   glyphs, and the terminal needs them. */
+:root.palette-pixelated .diff-line .code,
+:root.palette-pixelated .commit-message,
+:root.palette-pixelated .resource-editor{font-family:'VT323',var(--mono)}
+
+/* ---------------- Changes pill (titlebar window action) ----------------
+   Sits in the right cluster of the titlebar, just before the dark-mode
+   toggle, so it stays visible regardless of whether the left sidebar or
+   terminal tabs are open. Toggles the Git Tools right panel on click;
+   live-updates with `+N -N` from the active workspace's diff stat.
+   Hidden when no workspace is active or the folder is not a git repo.
+   Colors echo the diff page's add/del palette. */
+.git-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  height:24px;padding:0 9px;
+  margin:0 4px 0 0;
+  border:1px solid var(--line);border-radius:11px;
+  background:var(--surface);color:var(--ink-2);
+  font:11.5px/1 var(--mono);
+  cursor:pointer;outline:none;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.git-pill:hover{background:var(--tint);color:var(--ink);border-color:var(--line-2)}
+.git-pill[hidden]{display:none!important}
+.git-pill .git-pill-label{font-weight:550;color:var(--ink-2)}
+.git-pill .git-pill-add{color:#1a7f37}
+.git-pill .git-pill-del{color:var(--danger)}
+:root.dark .git-pill .git-pill-add{color:#7ee787}
+
+/* settings modal: approval hooks row */
+.hooks-row{display:flex;align-items:center;gap:10px}
+.hooks-row .settings-hint{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* settings modal: remote pairing */
+.remote-pair img{width:180px;height:180px;display:block;border:1px solid var(--line);
+  border-radius:10px;background:#fff;padding:8px}
+.remote-urlrow{display:flex;gap:8px;min-width:0}
+.remote-url{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px}
+
+/* sidebar bottom dock: remote button + popover */
+.sidebar-remote{position:relative}
+.sidebar-remote.active{background:var(--accent-tint);color:var(--accent-ink)}
+.dock-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;
+  background:transparent;pointer-events:none}
+.dock-dot.on{background:var(--accent)}
+.remote-pop{position:fixed;z-index:120;width:288px;max-height:calc(100vh - 100px);
+  overflow:auto;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:12px;padding:12px 14px;box-shadow:0 12px 36px rgba(32,29,25,.18)}
+.remote-pop-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  margin-bottom:4px}
+.remote-pop-status{font-size:11px;color:var(--ink-3)}
