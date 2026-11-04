@@ -113,7 +113,14 @@ pub fn split_leaf(t: PaneNode, pane_id: &str, dir: Dir, new_id: &str, key: &str)
 }
 
 /* `before` puts the new pane first (up/left), default appends after (right/down) */
-pub fn split_leaf_at(t: PaneNode, pane_id: &str, dir: Dir, new_id: &str, key: &str, before: bool) -> PaneNode {
+pub fn split_leaf_at(
+    t: PaneNode,
+    pane_id: &str,
+    dir: Dir,
+    new_id: &str,
+    key: &str,
+    before: bool,
+) -> PaneNode {
     match t {
         PaneNode::Leaf { id } => {
             if id == pane_id {

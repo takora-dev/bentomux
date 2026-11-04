@@ -477,10 +477,7 @@ mod tests {
         ALL match — a lone `? ` line without the `question` header is
         not the question panel. */
         let m = manifest_for("kimi").expect("kimi manifest");
-        let base = vec![
-            "↑↓ select   esc cancel".to_string(),
-            "↵ choose".to_string(),
-        ];
+        let base = vec!["↑↓ select   esc cancel".to_string(), "↵ choose".to_string()];
         let mut partial = base.clone();
         partial.push("? pick one".to_string());
         let d = evaluate(
@@ -722,7 +719,12 @@ mod tests {
                 ],
             },
         );
-        assert_eq!(idle.state, Some(RunState::Idle), "idle splash: {:?}", idle.rule_id);
+        assert_eq!(
+            idle.state,
+            Some(RunState::Idle),
+            "idle splash: {:?}",
+            idle.rule_id
+        );
 
         let busy = evaluate(
             &m,
@@ -761,7 +763,11 @@ mod tests {
                 ],
             },
         );
-        assert_eq!(busy.state, Some(RunState::Working), "mid-turn: {:?}", busy.rule_id);
+        assert_eq!(
+            busy.state,
+            Some(RunState::Working),
+            "mid-turn: {:?}",
+            busy.rule_id
+        );
     }
-
 }

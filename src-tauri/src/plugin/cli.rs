@@ -74,8 +74,8 @@ pub fn run_validate(args: &[String]) -> i32 {
     };
     let path = Path::new(dir);
     /* a folder, or a packaged .zip — the same two shapes the Studio review
-       screen accepts, so an agent validating a release asset is checking the
-       exact thing a user would install */
+    screen accepts, so an agent validating a release asset is checking the
+    exact thing a user would install */
     if !path.is_dir() && !path.is_file() {
         eprintln!("not a plugin folder or package: {}", dir);
         return EXIT_USAGE;

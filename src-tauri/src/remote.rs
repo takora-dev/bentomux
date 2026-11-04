@@ -420,7 +420,10 @@ mod ws_auth_regression {
             None => {
                 let now = Instant::now();
                 assert!(session_live(now, now));
-                assert!(!session_live(now, now + SESSION_TTL + Duration::from_secs(1)));
+                assert!(!session_live(
+                    now,
+                    now + SESSION_TTL + Duration::from_secs(1)
+                ));
             }
         }
     }

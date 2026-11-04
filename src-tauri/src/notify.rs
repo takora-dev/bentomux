@@ -21,8 +21,8 @@ mod delegate {
 
     define_class!(
         /* AppKit hands a foreground app's notification to its delegate instead
-           of showing it. Without one macOS accepts the request and then
-           presents nothing, which looks exactly like a broken feature. */
+        of showing it. Without one macOS accepts the request and then
+        presents nothing, which looks exactly like a broken feature. */
         #[unsafe(super(NSObject))]
         #[name = "BentomuxNotificationDelegate"]
         #[ivars = ()]
@@ -64,15 +64,15 @@ fn modern_path_allowed(bundle_path: &str, has_identifier: bool) -> bool {
 }
 
 /* Whether this process may use the modern UNUserNotificationCenter client.
-   Only a real .app bundle may: macOS raises an ObjC exception otherwise (and
-   a throw unwinding into Rust is a hard crash - the reported SIGSEGV in
-   _Unwind_RaiseException under NSAssertionHandler).
-   A bundle identifier alone does not prove a bundle: tauri-build embeds the
-   Info.plist in the binary (__TEXT,__info_plist), so the bare target/debug
-   binary that `tauri dev` runs reports CFBundleIdentifier just like the
-   installed app does. Only the bundle path tells them apart.
-   The process must also stick to one client: macOS refuses to mix the legacy
-   NSUserNotification client with the modern centre, and the mix raises too. */
+Only a real .app bundle may: macOS raises an ObjC exception otherwise (and
+a throw unwinding into Rust is a hard crash - the reported SIGSEGV in
+_Unwind_RaiseException under NSAssertionHandler).
+A bundle identifier alone does not prove a bundle: tauri-build embeds the
+Info.plist in the binary (__TEXT,__info_plist), so the bare target/debug
+binary that `tauri dev` runs reports CFBundleIdentifier just like the
+installed app does. Only the bundle path tells them apart.
+The process must also stick to one client: macOS refuses to mix the legacy
+NSUserNotification client with the modern centre, and the mix raises too. */
 #[cfg(target_os = "macos")]
 pub fn modern_client() -> bool {
     use objc2_foundation::NSBundle;
@@ -84,7 +84,7 @@ pub fn modern_client() -> bool {
 }
 
 /* The legacy client never talks to the modern UserNotifications daemon, so it
-   is safe outside a bundle. It can still raise, so it gets the same fence. */
+is safe outside a bundle. It can still raise, so it gets the same fence. */
 #[cfg(target_os = "macos")]
 fn legacy_send(title: &str, body: &str) -> Result<(), String> {
     let sent = objc2::exception::catch(std::panic::AssertUnwindSafe(|| {
@@ -119,8 +119,8 @@ pub fn install() {
 }
 
 /* tauri dev runs the bare binary: no bundle, and UserNotifications kills the
-   process without one, so dev keeps the legacy path (nothing opens a modern
-   client there, so the two never meet in one process). */
+process without one, so dev keeps the legacy path (nothing opens a modern
+client there, so the two never meet in one process). */
 #[cfg(target_os = "macos")]
 pub fn send(_app: &tauri::AppHandle, title: &str, body: &str) -> Result<(), String> {
     if !modern_client() {

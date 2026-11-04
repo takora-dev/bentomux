@@ -528,8 +528,8 @@ pub async fn plugin_marketplace_index(
         Err(json) => stale_or_fail(&cache, json)?,
     };
     /* The sweep knows nothing about this machine's installs, so the join is
-       done here, on every response — cached or fresh. Doing it inside the
-       sweep would bake one user's installed set into a file another user reads. */
+    done here, on every response — cached or fresh. Doing it inside the
+    sweep would bake one user's installed set into a file another user reads. */
     marketplace::annotate(&mut catalog.plugins, &records);
     Ok(catalog)
 }
@@ -601,7 +601,7 @@ fn install_from_marketplace(
 
     state.patch_state_sync(|s| {
         /* installing over an existing id is an update by another name; one
-           record per plugin keeps the list and the rollback target sane */
+        record per plugin keeps the list and the rollback target sane */
         s.plugins.retain(|r| r.id != record.id);
         s.plugins.push(record.clone());
     });
@@ -677,9 +677,14 @@ fn update_from_marketplace(
     let mut out: Option<PluginRecord> = None;
     state.patch_state_sync(|s| {
         if let Some(existing) = s.plugins.iter_mut().find(|r| r.id == installed.id) {
-            registry::commit_update(paths, existing, &installed.version, installed.sha256.clone());
+            registry::commit_update(
+                paths,
+                existing,
+                &installed.version,
+                installed.sha256.clone(),
+            );
             /* keep the repo, or the next sweep forgets where this came from and
-               the plugin silently stops being offered updates */
+            the plugin silently stops being offered updates */
             existing.source = PluginSource::Url {
                 url: url.to_string(),
                 repo: Some(repo.to_string()),
@@ -729,13 +734,11 @@ fn peek_manifest(bytes: &[u8]) -> PluginResult<crate::plugin::PluginManifest> {
  */
 #[tauri::command]
 pub async fn plugin_fetch_url(url: String, sha256: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        marketplace::fetch_to_temp(&url, &sha256)
-    })
-    .await
-    .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?
-    .map_err(String::from)
-    .map(|p| p.to_string_lossy().into_owned())
+    tauri::async_runtime::spawn_blocking(move || marketplace::fetch_to_temp(&url, &sha256))
+        .await
+        .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?
+        .map_err(String::from)
+        .map(|p| p.to_string_lossy().into_owned())
 }
 
 /// A plugin's README at its release tag, as plain text.
@@ -743,10 +746,7 @@ pub async fn plugin_fetch_url(url: String, sha256: String) -> Result<String, Str
 /// Fetched on demand rather than during the sweep: one README per plugin would
 /// double the request count for text the user has not asked to see yet.
 #[tauri::command]
-pub async fn plugin_marketplace_readme(
-    repo: String,
-    git_ref: String,
-) -> Result<String, String> {
+pub async fn plugin_marketplace_readme(repo: String, git_ref: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || marketplace::readme(&repo, &git_ref))
         .await
         .map_err(|e| format!("{{\"code\":\"io\",\"message\":\"{}\"}}", e))?
@@ -991,15 +991,8 @@ mod tests {
         install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), repo, ASSET).unwrap();
 
         let (v2, d2) = release(&root, "acme.t", "1.1.0");
-        let out = update_from_marketplace(
-            &paths,
-            &mgr,
-            &v2.to_string_lossy(),
-            &d2,
-            repo,
-            ASSET,
-        )
-        .unwrap();
+        let out =
+            update_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), &d2, repo, ASSET).unwrap();
 
         assert_eq!(out.version, "1.1.0");
         /* the whole point of commit_update: the way back is intact */
@@ -1008,7 +1001,7 @@ mod tests {
         assert!(paths.version_dir("acme.t", "1.1.0").is_dir());
 
         /* and the provenance survives, or the next sweep offers no
-           further update and the user cannot tell where the code came from */
+        further update and the user cannot tell where the code came from */
         assert!(matches!(
             &out.source,
             PluginSource::Url { repo: Some(r), url } if r == repo && url == ASSET
@@ -1028,15 +1021,9 @@ mod tests {
         install_from_marketplace(&paths, &mgr, &v1.to_string_lossy(), repo, ASSET).unwrap();
 
         let (v1_again, d) = release(&root, "acme.t", "1.0.0");
-        let err = update_from_marketplace(
-            &paths,
-            &mgr,
-            &v1_again.to_string_lossy(),
-            &d,
-            repo,
-            ASSET,
-        )
-        .unwrap_err();
+        let err =
+            update_from_marketplace(&paths, &mgr, &v1_again.to_string_lossy(), &d, repo, ASSET)
+                .unwrap_err();
         assert!(err.to_string().contains("not newer"), "{}", err);
 
         /* unchanged on disk, and still no phantom rollback target */
@@ -1074,10 +1061,11 @@ mod tests {
         install_from_marketplace(&paths, &mgr, &mine.to_string_lossy(), "acme/t", ASSET).unwrap();
 
         /* a repo whose release swaps the plugin id inside the archive: the
-           catalog cannot reach this, but the archive must still be believed */
+        catalog cannot reach this, but the archive must still be believed */
         let (theirs, d) = release(&root, "evil.t", "9.9.9");
-        let err = update_from_marketplace(&paths, &mgr, &theirs.to_string_lossy(), &d, "acme/t", ASSET)
-            .unwrap_err();
+        let err =
+            update_from_marketplace(&paths, &mgr, &theirs.to_string_lossy(), &d, "acme/t", ASSET)
+                .unwrap_err();
         assert!(err.to_string().contains("installed plugin is"), "{}", err);
         assert_eq!(mgr.get_state().plugins.len(), 1);
         assert_eq!(mgr.get_state().plugins[0].id, "acme.t");
@@ -1114,14 +1102,13 @@ mod tests {
 
         let (v1, _) = release(&root, "acme.t", "1.0.0");
         /* installed by hand from a folder, so no repo is recorded — the exact
-           state a pre-marketplace install is left in */
+        state a pre-marketplace install is left in */
         let record = registry::install_from_zip(&paths, &v1).unwrap();
         assert!(matches!(record.source, PluginSource::Folder { .. }));
         mgr.patch_state_sync(|s| s.plugins.push(record));
 
         let (v2, d) = release(&root, "acme.t", "1.1.0");
-        let err =
-            update_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), &d, "acme/t", ASSET)
+        let err = update_from_marketplace(&paths, &mgr, &v2.to_string_lossy(), &d, "acme/t", ASSET)
             .unwrap_err();
         assert!(matches!(err, PluginError::NotFound(_)), "{:?}", err);
         assert_eq!(mgr.get_state().plugins[0].version, "1.0.0");

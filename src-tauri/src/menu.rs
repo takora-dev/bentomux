@@ -34,13 +34,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         ..Default::default()
     };
 
-    let close_pane = MenuItem::with_id(
-        app,
-        CLOSE_PANE_ID,
-        "Close Pane",
-        true,
-        Some("CmdOrCtrl+W"),
-    )?;
+    let close_pane =
+        MenuItem::with_id(app, CLOSE_PANE_ID, "Close Pane", true, Some("CmdOrCtrl+W"))?;
 
     Menu::with_items(
         app,

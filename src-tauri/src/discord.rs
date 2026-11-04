@@ -197,7 +197,7 @@ fn read_op(stream: &mut impl Read) -> Option<u32> {
     let op = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
     let len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
     /* a length past this is not a frame we asked for; drop the connection
-       rather than allocate whatever the peer claimed */
+    rather than allocate whatever the peer claimed */
     if len > 64 * 1024 {
         return None;
     }
@@ -222,7 +222,7 @@ fn endpoint_path(index: u32) -> String {
 #[cfg(unix)]
 fn endpoint_path(index: u32) -> std::path::PathBuf {
     /* Linux distributions put it under $XDG_RUNTIME_DIR, which matters because
-       a flatpak or snap Discord creates no entry in $TMPDIR. */
+    a flatpak or snap Discord creates no entry in $TMPDIR. */
     std::env::var_os("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .filter(|p| p.is_dir())
@@ -245,7 +245,7 @@ fn open_endpoint(index: u32) -> Option<Endpoint> {
 fn open_endpoint(index: u32) -> Option<Endpoint> {
     let path = endpoint_path(index);
     /* A socket file left behind by a crashed Discord exists but refuses to
-       connect; `exists` alone would report it as a running client. */
+    connect; `exists` alone would report it as a running client. */
     path.exists()
         .then(|| std::os::unix::net::UnixStream::connect(path).ok())
         .flatten()
@@ -295,15 +295,20 @@ fn connect(app_id: &str) -> Result<(), String> {
         endpoint
             .set_write_timeout(Some(IO_TIMEOUT))
             .map_err(|e| e.to_string())?;
-        let handshake = frame(HANDSHAKE, &serde_json::json!({ "v": 1, "client_id": app_id }));
+        let handshake = frame(
+            HANDSHAKE,
+            &serde_json::json!({ "v": 1, "client_id": app_id }),
+        );
         endpoint.write_all(&handshake).map_err(|e| e.to_string())?;
         /* Discord answers a handshake with a FRAME carrying READY. There is
-           no acknowledgement for the handshake itself, so accepting any
-           well-formed frame is the strongest signal available. */
+        no acknowledgement for the handshake itself, so accepting any
+        well-formed frame is the strongest signal available. */
         match read_op(&mut endpoint) {
             Some(FRAME) => {}
             Some(other) => {
-                return Err(format!("unexpected opcode {other} in the Discord handshake"))
+                return Err(format!(
+                    "unexpected opcode {other} in the Discord handshake"
+                ))
             }
             None => return Err("Discord did not answer the handshake".to_string()),
         }
@@ -350,7 +355,10 @@ pub async fn discord_set_activity(app_id: String, activity: Activity) -> Result<
     let activity = sanitized(&activity);
     tauri::async_runtime::spawn_blocking(move || {
         connect(&app_id)?;
-        send_activity(&app_id, serde_json::to_value(activity.to_wire()).unwrap_or_default())
+        send_activity(
+            &app_id,
+            serde_json::to_value(activity.to_wire()).unwrap_or_default(),
+        )
     })
     .await
     .map_err(|e| format!("Discord task failed: {e}"))?
@@ -362,8 +370,8 @@ pub async fn discord_set_activity(app_id: String, activity: Activity) -> Result<
 pub async fn discord_clear_activity(app_id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         /* Best effort: a client that is already gone has nothing to clear, and
-           failing here would turn a normal shutdown into an error the user
-           has to interpret. */
+        failing here would turn a normal shutdown into an error the user
+        has to interpret. */
         let _ = send_activity(&app_id, serde_json::Value::Null);
         with_connections(|conns| conns.retain(|(id, _)| id != &app_id));
         Ok(())
@@ -377,13 +385,19 @@ mod tests {
     use super::*;
 
     fn activity(details: &str) -> Activity {
-        Activity { details: details.into(), ..Default::default() }
+        Activity {
+            details: details.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn frame_is_little_endian_op_then_length() {
         let bytes = frame(1, &serde_json::json!({ "a": 1 }));
-        assert_eq!(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]), 1);
+        assert_eq!(
+            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            1
+        );
         assert_eq!(
             u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize,
             bytes.len() - 8
@@ -400,9 +414,18 @@ mod tests {
     fn buttons_need_https_and_at_most_two_are_kept() {
         let out = sanitized(&Activity {
             buttons: vec![
-                ActivityButton { label: "a".into(), url: "https://example.com".into() },
-                ActivityButton { label: "b".into(), url: "https://example.org".into() },
-                ActivityButton { label: "c".into(), url: "https://example.net".into() },
+                ActivityButton {
+                    label: "a".into(),
+                    url: "https://example.com".into(),
+                },
+                ActivityButton {
+                    label: "b".into(),
+                    url: "https://example.org".into(),
+                },
+                ActivityButton {
+                    label: "c".into(),
+                    url: "https://example.net".into(),
+                },
             ],
             ..Default::default()
         });
@@ -421,7 +444,7 @@ mod tests {
     #[test]
     fn clear_succeeds_whether_or_not_discord_runs() {
         /* No client, no connection: clear must not fail, or disabling the
-           plugin surfaces an error the user cannot act on. */
+        plugin surfaces an error the user cannot act on. */
         tauri::async_runtime::block_on(discord_clear_activity("0".into())).unwrap();
         assert!(with_connections(|c| c.is_empty()));
     }
@@ -429,9 +452,9 @@ mod tests {
     #[test]
     fn the_wire_format_is_snake_case_not_the_apps_camel_case() {
         /* Discord's client parses the activity itself and drops any key it
-           does not know, so camelCase here means a presence with no image and
-           no timer — and the IPC echo still looks healthy. This pins the
-           translation. */
+        does not know, so camelCase here means a presence with no image and
+        no timer — and the IPC echo still looks healthy. This pins the
+        translation. */
         let activity = Activity {
             details: "Bentomux".into(),
             state: Some("proj".into()),
@@ -462,14 +485,17 @@ mod tests {
             "largeText",
             "startTimestamp",
         ] {
-            assert!(wire.get(key).is_none(), "wire must not carry `{key}`: {wire}");
+            assert!(
+                wire.get(key).is_none(),
+                "wire must not carry `{key}`: {wire}"
+            );
         }
     }
 
     #[test]
     fn absent_wire_fields_are_omitted_not_sent_as_null() {
         /* Discord renders an explicit null differently from an absent key, so
-           the wire form skips them rather than serializing `None`. */
+        the wire form skips them rather than serializing `None`. */
         let wire = serde_json::to_value(Activity::default().to_wire()).unwrap();
         assert!(wire.get("large_image").is_none());
         assert!(wire.get("buttons").is_none());
@@ -479,12 +505,16 @@ mod tests {
     #[test]
     fn a_missing_state_is_left_off_the_wire_entirely() {
         /* Discord rejects the WHOLE activity when `state` is present but
-           empty — `"state" is not allowed to be empty`. A plugin that hides
-           its location line omits `state`, so an absent one must not collapse
-           to `""` on the wire, or the presence vanishes instead of losing a
-           line. Pins the bug: state is `Option`, and `None` skips the key. */
+        empty — `"state" is not allowed to be empty`. A plugin that hides
+        its location line omits `state`, so an absent one must not collapse
+        to `""` on the wire, or the presence vanishes instead of losing a
+        line. Pins the bug: state is `Option`, and `None` skips the key. */
         let wire = serde_json::to_value(
-            Activity { details: "Bentomux".into(), ..Default::default() }.to_wire(),
+            Activity {
+                details: "Bentomux".into(),
+                ..Default::default()
+            }
+            .to_wire(),
         )
         .unwrap();
         assert!(
@@ -496,14 +526,17 @@ mod tests {
     #[test]
     fn the_opcode_comes_from_the_header_not_the_body() {
         /* Discord's handshake reply has no `op` key in its JSON — reading it
-           from the body made every handshake look unanswered, so this pins
-           the header as the only place the opcode is read from. */
-        let frame = super::frame(super::FRAME, &serde_json::json!({
-            "cmd": "DISPATCH",
-            "data": { "v": 1 },
-            "evt": "READY",
-            "nonce": null,
-        }));
+        from the body made every handshake look unanswered, so this pins
+        the header as the only place the opcode is read from. */
+        let frame = super::frame(
+            super::FRAME,
+            &serde_json::json!({
+                "cmd": "DISPATCH",
+                "data": { "v": 1 },
+                "evt": "READY",
+                "nonce": null,
+            }),
+        );
         let op = read_op(&mut frame.as_slice()).expect("a well-formed frame reads back");
         assert_eq!(op, super::FRAME);
     }

@@ -612,20 +612,12 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                 /* echo the grid that actually landed: the clamp above (and a
                 pane the daemon no longer has) can make it differ from the
                 request, and the renderer has to know */
-                send_grid(
-                    host,
-                    &term.shared.id,
-                    snapshot.rows,
-                    snapshot.cols,
-                );
+                send_grid(host, &term.shared.id, snapshot.rows, snapshot.cols);
             } else {
                 /* unknown id: the app may be holding a pane this daemon never
                 spawned (a stale tab after a daemon restart). Say so instead of
                 staying silent, or the renderer keeps a grid nobody runs. */
-                send_json(
-                    host,
-                    json!({ "t": "grid-gone", "id": id }),
-                );
+                send_json(host, json!({ "t": "grid-gone", "id": id }));
             }
         }
         "kill" => {
@@ -658,7 +650,9 @@ fn handle_line(host: &Arc<Host>, line: &str) {
 the C locale: multibyte glyphs get the wrong cell width and zle erases short
 by a cell (ghost chars after autosuggest/menu completion). Only fill in a
 UTF-8 locale when the inherited one is missing or C/POSIX. */
-fn utf8_locale_overrides(get: impl Fn(&str) -> Option<String>) -> Vec<(&'static str, &'static str)> {
+fn utf8_locale_overrides(
+    get: impl Fn(&str) -> Option<String>,
+) -> Vec<(&'static str, &'static str)> {
     let is_c = |v: Option<String>| match v.as_deref() {
         None | Some("") | Some("C") | Some("POSIX") => true,
         Some(_) => false,
@@ -760,59 +754,55 @@ fn spawn_term(
                     panic escaping this loop silently ends the pane: the
                     child keeps writing, nothing is read again, and the pane
                     freezes until the app restarts. Lose one chunk instead. */
-                    let processed = std::panic::catch_unwind(
-                        std::panic::AssertUnwindSafe(|| {
-                            let chunk = decode_pty_bytes(&mut carry, &buf[..n]);
-                            /* Base64/JSON work happens before the gate. Inside it we
-                            only process the parser and enqueue an already-built
-                            line, keeping the hot critical section bounded. */
-                            let encoded_chunk = chunk
-                                .as_deref()
-                                .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
-                            let attached = {
-                                let _gate = gate_lock(&shared_r);
-                                feed_model(&shared_r, chunk.as_deref());
-                                if shared_r.attached.load(Ordering::SeqCst) {
-                                    if let Some(line) = encoded_chunk {
-                                        send_line(&host_r, line);
-                                    }
-                                    true
-                                } else {
-                                    false
+                    let processed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let chunk = decode_pty_bytes(&mut carry, &buf[..n]);
+                        /* Base64/JSON work happens before the gate. Inside it we
+                        only process the parser and enqueue an already-built
+                        line, keeping the hot critical section bounded. */
+                        let encoded_chunk = chunk
+                            .as_deref()
+                            .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
+                        let attached = {
+                            let _gate = gate_lock(&shared_r);
+                            feed_model(&shared_r, chunk.as_deref());
+                            if shared_r.attached.load(Ordering::SeqCst) {
+                                if let Some(line) = encoded_chunk {
+                                    send_line(&host_r, line);
                                 }
-                            };
-                            if attached {
-                                let now = now_ms();
-                                let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);
-                                if now.saturating_sub(previous) >= SNAPSHOT_INTERVAL_MS
-                                    && shared_r
-                                        .last_snapshot_at
-                                        .compare_exchange(
-                                            previous,
-                                            now,
-                                            Ordering::Relaxed,
-                                            Ordering::Relaxed,
-                                        )
-                                        .is_ok()
-                                {
-                                    /* Full text+HTML rendering is intentionally
-                                    coalesced. Raw bytes remain realtime; runtime
-                                    and remote already tick at 250 ms. */
-                                    let snapshot = term_lock(&shared_r).snapshot();
-                                    send_snapshot(&host_r, &shared_r.id, &snapshot);
-                                    shared_r.snapshot_pending.store(false, Ordering::Relaxed);
-                                } else {
-                                    /* throttled away: the sweeper flushes one
-                                    trailing snapshot once output goes quiet */
-                                    shared_r.snapshot_pending.store(true, Ordering::Relaxed);
-                                }
+                                true
+                            } else {
+                                false
                             }
-                        }),
-                    );
+                        };
+                        if attached {
+                            let now = now_ms();
+                            let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);
+                            if now.saturating_sub(previous) >= SNAPSHOT_INTERVAL_MS
+                                && shared_r
+                                    .last_snapshot_at
+                                    .compare_exchange(
+                                        previous,
+                                        now,
+                                        Ordering::Relaxed,
+                                        Ordering::Relaxed,
+                                    )
+                                    .is_ok()
+                            {
+                                /* Full text+HTML rendering is intentionally
+                                coalesced. Raw bytes remain realtime; runtime
+                                and remote already tick at 250 ms. */
+                                let snapshot = term_lock(&shared_r).snapshot();
+                                send_snapshot(&host_r, &shared_r.id, &snapshot);
+                                shared_r.snapshot_pending.store(false, Ordering::Relaxed);
+                            } else {
+                                /* throttled away: the sweeper flushes one
+                                trailing snapshot once output goes quiet */
+                                shared_r.snapshot_pending.store(true, Ordering::Relaxed);
+                            }
+                        }
+                    }));
                     if processed.is_err() {
-                        eprintln!(
-                            "[bentomux] pty reader skipped a chunk after a parser panic"
-                        );
+                        eprintln!("[bentomux] pty reader skipped a chunk after a parser panic");
                     }
                 }
                 Err(_) => break,
@@ -907,10 +897,10 @@ fn snapshot_sweep(host: Arc<Host>) {
             .collect();
         for shared in terms {
             /* A pathological vt100 state (seen: subtract-with-overflow in
-               grid.rs during a resize burst) panics mid-sweep; letting it
-               escape poisons the host's mutexes and kills the whole daemon
-               one unwrap at a time. Swallow this one panic: the next output
-               tick snapshots again from a fresh screen state. */
+            grid.rs during a resize burst) panics mid-sweep; letting it
+            escape poisons the host's mutexes and kills the whole daemon
+            one unwrap at a time. Swallow this one panic: the next output
+            tick snapshots again from a fresh screen state. */
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 sweep_term(&host, &shared);
             }));
@@ -1056,7 +1046,10 @@ mod tests {
         feed_model(&shared, first.as_deref());
         feed_model(&shared, second.as_deref());
         let text = shared.terminal.lock().unwrap().text();
-        assert!(text.starts_with("A\u{2500}B"), "shifted model screen: {text:?}");
+        assert!(
+            text.starts_with("A\u{2500}B"),
+            "shifted model screen: {text:?}"
+        );
     }
 
     /* the dropped-final-frame race: a burst's last chunk arrives inside
@@ -1098,7 +1091,10 @@ mod tests {
     #[test]
     fn utf8_locale_fills_missing_and_c_only() {
         let none = utf8_locale_overrides(|_| None);
-        assert_eq!(none, vec![("LANG", "en_US.UTF-8"), ("LC_CTYPE", "en_US.UTF-8")]);
+        assert_eq!(
+            none,
+            vec![("LANG", "en_US.UTF-8"), ("LC_CTYPE", "en_US.UTF-8")]
+        );
 
         let c = utf8_locale_overrides(|_| Some("C".to_string()));
         assert_eq!(c.len(), 2);

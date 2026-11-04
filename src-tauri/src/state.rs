@@ -95,7 +95,7 @@ pub struct RemotePrefs {
 }
 
 /* three source colors for the user-defined palette; every other token is
-   derived from them in CSS */
+derived from them in CSS */
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPalette {
@@ -256,7 +256,6 @@ pub struct Capabilities {
     pub mcp: bool,
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentInfo {
@@ -269,7 +268,6 @@ pub struct AgentInfo {
     /* config file path the adapter writes to; null when read-only */
     pub config_path: Option<String>,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -839,7 +837,7 @@ mod tests {
     }
 
     /* custom palette colors survive a save/load round trip; an older file
-       without them loads with the field absent */
+    without them loads with the field absent */
     #[test]
     fn test_custom_palette_roundtrip() {
         let path = temp_path("custom-palette");
@@ -973,7 +971,11 @@ mod tests {
             maximized: false,
         };
         assert!(saved.is_usable());
-        assert!(!WindowBounds { w: 899.0, ..saved.clone() }.is_usable());
+        assert!(!WindowBounds {
+            w: 899.0,
+            ..saved.clone()
+        }
+        .is_usable());
         assert!(!WindowBounds { h: 599.0, ..saved }.is_usable());
     }
 

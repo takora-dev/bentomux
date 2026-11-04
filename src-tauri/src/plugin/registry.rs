@@ -182,8 +182,8 @@ pub fn install_from_zip(paths: &PluginPaths, archive: &Path) -> PluginResult<Plu
     })();
 
     /* every exit, including a validation failure, takes the staging dir with
-       it: an abandoned `.unpack-*` folder is dead weight in the code root that
-       nothing ever cleans up */
+    it: an abandoned `.unpack-*` folder is dead weight in the code root that
+    nothing ever cleans up */
     fs::remove_dir_all(&staging_root).ok();
     result
 }
@@ -195,10 +195,10 @@ pub fn unpack_to(paths: &PluginPaths, archive: &Path) -> PluginResult<PathBuf> {
         .map_err(|e| PluginError::Manifest(format!("not a readable zip: {}", e)))?;
 
     /* checked before a byte is written: a 400 KB zip can expand to gigabytes,
-       and a plugin is code the app loads into its own realm, so unbounded
-       extraction is a denial of service on the shell */
+    and a plugin is code the app loads into its own realm, so unbounded
+    extraction is a denial of service on the shell */
     /* the names are collected first because `by_name` borrows the archive
-       mutably and `file_names` immutably */
+    mutably and `file_names` immutably */
     let names: Vec<String> = zip.file_names().map(str::to_string).collect();
     let mut declared: u64 = 0;
     for name in &names {
@@ -411,7 +411,7 @@ pub fn sync_bundled(paths: &PluginPaths, records: &mut Vec<PluginRecord>) -> Vec
     };
 
     /* ids the app still ships; anything bundled and absent from this list is
-       pruned below */
+    pruned below */
     let mut shipped: Vec<String> = Vec::new();
 
     for entry in entries.flatten() {
@@ -480,14 +480,14 @@ pub fn sync_bundled(paths: &PluginPaths, records: &mut Vec<PluginRecord>) -> Vec
     }
 
     /* A bundled plugin the app no longer ships must leave the registry too:
-       the copy unpacked on an earlier boot would otherwise keep running from
-       the user's plugin dir with nothing left to refresh it. Plugin data
-       stays — the same default an uninstall has. */
+    the copy unpacked on an earlier boot would otherwise keep running from
+    the user's plugin dir with nothing left to refresh it. Plugin data
+    stays — the same default an uninstall has. */
     let mut idx = 0;
     while idx < records.len() {
         let id = records[idx].id.clone();
-        let unshipped = matches!(records[idx].source, PluginSource::Bundled)
-            && !shipped.contains(&id);
+        let unshipped =
+            matches!(records[idx].source, PluginSource::Bundled) && !shipped.contains(&id);
         if !unshipped {
             idx += 1;
             continue;
@@ -537,7 +537,9 @@ fn place_version(
 fn swap_into_place(staging: &Path, dest: &Path) -> PluginResult<()> {
     let aside = dest.with_file_name(format!(
         ".old-{}-{}",
-        dest.file_name().and_then(|n| n.to_str()).unwrap_or("plugin"),
+        dest.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("plugin"),
         std::process::id()
     ));
     if aside.exists() {
@@ -683,10 +685,7 @@ mod tests {
                     id, version, id
                 ),
             ),
-            (
-                "index.js",
-                "export function activate() {}".to_string(),
-            ),
+            ("index.js", "export function activate() {}".to_string()),
         ] {
             writer.start_file(name, opts).unwrap();
             std::io::Write::write_all(&mut writer, body.as_bytes()).unwrap();
@@ -698,7 +697,7 @@ mod tests {
     #[test]
     fn a_flat_zip_from_the_documented_recipe_installs() {
         /* the marketplace hands authors a `zip -r x.zip .` command, so this
-           shape has to install, not just the nicer wrapped-directory one */
+        shape has to install, not just the nicer wrapped-directory one */
         let (p, root) = paths("flat-zip");
         let archive = zip_flat("acme.t", "1.0.0", &root);
 
@@ -706,16 +705,14 @@ mod tests {
         assert_eq!(rec.id, "acme.t");
         assert_eq!(rec.version, "1.0.0");
         /* the entry module really landed, so the plugin:// URL will resolve */
-        let entry = p
-            .version_dir("acme.t", "1.0.0")
-            .join("index.js");
+        let entry = p.version_dir("acme.t", "1.0.0").join("index.js");
         assert!(entry.is_file(), "index.js missing at {}", entry.display());
     }
 
     #[test]
     fn a_wrapped_zip_also_installs() {
         /* GitHub's own source archives have a wrapper dir, so both shapes have
-           to work or authors will hit this the moment they zip the repo */
+        to work or authors will hit this the moment they zip the repo */
         let (p, root) = paths("wrapped-zip");
         let archive = root.join("wrapped.zip");
         let file = fs::File::create(&archive).unwrap();
@@ -734,7 +731,10 @@ mod tests {
 
         let rec = install_from_zip(&p, &archive).unwrap();
         assert_eq!(rec.id, "acme.t");
-        assert!(p.version_dir("acme.t", "1.0.0").join("plugin.json").is_file());
+        assert!(p
+            .version_dir("acme.t", "1.0.0")
+            .join("plugin.json")
+            .is_file());
     }
 
     #[test]
@@ -947,8 +947,8 @@ mod tests {
     }
 
     /* A build that stops shipping a bundled plugin must also retire it: the
-       copy unpacked on the previous boot lives in the user's plugin dir, and
-       without this prune it keeps running forever. */
+    copy unpacked on the previous boot lives in the user's plugin dir, and
+    without this prune it keeps running forever. */
     #[test]
     fn bundled_sync_prunes_plugins_the_app_no_longer_ships() {
         let (p, root) = paths("bundled-prune");

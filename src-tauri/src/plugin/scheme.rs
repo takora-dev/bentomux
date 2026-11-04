@@ -218,7 +218,10 @@ mod tests {
     #[test]
     fn version_segment_is_stripped_before_lookup() {
         assert_eq!(strip_version_segment("@v/ab12cd34/index.js"), "index.js");
-        assert_eq!(strip_version_segment("@v/ab12cd34/assets/a.svg"), "assets/a.svg");
+        assert_eq!(
+            strip_version_segment("@v/ab12cd34/assets/a.svg"),
+            "assets/a.svg"
+        );
         assert_eq!(strip_version_segment("index.js"), "index.js");
     }
 

@@ -85,8 +85,7 @@ impl TerminalModel {
     }
 
     pub fn set_size(&mut self, rows: u16, cols: u16) {
-        self.term
-            .set_size(rows.max(MIN_ROWS), cols.max(MIN_COLS));
+        self.term.set_size(rows.max(MIN_ROWS), cols.max(MIN_COLS));
     }
 
     pub fn process(&mut self, chunk: &[u8]) {

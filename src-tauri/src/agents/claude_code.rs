@@ -56,10 +56,7 @@ impl ClaudeCodeAdapter {
                         .unwrap_or_default();
                     let str = |v: &serde_json::Value| v.as_str().unwrap_or("").to_string();
                     let model = obj.get("model").map(&str).unwrap_or_default();
-                    let base_url = env
-                        .get("ANTHROPIC_BASE_URL")
-                        .map(&str)
-                        .unwrap_or_default();
+                    let base_url = env.get("ANTHROPIC_BASE_URL").map(&str).unwrap_or_default();
                     let has_key = env
                         .get("ANTHROPIC_AUTH_TOKEN")
                         .map(|v| !str(v).is_empty())

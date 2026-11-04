@@ -262,9 +262,9 @@ pub fn run() {
             commands::notify_permission,
             commands::notify_open_settings,
             /* Discord Rich Presence: the only non-read-only commands on the
-               plugin allowlist (see plugin/mod.rs BACKEND_ALLOWLIST). They
-               write to the local Discord client's IPC socket and nowhere
-               else — no network, no filesystem, no other app. */
+            plugin allowlist (see plugin/mod.rs BACKEND_ALLOWLIST). They
+            write to the local Discord client's IPC socket and nowhere
+            else — no network, no filesystem, no other app. */
             discord::discord_set_activity,
             discord::discord_clear_activity,
             discord::discord_status,
@@ -285,7 +285,7 @@ pub fn run() {
             commands::pty_resize,
             commands::pty_attach,
             /* read-only, and on the plugin allowlist: pane cwd + file listing
-               + file contents for file-viewer plugins */
+            + file contents for file-viewer plugins */
             commands::pane_cwd,
             commands::fs_list_dir,
             commands::fs_read_file,
@@ -445,7 +445,12 @@ back, so a save/restore cycle is stable instead of creeping by the
 window-frame size on every launch. */
 fn restore_window_bounds(app: &tauri::AppHandle, win: &tauri::WebviewWindow) {
     use tauri::Manager;
-    let Some(bounds) = app.state::<state::AppStateManager>().get_state().prefs.window else {
+    let Some(bounds) = app
+        .state::<state::AppStateManager>()
+        .get_state()
+        .prefs
+        .window
+    else {
         return;
     };
     if bounds.is_usable() {
@@ -455,18 +460,21 @@ fn restore_window_bounds(app: &tauri::AppHandle, win: &tauri::WebviewWindow) {
         rects are compared in the window's own scale factor — good enough for
         an overlap test. */
         let scale = win.scale_factor().unwrap_or(1.0);
-        let visible = win.available_monitors().unwrap_or_default().iter().any(|m| {
-            let (mx, my) = (
-                m.position().x as f64 / scale,
-                m.position().y as f64 / scale,
-            );
-            let (mw, mh) = (
-                m.size().width as f64 / scale,
-                m.size().height as f64 / scale,
-            );
-            bounds.x < mx + mw && bounds.x + bounds.w > mx && bounds.y < my + mh
-                && bounds.y + bounds.h > my
-        });
+        let visible = win
+            .available_monitors()
+            .unwrap_or_default()
+            .iter()
+            .any(|m| {
+                let (mx, my) = (m.position().x as f64 / scale, m.position().y as f64 / scale);
+                let (mw, mh) = (
+                    m.size().width as f64 / scale,
+                    m.size().height as f64 / scale,
+                );
+                bounds.x < mx + mw
+                    && bounds.x + bounds.w > mx
+                    && bounds.y < my + mh
+                    && bounds.y + bounds.h > my
+            });
         if visible {
             let _ = win.set_position(tauri::LogicalPosition::new(bounds.x, bounds.y));
         }

@@ -72,16 +72,16 @@ pub fn prefs_update(partial: serde_json::Value, state: State<'_, AppStateManager
 }
 
 /* Settings > Notifications: prove the OS notification path without waiting
-   for an agent transition. Ignores the prefs gates on purpose. */
+for an agent transition. Ignores the prefs gates on purpose. */
 #[tauri::command]
 pub fn notify_test(app: tauri::AppHandle) -> Result<(), String> {
     crate::notify::send(&app, "Bentomux", "Notifications are working.")
 }
 
 /* ---------------- notification permission ----------------
-   The OS verdict on whether Bentomux may show notifications:
-   "granted" | "denied" | "prompt" (macOS has not asked yet) | "unknown"
-   (macOS dev, where the bare binary has no bundle to ask about). */
+The OS verdict on whether Bentomux may show notifications:
+"granted" | "denied" | "prompt" (macOS has not asked yet) | "unknown"
+(macOS dev, where the bare binary has no bundle to ask about). */
 
 #[cfg(target_os = "macos")]
 fn notify_permission_impl(_app: &tauri::AppHandle, prompt: bool) -> String {
@@ -171,8 +171,8 @@ fn notify_permission_impl(app: &tauri::AppHandle, _prompt: bool) -> String {
     }
 
     /* toasts are allowed unless switched off globally, or for this app's
-       AUMID (the bundle identifier, the value the installer puts on the
-       Start Menu shortcut) */
+    AUMID (the bundle identifier, the value the installer puts on the
+    Start Menu shortcut) */
     let global = dword(
         r"Software\Microsoft\Windows\CurrentVersion\PushNotifications",
         "ToastEnabled",
@@ -193,14 +193,14 @@ fn notify_permission_impl(app: &tauri::AppHandle, _prompt: bool) -> String {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn notify_permission_impl(_app: &tauri::AppHandle, _prompt: bool) -> String {
     /* D-Bus has no per-app notification grant: the desktop either runs a
-       notification daemon or the send is dropped. */
+    notification daemon or the send is dropped. */
     "granted".to_string()
 }
 
 /* prompt = true asks macOS for permission when it never has, and waits for
-   the answer; elsewhere it is a no-op. Returns the state after that. The
-   macOS query can wait on the user reading a system prompt, so it runs on
-   the blocking pool instead of a runtime worker. */
+the answer; elsewhere it is a no-op. Returns the state after that. The
+macOS query can wait on the user reading a system prompt, so it runs on
+the blocking pool instead of a runtime worker. */
 #[tauri::command]
 pub async fn notify_permission(app: tauri::AppHandle, prompt: bool) -> String {
     tauri::async_runtime::spawn_blocking(move || notify_permission_impl(&app, prompt))
@@ -209,7 +209,7 @@ pub async fn notify_permission(app: tauri::AppHandle, prompt: bool) -> String {
 }
 
 /* Deep-link to the OS notification settings, for a user whose OS is
-   blocking us. Linux has no standard cross-desktop pane. */
+blocking us. Linux has no standard cross-desktop pane. */
 #[tauri::command]
 pub fn notify_open_settings() -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -797,7 +797,7 @@ pub fn pty_resize(
 }
 
 /* the renderer lost buffered output for a pane and needs the daemon's
-  authoritative screen replayed (see terminal.ts bufferPending) */
+authoritative screen replayed (see terminal.ts bufferPending) */
 #[tauri::command]
 pub fn pty_attach(id: String, pty: State<'_, PtyManager>) -> Result<(), String> {
     pty.resync_term(&id)
@@ -1407,11 +1407,11 @@ pub fn fs_read_file(path: String) -> Result<FsFileContents, String> {
 }
 
 /* ---------------- zone background images ----------------
-   Wallpaper files live under app_data_dir/backgrounds/ and are named by
-   their content hash, so re-picking the same image never duplicates
-   storage and prefs stay valid across restarts. The renderer only ever
-   handles the bare file name; read/delete resolve it strictly inside that
-   directory after the same name check merge_prefs applies to patches. */
+Wallpaper files live under app_data_dir/backgrounds/ and are named by
+their content hash, so re-picking the same image never duplicates
+storage and prefs stay valid across restarts. The renderer only ever
+handles the bare file name; read/delete resolve it strictly inside that
+directory after the same name check merge_prefs applies to patches. */
 
 const BACKGROUND_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "gif"];
 const BACKGROUND_MAX_BYTES: usize = 25 * 1024 * 1024;
@@ -1527,10 +1527,7 @@ pub struct BackgroundImageData {
 }
 
 #[tauri::command]
-pub fn background_read(
-    app: tauri::AppHandle,
-    name: String,
-) -> Result<BackgroundImageData, String> {
+pub fn background_read(app: tauri::AppHandle, name: String) -> Result<BackgroundImageData, String> {
     if !is_background_name(&name) {
         return Err("invalid background file name".to_string());
     }

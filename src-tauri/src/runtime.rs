@@ -236,7 +236,7 @@ fn publish(statuses: &BTreeMap<String, RuntimeStatus>) {
 }
 
 /* Which state transitions earn an OS notification. Only working -> done
-   (idle) and working -> blocked, per the settings copy. */
+(idle) and working -> blocked, per the settings copy. */
 fn transition_notice(prev: &AgentRunState, next: &AgentRunState) -> Option<&'static str> {
     match (prev, next) {
         (AgentRunState::Working, AgentRunState::Idle) => Some("finished"),
@@ -273,9 +273,9 @@ fn pane_label(app: &tauri::AppHandle, pane_id: &str, agent: &str) -> String {
 }
 
 /* Fire an OS notification for a working -> done/blocked transition.
-   Only manifest- and integration-derived states qualify: the "activity"
-   fallback flips on a 1.5 s output pulse and would notify on every shell
-   command in a pane whose agent has no manifest. */
+Only manifest- and integration-derived states qualify: the "activity"
+fallback flips on a 1.5 s output pulse and would notify on every shell
+command in a pane whose agent has no manifest. */
 fn notify_state_change(
     app: &tauri::AppHandle,
     pane_id: &str,
@@ -709,7 +709,7 @@ pub fn init(app: tauri::AppHandle) {
                     });
                 } else {
                     /* agent gone: forget the old state so the next agent in
-                       this pane cannot inherit it and fire a stale notice */
+                    this pane cannot inherit it and fire a stale notice */
                     runtime_state()
                         .lock()
                         .unwrap()

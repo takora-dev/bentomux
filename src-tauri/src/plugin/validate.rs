@@ -149,12 +149,12 @@ pub fn validate_path_with(path: &Path, opts: &ValidateOptions) -> ValidationRepo
     }
 
     /* One throwaway root per invocation. A single shared root
-       (`bentomux-validate`) was handed to every call, and Rust tests run in
-       parallel: two archives unpacked in the same millisecond landed in the
-       same `.unpack-*` directory, so an empty archive was validated against a
-       valid plugin's `plugin.json` and came back `ok`. The pid separates
-       processes; a random token separates concurrent calls inside one process
-       without a clock to collide on. */
+    (`bentomux-validate`) was handed to every call, and Rust tests run in
+    parallel: two archives unpacked in the same millisecond landed in the
+    same `.unpack-*` directory, so an empty archive was validated against a
+    valid plugin's `plugin.json` and came back `ok`. The pid separates
+    processes; a random token separates concurrent calls inside one process
+    without a clock to collide on. */
     let validation_root = std::env::temp_dir().join(format!(
         "bentomux-validate-{}-{:016x}",
         std::process::id(),
@@ -167,9 +167,9 @@ pub fn validate_path_with(path: &Path, opts: &ValidateOptions) -> ValidationRepo
         Ok(staging) => staging,
         Err(_) => {
             /* not a directory and not a readable archive: report it as the
-               packaging failure it is, rather than as a missing manifest. The
-               failed unpack may still have created the code root, so the
-               throwaway tree is removed either way. */
+            packaging failure it is, rather than as a missing manifest. The
+            failed unpack may still have created the code root, so the
+            throwaway tree is removed either way. */
             let _ = fs::remove_dir_all(&validation_root);
 
             let mut report = ValidationReport::empty();
@@ -187,7 +187,7 @@ pub fn validate_path_with(path: &Path, opts: &ValidateOptions) -> ValidationRepo
     let report = validate_dir_with(&staging, opts);
 
     /* Remove both the extracted staging tree and its unique parent: nothing
-       from a validation run should survive in the temp directory. */
+    from a validation run should survive in the temp directory. */
     let _ = fs::remove_dir_all(&validation_root);
     report
 }
@@ -659,7 +659,10 @@ fn exported_names(src: &str) -> Option<std::collections::HashSet<String>> {
             if part.is_empty() {
                 continue;
             }
-            let exported = part.rsplit(|ch: char| ch.is_whitespace()).next().unwrap_or(part);
+            let exported = part
+                .rsplit(|ch: char| ch.is_whitespace())
+                .next()
+                .unwrap_or(part);
             out.insert(exported.to_string());
         }
     }
@@ -687,14 +690,23 @@ fn check_sibling_imports(root: &Path, report: &mut ValidationReport) {
     let mut files: Vec<PathBuf> = entries
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file() && p.extension().map(|x| x == "js" || x == "mjs").unwrap_or(false))
+        .filter(|p| {
+            p.is_file()
+                && p.extension()
+                    .map(|x| x == "js" || x == "mjs")
+                    .unwrap_or(false)
+        })
         .collect();
     files.sort();
     for file in files {
         let Ok(src) = fs::read_to_string(&file) else {
             continue;
         };
-        let name = file.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = file
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         for c in import.captures_iter(&src) {
             let spec = &c[2];
             let Some(target) = safe_join(root, spec.trim_start_matches("./")) else {
@@ -703,7 +715,10 @@ fn check_sibling_imports(root: &Path, report: &mut ValidationReport) {
             let Ok(body) = fs::read_to_string(&target) else {
                 report.errors.push(Issue::at(
                     codes::IMPORT_UNRESOLVED,
-                    format!("{} imports `{}`, which does not exist in the plugin", name, spec),
+                    format!(
+                        "{} imports `{}`, which does not exist in the plugin",
+                        name, spec
+                    ),
                     &name,
                 ));
                 continue;
@@ -716,7 +731,10 @@ fn check_sibling_imports(root: &Path, report: &mut ValidationReport) {
                 if raw.is_empty() {
                     continue;
                 }
-                let imported = raw.split(|ch: char| ch.is_whitespace()).next().unwrap_or(raw);
+                let imported = raw
+                    .split(|ch: char| ch.is_whitespace())
+                    .next()
+                    .unwrap_or(raw);
                 if !exports.contains(imported) {
                     report.errors.push(Issue::at(
                         codes::IMPORT_NOT_EXPORTED,
@@ -1078,8 +1096,8 @@ mod tests {
     #[test]
     fn a_packaged_zip_validates_instead_of_reporting_a_missing_manifest() {
         /* the bug this covers: Studio's review step handed the validator a zip
-           path, `validate_dir_with` looked for plugin.json inside the .zip, and
-           every packaged plugin came back `manifest-missing` */
+        path, `validate_dir_with` looked for plugin.json inside the .zip, and
+        every packaged plugin came back `manifest-missing` */
         let root = std::env::temp_dir().join(format!("bentomux-vz-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
@@ -1145,7 +1163,9 @@ mod tests {
         assert!(!report.ok);
         /* the packaging failure is named, instead of blaming the manifest */
         assert!(
-            report.errors[0].message.contains("plugin folder nor a readable"),
+            report.errors[0]
+                .message
+                .contains("plugin folder nor a readable"),
             "{:?}",
             report.errors[0]
         );
@@ -1155,9 +1175,9 @@ mod tests {
     #[test]
     fn a_deflate_bomb_is_refused_before_a_byte_is_written() {
         /* 6 MB of zeros through deflate is a ~6 KB file that DECLARES 6 MB
-           uncompressed, over the 5 MB cap. This is the real attack, and the
-           point of checking the declared total is that the cheap file never
-           gets expanded at all. */
+        uncompressed, over the 5 MB cap. This is the real attack, and the
+        point of checking the declared total is that the cheap file never
+        gets expanded at all. */
         let root = std::env::temp_dir().join(format!("bentomux-vz-bomb-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
@@ -1171,7 +1191,11 @@ mod tests {
         w.finish().unwrap();
 
         let on_disk = std::fs::metadata(&archive).unwrap().len();
-        assert!(on_disk < 100_000, "the bomb file itself should be tiny, was {}", on_disk);
+        assert!(
+            on_disk < 100_000,
+            "the bomb file itself should be tiny, was {}",
+            on_disk
+        );
 
         let paths = super::super::registry::PluginPaths::new(&root.join("code"));
         std::fs::create_dir_all(&paths.code_root).unwrap();
@@ -1191,8 +1215,8 @@ mod tests {
     #[test]
     fn a_failed_validation_leaves_no_staging_directory_behind() {
         /* the other half of the same fix: an archive that unpacks but fails
-           validation used to leave a .unpack-* folder in the code root that
-           nothing ever cleaned up */
+        validation used to leave a .unpack-* folder in the code root that
+        nothing ever cleaned up */
         let root = std::env::temp_dir().join(format!("bentomux-vz-leak-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
@@ -1502,7 +1526,11 @@ mod tests {
 
     #[test]
     fn network_origins_must_be_bare_https_origins() {
-        for good in ["https://petdex.dev", "https://assets.petdex.dev", "https://api.x.io:8443"] {
+        for good in [
+            "https://petdex.dev",
+            "https://assets.petdex.dev",
+            "https://api.x.io:8443",
+        ] {
             assert!(valid_network_origin(good), "{good} should pass");
         }
         for bad in [
@@ -1539,7 +1567,10 @@ mod tests {
         let bad = g.validate();
         assert!(!bad.ok);
         assert_eq!(
-            bad.errors.iter().filter(|i| i.code == codes::NETWORK_INVALID).count(),
+            bad.errors
+                .iter()
+                .filter(|i| i.code == codes::NETWORK_INVALID)
+                .count(),
             2
         );
     }
@@ -1554,7 +1585,10 @@ mod tests {
         .write("index.js", "export {}");
         let r = f.validate();
         assert!(r.ok, "{:?}", r.errors);
-        assert!(r.warnings.iter().any(|i| i.message.contains("declared twice")));
+        assert!(r
+            .warnings
+            .iter()
+            .any(|i| i.message.contains("declared twice")));
     }
 
     /* the mixed-version install: index.js imports a name the old sprite.js no

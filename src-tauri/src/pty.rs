@@ -1163,7 +1163,8 @@ mod tests {
                 drop(previous);
             }
             let next = connect_test_manager(&host);
-            let restored = next.restore_terms(std::slice::from_ref(&workspace), std::slice::from_ref(&tab));
+            let restored =
+                next.restore_terms(std::slice::from_ref(&workspace), std::slice::from_ref(&tab));
             assert_eq!(restored.len(), 1, "restore failed on cycle {cycle}");
             let restored_tree = restored[0].split_tree.as_ref().expect("split preserved");
             let leaves = crate::split_tree::leaf_ids(restored_tree);
@@ -1381,7 +1382,8 @@ mod tests {
 
         /* put a marker on the screen, then let the output settle so the
         replay below cannot be mistaken for the echo itself */
-        mgr.write_term(&id, "echo RESYNC_MARKER\r\n").expect("write");
+        mgr.write_term(&id, "echo RESYNC_MARKER\r\n")
+            .expect("write");
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
         let mut seen = String::new();
         while !seen.contains("RESYNC_MARKER") && std::time::Instant::now() < deadline {
@@ -1393,7 +1395,10 @@ mod tests {
                 Err(_) => break,
             }
         }
-        assert!(seen.contains("RESYNC_MARKER"), "marker never echoed: {seen:?}");
+        assert!(
+            seen.contains("RESYNC_MARKER"),
+            "marker never echoed: {seen:?}"
+        );
         std::thread::sleep(Duration::from_millis(300));
         while data_rx.try_recv().is_ok() {}
 
@@ -1464,7 +1469,10 @@ mod tests {
             split_tree: tree_from_legacy(&legacy, None),
             title: None,
         };
-        let restored = mgr.restore_terms(std::slice::from_ref(&workspace), std::slice::from_ref(&single));
+        let restored = mgr.restore_terms(
+            std::slice::from_ref(&workspace),
+            std::slice::from_ref(&single),
+        );
         assert_eq!(restored.len(), 1);
         assert!(restored[0].split_tree.is_none());
         assert!(mgr.get_term(&restored[0].id).is_some());

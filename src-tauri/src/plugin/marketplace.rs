@@ -85,8 +85,8 @@ pub struct MarketplacePlugin {
     pub note: String,
 
     /* Filled in by `annotate` from the app's own registry. The catalog knows
-       nothing about what is installed, and the renderer should not have to
-       re-derive it — this is the only place version comparison happens. */
+    nothing about what is installed, and the renderer should not have to
+    re-derive it — this is the only place version comparison happens. */
     /// A plugin from this repo is installed.
     pub installed: bool,
     /// Its installed manifest version; empty when not installed.
@@ -175,7 +175,7 @@ fn api_get(url: &str) -> PluginResult<Vec<u8>> {
         .map_err(|e| PluginError::Io(format!("github request failed: {}", e)))?;
 
     /* Rate limiting is the expected failure, not an edge case: say so plainly
-       instead of surfacing a bare 403 the user cannot act on. */
+    instead of surfacing a bare 403 the user cannot act on. */
     if resp.status().as_u16() == 403 || resp.status().as_u16() == 429 {
         return Err(PluginError::Unsupported(
             "GitHub's rate limit was reached. The marketplace shows the last saved \
@@ -198,11 +198,12 @@ fn api_get(url: &str) -> PluginResult<Vec<u8>> {
 /// Find every repo tagged with the marketplace topic and resolve its latest
 /// release. One search plus one call per repo.
 pub fn sweep() -> PluginResult<Vec<MarketplacePlugin>> {
-    let search: SearchResponse = serde_json::from_slice(&api_get(&search_url())?)
-        .map_err(|e| PluginError::Manifest(format!("could not read the GitHub search result: {}", e)))?;
+    let search: SearchResponse = serde_json::from_slice(&api_get(&search_url())?).map_err(|e| {
+        PluginError::Manifest(format!("could not read the GitHub search result: {}", e))
+    })?;
 
     /* A fork or an archived repo is not something to install. Dropping them
-       here costs nothing and keeps the list honest. */
+    here costs nothing and keeps the list honest. */
     let repos: Vec<SearchHit> = search
         .items
         .into_iter()
@@ -211,7 +212,7 @@ pub fn sweep() -> PluginResult<Vec<MarketplacePlugin>> {
         .collect();
 
     /* merge() is total — a repo with a broken release becomes a row that says
-       why it cannot be installed, not a hole in the list. */
+    why it cannot be installed, not a hole in the list. */
     let mut plugins: Vec<MarketplacePlugin> = repos
         .into_iter()
         .map(|hit| {
@@ -284,10 +285,12 @@ fn merge(hit: SearchHit, release: Option<ReleaseResponse>) -> MarketplacePlugin 
         .collect();
 
     match zips.as_slice() {
-        [] => p.note = format!(
-            "Release {} has no .zip asset. Publish one with `gh release create`.",
-            release.tag_name
-        ),
+        [] => {
+            p.note = format!(
+                "Release {} has no .zip asset. Publish one with `gh release create`.",
+                release.tag_name
+            )
+        }
         [asset] => {
             p.asset_name = asset.name.clone();
             p.download_url = asset.browser_download_url.clone();
@@ -298,14 +301,16 @@ fn merge(hit: SearchHit, release: Option<ReleaseResponse>) -> MarketplacePlugin 
                     p.sha256 = d.trim_start_matches("sha256:").to_lowercase();
                     p.installable = true;
                 }
-                Some(_) => p.note =
-                    "GitHub published no sha256 digest for this asset, so it cannot be \
+                Some(_) => {
+                    p.note = "GitHub published no sha256 digest for this asset, so it cannot be \
                      verified. Re-upload it as a new release."
-                        .into(),
-                None => p.note =
-                    "This asset predates GitHub's release digests and cannot be verified. \
+                        .into()
+                }
+                None => {
+                    p.note = "This asset predates GitHub's release digests and cannot be verified. \
                      Re-upload it as a new release."
-                        .into(),
+                        .into()
+                }
             }
         }
         many => {
@@ -342,11 +347,14 @@ pub fn tag_version(tag: &str) -> Option<semver::Version> {
 /// accident through Update would overwrite the rollback target with the
 /// version the user just left.
 pub fn is_newer(tag: &str, installed: &str) -> bool {
-    match (tag_version(tag), semver::Version::parse(installed.trim()).ok()) {
+    match (
+        tag_version(tag),
+        semver::Version::parse(installed.trim()).ok(),
+    ) {
         (Some(candidate), Some(current)) => candidate > current,
         /* An unparseable installed version cannot be compared. Refusing to
-           claim an update loses nothing: the row still shows as installed,
-           and Reinstall is always available. */
+        claim an update loses nothing: the row still shows as installed,
+        and Reinstall is always available. */
         _ => false,
     }
 }
@@ -385,14 +393,18 @@ pub fn read_cache(path: &Path) -> Option<Catalog> {
     let bytes = std::fs::read(path).ok()?;
     let mut catalog: Catalog = serde_json::from_slice(&bytes).ok()?;
     /* ordered on the way out, not just on the way in: a cache written before
-       this rule existed is already on disk, and a catalog is only trustworthy
-       if it paginates the same way every time it is read */
+    this rule existed is already on disk, and a catalog is only trustworthy
+    if it paginates the same way every time it is read */
     by_stars(&mut catalog.plugins);
     catalog.stale = true;
     Some(catalog)
 }
 
-pub fn write_cache(path: &Path, plugins: Vec<MarketplacePlugin>, fetched_at: u64) -> PluginResult<()> {
+pub fn write_cache(
+    path: &Path,
+    plugins: Vec<MarketplacePlugin>,
+    fetched_at: u64,
+) -> PluginResult<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -467,12 +479,14 @@ pub fn verify_payload(expected_sha256: &str, bytes: &[u8]) -> PluginResult<()> {
 /// double the sweep's request count for text nobody is looking at yet.
 pub fn readme(repo: &str, git_ref: &str) -> PluginResult<String> {
     if !repo.contains('/') || repo.split('/').count() != 2 {
-        return Err(PluginError::Manifest(format!("not an owner/name repo: {}", repo)));
+        return Err(PluginError::Manifest(format!(
+            "not an owner/name repo: {}",
+            repo
+        )));
     }
     let url = format!(
         "https://raw.githubusercontent.com/{}/{}/README.md",
-        repo,
-        git_ref
+        repo, git_ref
     );
     let bytes = download(&url)?;
     let text = String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_README_BYTES)]).into_owned();
@@ -508,7 +522,7 @@ mod tests {
     #[test]
     fn most_starred_comes_first_and_ties_do_not_flap() {
         /* the tie-break is load-bearing once the list paginates: equal-starred
-           plugins swapping places puts the same plugin on two pages at once */
+        plugins swapping places puts the same plugin on two pages at once */
         let mut rows = vec![
             starred("zeta/one", 5),
             starred("a/two", 900),
@@ -521,7 +535,10 @@ mod tests {
             rows.iter().map(|r| r.repo.as_str()).collect::<Vec<_>>(),
             ["a/two", "b/four", "mike/three", "zeta/one"]
         );
-        assert_eq!(rows.iter().map(|r| r.stars).collect::<Vec<_>>(), [900, 42, 5, 5]);
+        assert_eq!(
+            rows.iter().map(|r| r.stars).collect::<Vec<_>>(),
+            [900, 42, 5, 5]
+        );
 
         /* input order must not matter: same list, same pagination */
         rows.reverse();
@@ -541,12 +558,16 @@ mod tests {
             stale_reason: String::new(),
             plugins: vec![starred("b/x", 1), starred("a/y", 77)],
         };
-        let path = std::env::temp_dir().join(format!("bentomux-mp-order-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("bentomux-mp-order-{}.json", std::process::id()));
         std::fs::write(&path, serde_json::to_vec(&catalog).unwrap()).unwrap();
 
         let read = read_cache(&path).expect("cache should parse");
         assert_eq!(
-            read.plugins.iter().map(|r| r.repo.as_str()).collect::<Vec<_>>(),
+            read.plugins
+                .iter()
+                .map(|r| r.repo.as_str())
+                .collect::<Vec<_>>(),
             ["a/y", "b/x"]
         );
         let _ = std::fs::remove_file(&path);
@@ -555,7 +576,7 @@ mod tests {
     #[test]
     fn annotating_installed_state_does_not_disturb_the_order() {
         /* annotate() rewrites rows in place; if it re-sorted, a plugin would
-           jump to a different page every time the catalog was re-read */
+        jump to a different page every time the catalog was re-read */
         let mut rows = vec![starred("a/low", 1), starred("b/high", 500)];
         annotate(&mut rows, &[]);
         assert_eq!(
@@ -567,7 +588,7 @@ mod tests {
     #[test]
     fn the_search_query_asks_for_the_most_starred_repos() {
         /* the 30-repo cap only means something if the cut is taken from a
-           star-ordered list rather than a relevance-ordered one */
+        star-ordered list rather than a relevance-ordered one */
         let url = search_url();
         assert!(url.contains("sort=stars"), "{}", url);
         assert!(url.contains("order=desc"), "{}", url);
@@ -619,7 +640,10 @@ mod tests {
 
     #[test]
     fn a_release_without_a_zip_says_what_to_do() {
-        let p = merge(hit("acme/things"), Some(release("v1.0.0", vec![asset("notes.txt", None)])));
+        let p = merge(
+            hit("acme/things"),
+            Some(release("v1.0.0", vec![asset("notes.txt", None)])),
+        );
         assert!(!p.installable);
         assert!(p.note.contains("no .zip asset"));
     }
@@ -655,7 +679,10 @@ mod tests {
     fn a_non_sha256_digest_is_not_silently_accepted() {
         let p = merge(
             hit("acme/things"),
-            Some(release("v1.0.0", vec![asset("a.zip", Some("md5:deadbeef"))])),
+            Some(release(
+                "v1.0.0",
+                vec![asset("a.zip", Some("md5:deadbeef"))],
+            )),
         );
         assert!(!p.installable);
         assert!(p.note.contains("no sha256 digest"), "note was: {}", p.note);
@@ -699,7 +726,7 @@ mod tests {
 
         let cached = read_cache(&path).unwrap();
         /* read_cache always marks what it returns as stale: it is by definition
-           not the sweep that just ran. */
+        not the sweep that just ran. */
         assert!(cached.stale);
         assert_eq!(cached.plugins, plugins);
         assert!(is_stale(&cached, 1_000 + CACHE_TTL_MILLIS));
@@ -738,9 +765,18 @@ mod tests {
 
     #[test]
     fn a_tag_needs_at_most_one_leading_v_to_be_a_version() {
-        assert_eq!(tag_version("v1.6.0").map(|v| v.to_string()), Some("1.6.0".into()));
-        assert_eq!(tag_version("1.6.0").map(|v| v.to_string()), Some("1.6.0".into()));
-        assert_eq!(tag_version("  v1.6.0  ").map(|v| v.to_string()), Some("1.6.0".into()));
+        assert_eq!(
+            tag_version("v1.6.0").map(|v| v.to_string()),
+            Some("1.6.0".into())
+        );
+        assert_eq!(
+            tag_version("1.6.0").map(|v| v.to_string()),
+            Some("1.6.0".into())
+        );
+        assert_eq!(
+            tag_version("  v1.6.0  ").map(|v| v.to_string()),
+            Some("1.6.0".into())
+        );
         /* an author writing "vv1" has a typo, not a version */
         assert!(tag_version("vv1.6.0").is_none());
         assert!(tag_version("release-3").is_none());
@@ -752,7 +788,7 @@ mod tests {
         assert!(is_newer("v1.6.1", "1.6.0"));
         assert!(is_newer("v2.0.0", "1.9.9"));
         /* same version: nothing to do, and committing it would set the
-           rollback target to the version already on disk */
+        rollback target to the version already on disk */
         assert!(!is_newer("v1.6.0", "1.6.0"));
         assert!(!is_newer("1.6.0", "1.6.0"));
         /* a downgrade belongs to Roll back, not Update */
@@ -771,7 +807,11 @@ mod tests {
             enabled: true,
             source: super::super::PluginSource::Url {
                 url: "https://github.com/acme/t/releases/download/v1/t.zip".into(),
-                repo: if repo.is_empty() { None } else { Some(repo.into()) },
+                repo: if repo.is_empty() {
+                    None
+                } else {
+                    Some(repo.into())
+                },
             },
             sha256: "0".repeat(64),
             installed_at: 0,
@@ -814,7 +854,7 @@ mod tests {
     #[test]
     fn an_install_without_a_recorded_repo_is_never_matched() {
         /* the pre-marketplace case: installed by hand from a folder or a zip,
-           so there is nothing to join on and nothing to claim */
+        so there is nothing to join on and nothing to claim */
         let mut rows = vec![row("acme/t", "v2.0.0")];
         annotate(&mut rows, &[record("", "1.0.0")]);
         assert!(!rows[0].installed);
@@ -835,7 +875,7 @@ mod tests {
     #[test]
     fn a_readme_url_cannot_be_pasted_together_from_two_repos() {
         /* a repo string with a path in it would build a raw URL outside the
-           intended host, so the shape is checked before any request */
+        intended host, so the shape is checked before any request */
         assert!(readme("owner/name/extra", "v1").is_err());
         assert!(readme("justname", "v1").is_err());
     }
@@ -889,7 +929,10 @@ mod tests {
         assert_eq!(p.downloads, 12);
         assert_eq!(p.stars, 314);
         /* the documented "sha256:" prefix is stripped before comparison */
-        assert_eq!(p.sha256, "759b31942b78c05434a5d958fdacfc66aaf81446e283b4a8b1444104cf9de850");
+        assert_eq!(
+            p.sha256,
+            "759b31942b78c05434a5d958fdacfc66aaf81446e283b4a8b1444104cf9de850"
+        );
         assert_eq!(p.sha256.len(), 64);
         assert!(!p.sha256.contains("sha256:"));
     }

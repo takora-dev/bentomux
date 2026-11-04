@@ -47,15 +47,15 @@ pub fn active_overlay(app: &AppHandle) -> Option<WebviewWindow> {
 }
 
 /* show the pill and re-assert always-on-top: on Windows the TOPMOST bit is
-   lost across hide/show cycles, which let foreground apps cover the pill */
+lost across hide/show cycles, which let foreground apps cover the pill */
 fn show_topmost(w: &WebviewWindow) {
     let _ = w.show();
     let _ = w.set_always_on_top(true);
 }
 
 /* hide whatever overlay currently exists (decisions resolved elsewhere).
-   Never touch the always-on-top flag here — the pill must survive
-   hide/show cycles still above every normal app. */
+Never touch the always-on-top flag here — the pill must survive
+hide/show cycles still above every normal app. */
 pub fn hide_active_overlay(app: &AppHandle) {
     match active_overlay(app) {
         Some(w) => {
@@ -169,7 +169,10 @@ pub fn show_approval_overlay(app: &AppHandle) {
         /* show only once the page is actually painted — never a bare shell */
         .on_page_load(|window, payload| {
             if payload.event() == PageLoadEvent::Finished {
-                eprintln!("[bentomux] overlay page finished, showing {}", window.label());
+                eprintln!(
+                    "[bentomux] overlay page finished, showing {}",
+                    window.label()
+                );
                 show_topmost(&window);
             }
         });

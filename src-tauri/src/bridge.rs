@@ -65,11 +65,11 @@ struct BridgeState {
     app: Option<tauri::AppHandle>,
     pending: HashMap<String, Pending>,
     /* insertion order of pending ids: HashMap iteration is arbitrary and the
-       overlay replay must surface the newest blocked request */
+    overlay replay must surface the newest blocked request */
     order: Vec<String>,
     /* tab the renderer currently shows, reported on every activation — lets
-       desktop_notify stay quiet while the user is already looking at the
-       requesting pane */
+    desktop_notify stay quiet while the user is already looking at the
+    requesting pane */
     active_tab_anchor: Option<String>,
     hooks: HookReg,
 }
@@ -321,7 +321,13 @@ fn desktop_notify(req: &AgentApprovalRequest) {
         }
     };
     /* lock released — tree_has_leaf_nodes takes it again */
-    if focused && req.pane_id.as_deref().map(tree_has_leaf_nodes).unwrap_or(false) {
+    if focused
+        && req
+            .pane_id
+            .as_deref()
+            .map(tree_has_leaf_nodes)
+            .unwrap_or(false)
+    {
         return;
     }
     let notify_enabled = {
@@ -747,7 +753,10 @@ mod tests {
         assert_eq!(newest.summary, "two");
         /* resolving the newest falls the replay back to the older block */
         assert!(resolve_approval(&newest.request_id, true));
-        assert_eq!(pending_approval().expect("older block remains").summary, "one");
+        assert_eq!(
+            pending_approval().expect("older block remains").summary,
+            "one"
+        );
         stop_bridge();
     }
 
