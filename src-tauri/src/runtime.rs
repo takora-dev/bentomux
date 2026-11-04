@@ -5,6 +5,7 @@ screen-manifest evaluation land in Phase 6. */
 
 use serde::{Deserialize, Serialize};
 
+use crate::lock::LockExt;
 use crate::state::{AgentInfo, Capabilities};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -167,7 +168,7 @@ pub fn report_agent_state(pane_id: &str, agent: &str, state: &str, _message: Opt
         "idle" => AgentRunState::Idle,
         _ => return,
     };
-    reported().lock().unwrap().insert(
+    reported().lock_recover().insert(
         pane_id.to_string(),
         ReportedAgent {
             agent: agent.to_string(),
@@ -177,11 +178,11 @@ pub fn report_agent_state(pane_id: &str, agent: &str, state: &str, _message: Opt
 }
 
 pub fn clear_reported_agent(pane_id: &str) {
-    reported().lock().unwrap().remove(pane_id);
+    reported().lock_recover().remove(pane_id);
 }
 
 pub fn has_reported_agent(pane_id: &str) -> bool {
-    reported().lock().unwrap().contains_key(pane_id)
+    reported().lock_recover().contains_key(pane_id)
 }
 static USER_INPUT_AT: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
 fn user_input_at() -> &'static Mutex<HashMap<String, u64>> {
@@ -190,16 +191,14 @@ fn user_input_at() -> &'static Mutex<HashMap<String, u64>> {
 
 pub fn note_user_input(pane_id: &str) {
     user_input_at()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .insert(pane_id.to_string(), now_ms());
 }
 
 fn input_is_recent(pane_id: &str) -> bool {
     now_ms().saturating_sub(
         user_input_at()
-            .lock()
-            .unwrap()
+            .lock_recover()
             .get(pane_id)
             .copied()
             .unwrap_or(0),
@@ -207,11 +206,11 @@ fn input_is_recent(pane_id: &str) -> bool {
 }
 
 pub fn latest_runtime_statuses() -> BTreeMap<String, RuntimeStatus> {
-    latest().lock().unwrap().clone()
+    latest().lock_recover().clone()
 }
 
 pub fn on_runtime_update(cb: impl Fn(&BTreeMap<String, RuntimeStatus>) + Send + Sync + 'static) {
-    let mut guard = runtime_state().lock().unwrap();
+    let mut guard = runtime_state().lock_recover();
     if let Some(st) = guard.as_mut() {
         st.update_hooks.push(Box::new(cb));
     }
@@ -221,10 +220,10 @@ pub fn on_runtime_update(cb: impl Fn(&BTreeMap<String, RuntimeStatus>) + Send + 
 when something actually changed */
 fn publish(statuses: &BTreeMap<String, RuntimeStatus>) {
     {
-        let mut lat = latest().lock().unwrap();
+        let mut lat = latest().lock_recover();
         *lat = statuses.clone();
     }
-    let mut guard = runtime_state().lock().unwrap();
+    let mut guard = runtime_state().lock_recover();
     let Some(st) = guard.as_mut() else { return };
     let hooks = &mut st.update_hooks;
     for hook in hooks.iter_mut() {
@@ -588,7 +587,7 @@ fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
         matched_rule: None,
         source: None,
     };
-    if let Some(reported) = reported().lock().unwrap().get(tab_id).cloned() {
+    if let Some(reported) = reported().lock_recover().get(tab_id).cloned() {
         base.runtime = Some(reported.agent);
         base.state = Some(reported.state);
         base.source = Some("integration".to_string());
@@ -622,8 +621,7 @@ fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
     if det.skip_state_update {
         /* transient overlay (transcript view, pickers): hold the previous state */
         let prev = runtime_state()
-            .lock()
-            .unwrap()
+            .lock_recover()
             .as_ref()
             .and_then(|st| st.last_states.get(tab_id))
             .cloned()
@@ -652,7 +650,7 @@ fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
 
 pub fn init(app: tauri::AppHandle) {
     {
-        let mut guard = runtime_state().lock().unwrap();
+        let mut guard = runtime_state().lock_recover();
         *guard = Some(RuntimeState {
             app: Some(app.clone()),
             update_hooks: Vec::new(),
@@ -694,8 +692,7 @@ pub fn init(app: tauri::AppHandle) {
             let mut statuses: BTreeMap<String, RuntimeStatus> = BTreeMap::new();
             for t in &terms {
                 let prev = runtime_state()
-                    .lock()
-                    .unwrap()
+                    .lock_recover()
                     .as_ref()
                     .and_then(|s| s.last_states.get(&t.id).cloned());
                 let st = status_for(&t.id, deepest_match(t.pid, &by_parent));
@@ -703,7 +700,7 @@ pub fn init(app: tauri::AppHandle) {
                     notify_state_change(&app, &t.id, &st, prev, next);
                 }
                 if st.state.is_some() {
-                    runtime_state().lock().unwrap().as_mut().map(|s| {
+                    runtime_state().lock_recover().as_mut().map(|s| {
                         s.last_states
                             .insert(t.id.clone(), st.state.clone().unwrap())
                     });
@@ -711,8 +708,7 @@ pub fn init(app: tauri::AppHandle) {
                     /* agent gone: forget the old state so the next agent in
                     this pane cannot inherit it and fire a stale notice */
                     runtime_state()
-                        .lock()
-                        .unwrap()
+                        .lock_recover()
                         .as_mut()
                         .map(|s| s.last_states.remove(&t.id));
                 }

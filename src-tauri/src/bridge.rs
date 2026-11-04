@@ -20,6 +20,7 @@ use serde::Serialize;
 use tauri::{path::BaseDirectory, Emitter, Manager};
 
 use crate::bridge_config::bridge_address;
+use crate::lock::LockExt;
 use crate::pty::PtyManager;
 
 /* the renderer-facing approval request (shared/types AgentApprovalRequest) */
@@ -132,8 +133,7 @@ pub fn hook_script_path(app: &tauri::AppHandle) -> String {
 
 pub fn on_approval_created(cb: impl Fn(&AgentApprovalRequest) + Send + Sync + 'static) {
     bridge_state()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .hooks
         .created
         .push(Arc::new(cb));
@@ -141,8 +141,7 @@ pub fn on_approval_created(cb: impl Fn(&AgentApprovalRequest) + Send + Sync + 's
 
 pub fn on_approval_closed(cb: impl Fn(&str) + Send + Sync + 'static) {
     bridge_state()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .hooks
         .closed
         .push(Arc::new(cb));
@@ -152,8 +151,7 @@ pub fn on_approval_closed(cb: impl Fn(&str) + Send + Sync + 'static) {
 opened after the agent got stuck) still sees the decision it must make */
 pub fn pending_approvals() -> Vec<AgentApprovalRequest> {
     bridge_state()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .pending
         .values()
         .map(|p| p.req.clone())
@@ -164,7 +162,7 @@ while its WebView was still loading. Returns the NEWEST blocked request, so
 the replay surfaces what the user is being asked about now — an arbitrary
 HashMap entry could resurrect a stale one instead. */
 pub fn pending_approval() -> Option<AgentApprovalRequest> {
-    let st = bridge_state().lock().unwrap();
+    let st = bridge_state().lock_recover();
     st.order
         .iter()
         .rev()
@@ -205,7 +203,7 @@ fn directive(decision: bool) -> String {
 }
 
 fn emit(event: &str, payload: &impl Serialize) {
-    let Some(app) = &bridge_state().lock().unwrap().app else {
+    let Some(app) = &bridge_state().lock_recover().app else {
         return;
     };
     let _ = app.emit(event, payload);
@@ -220,7 +218,7 @@ pub fn emit_agent_event(notice: &AgentEventNotice) {
 /* ---------- pending lifecycle ---------- */
 
 pub fn close_pending(request_id: &str) {
-    let mut st = bridge_state().lock().unwrap();
+    let mut st = bridge_state().lock_recover();
     let Some(pending) = st.pending.remove(request_id) else {
         return;
     };
@@ -236,8 +234,7 @@ pub fn close_pending(request_id: &str) {
 
 pub fn drop_pane(pane_id: &str) {
     let ids: Vec<String> = bridge_state()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .pending
         .values()
         .filter(|p| p.req.pane_id.as_deref() == Some(pane_id))
@@ -249,7 +246,7 @@ pub fn drop_pane(pane_id: &str) {
 }
 
 pub fn resolve_approval(request_id: &str, decision: bool) -> bool {
-    let mut st = bridge_state().lock().unwrap();
+    let mut st = bridge_state().lock_recover();
     let Some(pending) = st.pending.remove(request_id) else {
         return false;
     };
@@ -271,12 +268,12 @@ user is already looking at the requesting pane */
 renderer on every activation so the overlay can stay hidden while the
 user is already looking at the requesting pane */
 pub fn set_active_tab_anchor(tab_id: Option<String>) {
-    bridge_state().lock().unwrap().active_tab_anchor = tab_id;
+    bridge_state().lock_recover().active_tab_anchor = tab_id;
 }
 
 /* does the requesting pane land in the tab that owns the active anchor? */
 fn tree_has_leaf_nodes(pane_id: &str) -> bool {
-    let st = bridge_state().lock().unwrap();
+    let st = bridge_state().lock_recover();
     let anchor = match &st.active_tab_anchor {
         Some(a) if !a.is_empty() => a.clone(),
         _ => return false,
@@ -308,7 +305,7 @@ looking at the prompt — raising the pill over their own terminal is noise
 (and with chatty agents, spam), so it stays quiet in that case. */
 fn desktop_notify(req: &AgentApprovalRequest) {
     let (app, focused) = {
-        let st = bridge_state().lock().unwrap();
+        let st = bridge_state().lock_recover();
         match st.app.clone() {
             Some(app) => {
                 let focused = app
@@ -438,7 +435,7 @@ fn dispatch(line: &str, response: mpsc::Sender<Option<String>>) -> bool {
     };
     let rid = req.request_id.clone();
     {
-        let mut st = bridge_state().lock().unwrap();
+        let mut st = bridge_state().lock_recover();
         st.order.push(rid.clone());
         st.pending.insert(
             rid,
@@ -520,7 +517,7 @@ fn restrict_socket(addr: &str) {
 
 #[cfg(unix)]
 pub fn start_bridge(app: tauri::AppHandle, pty: &PtyManager) {
-    bridge_state().lock().unwrap().app = Some(app.clone());
+    bridge_state().lock_recover().app = Some(app.clone());
 
     let addr = bridge_address();
     {
@@ -571,7 +568,7 @@ pub fn start_bridge(app: tauri::AppHandle, pty: &PtyManager) {
 
 #[cfg(windows)]
 pub fn start_bridge(app: tauri::AppHandle, pty: &PtyManager) {
-    bridge_state().lock().unwrap().app = Some(app);
+    bridge_state().lock_recover().app = Some(app);
     let addr = bridge_address();
     let mut exit_rx = pty.on_term_exit();
     std::thread::spawn(move || loop {
@@ -640,7 +637,7 @@ pub fn start_bridge(app: tauri::AppHandle, pty: &PtyManager) {
 pub fn start_bridge(_app: tauri::AppHandle, _pty: &PtyManager) {}
 
 pub fn stop_bridge() {
-    let mut st = bridge_state().lock().unwrap();
+    let mut st = bridge_state().lock_recover();
     st.order.clear();
     for (_, pending) in st.pending.drain() {
         let _ = pending.response.send(None);

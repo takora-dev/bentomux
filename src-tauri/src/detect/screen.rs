@@ -6,6 +6,7 @@ remote rendering consume snapshots produced by that single parser. */
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
+use crate::lock::LockExt;
 use crate::terminal::TerminalSnapshot;
 
 fn screens() -> &'static Mutex<HashMap<String, TerminalSnapshot>> {
@@ -14,7 +15,7 @@ fn screens() -> &'static Mutex<HashMap<String, TerminalSnapshot>> {
 }
 
 pub fn update_snapshot(id: &str, mut snapshot: TerminalSnapshot) {
-    let mut guard = screens().lock().unwrap();
+    let mut guard = screens().lock_recover();
     /* an empty cwd means "this message did not carry one", never "the pane
     moved to /" — OSC 7 arrives rarely next to the 500 ms hot tick, so the
     last known value has to outlive a tick that omits it */
@@ -47,13 +48,12 @@ pub fn update_snapshot(id: &str, mut snapshot: TerminalSnapshot) {
 }
 
 pub fn clear_snapshot(id: &str) {
-    screens().lock().unwrap().remove(id);
+    screens().lock_recover().remove(id);
 }
 
 pub fn screen_dump(id: &str) -> String {
     screens()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .get(id)
         .map(|s| s.text.clone())
         .unwrap_or_default()
@@ -69,8 +69,7 @@ pub fn screen_lines(id: &str) -> Vec<String> {
 
 pub fn screen_meta(id: &str) -> (String, String, u64) {
     screens()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .get(id)
         .map(|s| (s.title.clone(), s.progress.clone(), s.last_data_at))
         .unwrap_or_default()
@@ -78,8 +77,7 @@ pub fn screen_meta(id: &str) -> (String, String, u64) {
 
 pub fn screen_dump_html(id: &str) -> String {
     screens()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .get(id)
         .map(|s| s.html.clone())
         .unwrap_or_default()
@@ -88,8 +86,7 @@ pub fn screen_dump_html(id: &str) -> String {
 /* the pane's working directory, or "" when no shell has reported one */
 pub fn screen_cwd(id: &str) -> String {
     screens()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .get(id)
         .map(|s| s.cwd.clone())
         .unwrap_or_default()

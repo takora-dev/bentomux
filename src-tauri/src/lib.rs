@@ -10,6 +10,7 @@ pub mod commands;
 pub mod detect;
 pub mod discord;
 pub mod git;
+pub mod lock;
 /* macOS-only: the app menu (Cmd+W belongs to the focused pane, not the window) */
 #[cfg(target_os = "macos")]
 pub mod menu;

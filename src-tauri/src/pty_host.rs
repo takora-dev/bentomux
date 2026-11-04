@@ -27,6 +27,8 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::bridge_config::{bridge_env_for, instance_suffix};
+use crate::lock::recover;
+use crate::lock::LockExt;
 use crate::pty::{decode_pty_bytes, new_term_id};
 use crate::shell::resolve_shell;
 use crate::terminal::TerminalModel;
@@ -263,15 +265,6 @@ struct HostTerm {
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
 }
 
-/* A panic anywhere under these locks (a vt100 arithmetic bug, a renderer
-walk) poisons the mutex, and every later `lock().unwrap()` in the daemon
-panics too — one bad frame took the whole pty host down one thread at a
-time. None of this state is half-written in a way that is worse than the
-freeze: recover the guard and let the next chunk redraw. */
-fn recover<T>(result: Result<T, std::sync::PoisonError<T>>) -> T {
-    result.unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
 fn term_lock(shared: &TermShared) -> std::sync::MutexGuard<'_, TerminalModel> {
     recover(shared.terminal.lock())
 }
@@ -347,11 +340,11 @@ impl Host {
         /* Stop every stream before publishing new client sender. Otherwise a
         reader can enqueue live bytes into the new client between its
         handshake and attach snapshot, corrupting restore ordering. */
-        for term in self.terms.lock().unwrap().values() {
+        for term in self.terms.lock_recover().values() {
             let _gate = gate_lock(&term.shared);
             term.shared.attached.store(false, Ordering::SeqCst);
         }
-        let mut slot = self.client.lock().unwrap();
+        let mut slot = self.client.lock_recover();
         slot.generation += 1;
         slot.tx = Some(tx);
         slot.generation
@@ -359,14 +352,14 @@ impl Host {
 
     /* only the active client clears the slot: a superseded one must not */
     fn clear_client(&self, generation: u64) {
-        let mut slot = self.client.lock().unwrap();
+        let mut slot = self.client.lock_recover();
         if slot.generation == generation {
             slot.tx = None;
         }
     }
 
     fn client_connected(&self) -> bool {
-        self.client.lock().unwrap().tx.is_some()
+        self.client.lock_recover().tx.is_some()
     }
 }
 
@@ -388,7 +381,7 @@ fn unb64(text: &str) -> Option<Vec<u8>> {
 }
 
 fn send_line(host: &Host, line: String) {
-    let tx = host.client.lock().unwrap().tx.clone();
+    let tx = host.client.lock_recover().tx.clone();
     if let Some(tx) = tx {
         let _ = tx.send(line); /* a dead client is noticed by the reader loop */
     }
@@ -449,7 +442,7 @@ fn send_snapshot(host: &Host, id: &str, snapshot: &crate::terminal::TerminalSnap
 }
 
 fn term_list(host: &Host) -> Value {
-    let terms = host.terms.lock().unwrap();
+    let terms = host.terms.lock_recover();
     Value::Array(
         terms
             .values()
@@ -516,12 +509,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
             }
         }
         "attach" => {
-            let shared = host
-                .terms
-                .lock()
-                .unwrap()
-                .get(&id)
-                .map(|t| t.shared.clone());
+            let shared = host.terms.lock_recover().get(&id).map(|t| t.shared.clone());
             if let Some(shared) = shared {
                 /* Serialize state replay with live output. Without this gate,
                 two sender threads can enqueue live bytes before the state
@@ -557,13 +545,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
             /* on-demand full render for the remote mirror's watch path.
             The 500 ms hot tick is text-only; a fresh watcher pays for
             the per-cell style walk exactly once here. */
-            if let Some(shared) = host
-                .terms
-                .lock()
-                .unwrap()
-                .get(&id)
-                .map(|t| t.shared.clone())
-            {
+            if let Some(shared) = host.terms.lock_recover().get(&id).map(|t| t.shared.clone()) {
                 let snapshot = term_lock(&shared).snapshot_html();
                 let mut obj = json!({
                     "t": "snapshot",
@@ -595,9 +577,9 @@ fn handle_line(host: &Arc<Host>, line: &str) {
             let Some(bytes) = msg.get("data").and_then(Value::as_str).and_then(unb64) else {
                 return;
             };
-            let terms = host.terms.lock().unwrap();
+            let terms = host.terms.lock_recover();
             if let Some(term) = terms.get(&id) {
-                let mut writer = term.writer.lock().unwrap();
+                let mut writer = term.writer.lock_recover();
                 let _ = writer.write_all(&bytes);
                 let _ = writer.flush();
             }
@@ -605,7 +587,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
         "resize" => {
             let cols = msg.get("cols").and_then(Value::as_u64).unwrap_or(80) as u16;
             let rows = msg.get("rows").and_then(Value::as_u64).unwrap_or(24) as u16;
-            let terms = host.terms.lock().unwrap();
+            let terms = host.terms.lock_recover();
             if let Some(term) = terms.get(&id) {
                 let snapshot = apply_size(term, rows, cols);
                 send_snapshot(host, &term.shared.id, &snapshot);
@@ -621,20 +603,20 @@ fn handle_line(host: &Arc<Host>, line: &str) {
             }
         }
         "kill" => {
-            let removed = host.terms.lock().unwrap().remove(&id);
+            let removed = host.terms.lock_recover().remove(&id);
             if let Some(term) = removed {
                 if term.shared.alive.load(Ordering::SeqCst) {
-                    let _ = term.killer.lock().unwrap().kill();
+                    let _ = term.killer.lock_recover().kill();
                 }
             }
         }
         /* the app is about to replace the binary on disk (windows installer
         cannot overwrite a running exe): drop everything and get out */
         "shutdown" => {
-            let terms: Vec<HostTerm> = host.terms.lock().unwrap().drain().map(|(_, t)| t).collect();
+            let terms: Vec<HostTerm> = host.terms.lock_recover().drain().map(|(_, t)| t).collect();
             for term in terms {
                 if term.shared.alive.load(Ordering::SeqCst) {
-                    let _ = term.killer.lock().unwrap().kill();
+                    let _ = term.killer.lock_recover().kill();
                 }
             }
             clear_address();
@@ -727,7 +709,7 @@ fn spawn_term(
         terminal: Mutex::new(TerminalModel::default()),
     });
 
-    host.terms.lock().unwrap().insert(
+    host.terms.lock_recover().insert(
         id.clone(),
         HostTerm {
             shared: shared.clone(),
@@ -835,8 +817,7 @@ fn idle_watch(host: Arc<Host>) {
         std::thread::sleep(Duration::from_secs(1));
         let live = host
             .terms
-            .lock()
-            .unwrap()
+            .lock_recover()
             .values()
             .any(|t| t.shared.alive.load(Ordering::SeqCst));
         let connected = host.client_connected();
@@ -890,8 +871,7 @@ fn snapshot_sweep(host: Arc<Host>) {
         std::thread::sleep(Duration::from_millis(SNAPSHOT_INTERVAL_MS));
         let terms: Vec<Arc<TermShared>> = host
             .terms
-            .lock()
-            .unwrap()
+            .lock_recover()
             .values()
             .map(|t| t.shared.clone())
             .collect();

@@ -5,6 +5,7 @@ against regions of the live terminal screen (bottom lines, prompt box,
 OSC title/progress) and the first match decides the semantic state
 (idle / working / blocked). */
 
+use crate::lock::LockExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -222,7 +223,7 @@ pattern is cached as None so the `contains` fallback is taken too. */
 fn compiled(r: &str) -> Option<regex::Regex> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<regex::Regex>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = cache.lock().unwrap();
+    let mut guard = cache.lock_recover();
     if let Some(hit) = guard.get(r) {
         return hit.clone();
     }

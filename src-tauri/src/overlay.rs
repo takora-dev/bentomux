@@ -12,6 +12,7 @@ READY_TITLE, and a window that never became ready is destroyed and rebuilt
 on the next request. The window never takes focus — the user's foreground
 app keeps keyboard input. Resizing persists the size to prefs.approvalOverlay. */
 
+use crate::lock::LockExt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -42,7 +43,7 @@ fn active_label() -> &'static Mutex<Option<String>> {
 
 /* the overlay window on record, if it still exists */
 pub fn active_overlay(app: &AppHandle) -> Option<WebviewWindow> {
-    let label = active_label().lock().unwrap().clone()?;
+    let label = active_label().lock_recover().clone()?;
     app.get_webview_window(&label)
 }
 
@@ -77,7 +78,7 @@ pub fn dismiss_active_overlay(app: &AppHandle) {
         }
         None => eprintln!("[bentomux] overlay dismiss: none active"),
     }
-    *active_label().lock().unwrap() = None;
+    *active_label().lock_recover() = None;
 }
 
 fn current_position(app: &AppHandle, w: f64, h: f64) -> (f64, f64) {
@@ -146,7 +147,7 @@ pub fn show_approval_overlay(app: &AppHandle) {
         }
         /* dead shell: drop it and build a fresh window below */
         let _ = existing.destroy();
-        *active_label().lock().unwrap() = None;
+        *active_label().lock_recover() = None;
     }
 
     let label = format!("{}-{}", LABEL_PREFIX, SEQ.fetch_add(1, Ordering::Relaxed));
@@ -179,7 +180,7 @@ pub fn show_approval_overlay(app: &AppHandle) {
 
     match builder.build() {
         Ok(window) => {
-            *active_label().lock().unwrap() = Some(label);
+            *active_label().lock_recover() = Some(label);
             /* persist resize (debounced by OS resize cadence) + keep centered */
             let app_resize = app.clone();
             let window_resize = window.clone();

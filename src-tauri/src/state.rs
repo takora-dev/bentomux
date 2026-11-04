@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::lock::LockExt;
 use crate::plugin::PluginRecord;
 use crate::split_tree::{first_leaf_id, tree_from_legacy, Dir, PaneNode};
 
@@ -435,13 +436,13 @@ impl AppStateManager {
             state: Mutex::new(state),
             path,
         };
-        let st = mgr.state.lock().unwrap().clone();
+        let st = mgr.state.lock_recover().clone();
         persist(&mgr.path, &st);
         mgr
     }
 
     pub fn get_state(&self) -> AppState {
-        self.state.lock().unwrap().clone()
+        self.state.lock_recover().clone()
     }
 
     /* every mutation goes through here so each change is persisted.
@@ -452,12 +453,12 @@ impl AppStateManager {
     where
         F: FnOnce(&mut AppState),
     {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock_recover();
         updater(&mut state);
         let snapshot = state.clone();
         drop(state);
         schedule_persist(self.path.clone(), snapshot);
-        self.state.lock().unwrap().clone()
+        self.state.lock_recover().clone()
     }
 
     /* synchronous write-through for paths where losing the write is worse
@@ -466,7 +467,7 @@ impl AppStateManager {
     where
         F: FnOnce(&mut AppState),
     {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock_recover();
         updater(&mut state);
         persist(&self.path, &state);
         state.clone()
@@ -474,11 +475,11 @@ impl AppStateManager {
 
     /* blocking flush for paths that must not lose data (tests, shutdown) */
     pub fn flush(&self) {
-        if let Some(p) = pending().lock().unwrap().take() {
+        if let Some(p) = pending().lock_recover().take() {
             persist(&p.path, &p.state);
             return;
         }
-        let st = self.state.lock().unwrap().clone();
+        let st = self.state.lock_recover().clone();
         persist(&self.path, &st);
     }
 
@@ -494,8 +495,7 @@ impl AppStateManager {
         agent_id: &str,
     ) -> HashMap<ResourceKind, HashMap<String, ResourceSnapshot>> {
         self.state
-            .lock()
-            .unwrap()
+            .lock_recover()
             .shadow
             .get(agent_id)
             .cloned()
@@ -596,7 +596,7 @@ fn last_backup_at() -> &'static Mutex<Option<Instant>> {
 
 fn schedule_persist(path: PathBuf, state: AppState) {
     let due = {
-        let mut guard = pending().lock().unwrap();
+        let mut guard = pending().lock_recover();
         let first = guard.is_none();
         *guard = Some(PendingPersist {
             path: path.clone(),
@@ -612,11 +612,11 @@ fn schedule_persist(path: PathBuf, state: AppState) {
         std::thread::sleep(Duration::from_millis(PERSIST_DEBOUNCE_MS));
         loop {
             let next = {
-                let guard = pending().lock().unwrap();
+                let guard = pending().lock_recover();
                 match guard.as_ref() {
                     Some(p) if p.at.elapsed() >= Duration::from_millis(PERSIST_DEBOUNCE_MS) => {
                         drop(guard);
-                        pending().lock().unwrap().take()
+                        pending().lock_recover().take()
                     }
                     _ => None,
                 }
@@ -625,7 +625,7 @@ fn schedule_persist(path: PathBuf, state: AppState) {
                 Some(p) => persist(&p.path, &p.state),
                 None => {
                     std::thread::sleep(Duration::from_millis(PERSIST_DEBOUNCE_MS));
-                    if pending().lock().unwrap().is_none() {
+                    if pending().lock_recover().is_none() {
                         break;
                     }
                 }
@@ -648,7 +648,7 @@ fn persist(path: &Path, state: &AppState) {
         if path.exists() {
             /* hourly backup rotation instead of a rename on every write:
             same crash safety, far fewer directory ops under patch bursts */
-            let mut last = last_backup_at().lock().unwrap();
+            let mut last = last_backup_at().lock_recover();
             let due = last.map(|t| t.elapsed() >= BACKUP_INTERVAL).unwrap_or(true);
             if due {
                 let bak = path.with_extension("json.bak");

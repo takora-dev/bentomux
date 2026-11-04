@@ -7,6 +7,7 @@ Handles .git as a file (worktrees / submodules).
 `history()` is the one addition with no Electron counterpart — the commit
 graph is new UI, not a port (see docs/adr/0002-parity-rule-amended.md). */
 
+use crate::lock::LockExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 #[cfg(target_os = "windows")]
@@ -84,7 +85,7 @@ fn watch_state() -> &'static Mutex<Option<WatchState>> {
 
 /* called once from setup; provides the app handle for branch events */
 pub fn init_watch(handle: tauri::AppHandle) {
-    let mut guard = watch_state().lock().unwrap();
+    let mut guard = watch_state().lock_recover();
     if guard.is_none() {
         *guard = Some(WatchState {
             watchers: HashMap::new(),
@@ -95,7 +96,7 @@ pub fn init_watch(handle: tauri::AppHandle) {
 }
 
 pub fn on_branch_change(cb: impl Fn(&str, Option<&str>) + Send + Sync + 'static) {
-    let mut guard = watch_state().lock().unwrap();
+    let mut guard = watch_state().lock_recover();
     let st = guard.get_or_insert_with(|| WatchState {
         watchers: HashMap::new(),
         notify: None,
@@ -105,7 +106,7 @@ pub fn on_branch_change(cb: impl Fn(&str, Option<&str>) + Send + Sync + 'static)
 }
 
 fn emit_branch(workspace_id: &str, branch: Option<&str>) {
-    if let Some(st) = watch_state().lock().unwrap().as_ref() {
+    if let Some(st) = watch_state().lock_recover().as_ref() {
         if let Some(cb) = &st.notify {
             cb(workspace_id, branch);
         }
@@ -118,8 +119,7 @@ fn emit_branch(workspace_id: &str, branch: Option<&str>) {
 /* true while a workspace is still registered (not yet unwatched) */
 fn registered(workspace_id: &str) -> bool {
     watch_state()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .as_ref()
         .is_some_and(|s| s.watchers.contains_key(workspace_id))
 }
@@ -129,7 +129,7 @@ it changed. true when the workspace is still registered (not unwatched). */
 fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
     let cur = read_branch(ws_path);
     let should_emit = {
-        let mut guard = watch_state().lock().unwrap();
+        let mut guard = watch_state().lock_recover();
         match guard
             .as_mut()
             .and_then(|s| s.watchers.get_mut(workspace_id))
@@ -154,7 +154,7 @@ fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
 pub fn watch_workspace(workspace_id: &str, ws_path: &str) {
     unwatch_workspace(workspace_id);
     {
-        let mut guard = watch_state().lock().unwrap();
+        let mut guard = watch_state().lock_recover();
         let st = guard.get_or_insert_with(|| WatchState {
             watchers: HashMap::new(),
             notify: None,
@@ -218,13 +218,13 @@ pub fn watch_workspace(workspace_id: &str, ws_path: &str) {
 }
 
 pub fn unwatch_workspace(workspace_id: &str) {
-    if let Some(st) = watch_state().lock().unwrap().as_mut() {
+    if let Some(st) = watch_state().lock_recover().as_mut() {
         st.watchers.remove(workspace_id);
     }
 }
 
 pub fn unwatch_all() {
-    if let Some(st) = watch_state().lock().unwrap().as_mut() {
+    if let Some(st) = watch_state().lock_recover().as_mut() {
         st.watchers.clear();
     }
 }

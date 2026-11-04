@@ -30,6 +30,7 @@ use serde::Serialize;
 use serde_json::json;
 use tauri::{path::BaseDirectory, Manager};
 
+use crate::lock::LockExt;
 use crate::state::{AppStateManager, RemotePrefs};
 
 pub const DEFAULT_REMOTE_PORT: u16 = 8765;
@@ -129,7 +130,7 @@ fn current_out() -> &'static Mutex<Option<tokio::sync::broadcast::Sender<RemoteM
 static FEEDS_ONCE: std::sync::Once = std::sync::Once::new();
 
 pub fn remote_running() -> bool {
-    server().lock().unwrap().is_some()
+    server().lock_recover().is_some()
 }
 
 fn remote_port(prefs: &crate::state::Prefs) -> u16 {
@@ -287,8 +288,7 @@ static AUTH_LIMIT: std::sync::OnceLock<Mutex<RateLimit>> = std::sync::OnceLock::
 fn auth_allowed() -> bool {
     AUTH_LIMIT
         .get_or_init(|| Mutex::new(RateLimit::new(MAX_AUTH_PER_MIN, Duration::from_secs(60))))
-        .lock()
-        .unwrap()
+        .lock_recover()
         .allow()
 }
 
@@ -309,7 +309,7 @@ fn session_live(seen: Instant, now: Instant) -> bool {
 
 impl Sessions {
     fn create(&self) -> String {
-        let mut map = self.map.lock().unwrap();
+        let mut map = self.map.lock_recover();
         let now = Instant::now();
         map.retain(|_, seen| session_live(*seen, now));
         while map.len() >= MAX_SESSIONS {
@@ -328,7 +328,7 @@ impl Sessions {
     }
 
     fn valid(&self, id: &str) -> bool {
-        let mut map = self.map.lock().unwrap();
+        let mut map = self.map.lock_recover();
         let now = Instant::now();
         map.retain(|_, seen| session_live(*seen, now));
         let Some(seen) = map.get_mut(id) else {
@@ -571,7 +571,7 @@ async fn client_loop(ws: WebSocket, st: WsCtx) {
             out = out_rx.recv() => {
                 match out {
                     Ok(RemoteMsg::View { pane_id: p, text, html }) => {
-                        if watching.lock().unwrap().contains(&p) {
+                        if watching.lock_recover().contains(&p) {
                             let msg = json!({"t": "view", "paneId": p, "text": text, "html": html});
                             if !send_json(&mut sender, js(&msg)).await {
                                 break;
@@ -579,7 +579,7 @@ async fn client_loop(ws: WebSocket, st: WsCtx) {
                         }
                     }
                     Ok(RemoteMsg::Gone { pane_id: p }) => {
-                        if watching.lock().unwrap().remove(&p) {
+                        if watching.lock_recover().remove(&p) {
                             unwatch(&p);
                             if !send_json(&mut sender, js(&json!({"t": "gone", "paneId": p}))).await { break; }
                         }
@@ -598,7 +598,7 @@ async fn client_loop(ws: WebSocket, st: WsCtx) {
     }
     /* a dropped socket must not leave its watches behind, or the tick keeps
     re-serializing panes nobody is looking at */
-    for p in watching.lock().unwrap().iter() {
+    for p in watching.lock_recover().iter() {
         unwatch(p);
     }
 }
@@ -636,7 +636,7 @@ async fn handle_incoming(
                 /* adding to the set, not replacing it: the phone mirrors
                 every pane it shows, and re-watching the same pane must not
                 double its count */
-                if watching.lock().unwrap().insert(pid.to_string()) {
+                if watching.lock_recover().insert(pid.to_string()) {
                     watch(pid);
                 }
                 /* on-demand html render so the very first frame is colored.
@@ -679,14 +679,13 @@ async fn handle_incoming(
             without one it releases everything this socket holds */
             let wanted = m.get("paneId").and_then(|v| v.as_str());
             let released: Vec<String> = watching
-                .lock()
-                .unwrap()
+                .lock_recover()
                 .iter()
                 .filter(|p| wanted.is_none_or(|w| w == p.as_str()))
                 .cloned()
                 .collect();
             for p in released {
-                if watching.lock().unwrap().remove(&p) {
+                if watching.lock_recover().remove(&p) {
                     unwatch(&p);
                 }
             }
@@ -695,7 +694,7 @@ async fn handle_incoming(
             let pid = m.get("paneId").and_then(|v| v.as_str());
             let data = m.get("data").and_then(|v| v.as_str());
             let live = live_panes(app);
-            if let Some((pid, data)) = valid_write(&watching.lock().unwrap(), pid, data, &live) {
+            if let Some((pid, data)) = valid_write(&watching.lock_recover(), pid, data, &live) {
                 let _ = app.state::<crate::pty::PtyManager>().write_term(pid, data);
             }
         }
@@ -810,7 +809,7 @@ mod write_validation {
 /* ---------------- feeds (pty ticks, approvals, runtime status) ---------------- */
 
 fn broadcast(msg: RemoteMsg) {
-    if let Some(tx) = current_out().lock().unwrap().as_ref() {
+    if let Some(tx) = current_out().lock_recover().as_ref() {
         let _ = tx.send(msg);
     }
 }
@@ -827,14 +826,13 @@ fn watched() -> &'static Mutex<HashMap<String, u32>> {
 
 fn watch(pane_id: &str) {
     *watched()
-        .lock()
-        .unwrap()
+        .lock_recover()
         .entry(pane_id.to_string())
         .or_insert(0) += 1;
 }
 
 fn unwatch(pane_id: &str) {
-    let mut map = watched().lock().unwrap();
+    let mut map = watched().lock_recover();
     if let Some(n) = map.get_mut(pane_id) {
         *n = n.saturating_sub(1);
         if *n == 0 {
@@ -844,7 +842,7 @@ fn unwatch(pane_id: &str) {
 }
 
 fn is_watched(pane_id: &str) -> bool {
-    watched().lock().unwrap().contains_key(pane_id)
+    watched().lock_recover().contains_key(pane_id)
 }
 
 /* serialize each dirty pane once per tick, and only for panes a phone is
@@ -860,8 +858,7 @@ fn push_dirty(
     last: &Mutex<HashMap<String, String>>,
 ) {
     let pending: Vec<String> = dirty
-        .lock()
-        .unwrap()
+        .lock_recover()
         .drain()
         .filter(|id| is_watched(id))
         .collect();
@@ -869,7 +866,7 @@ fn push_dirty(
         return;
     }
     let pty = app.state::<crate::pty::PtyManager>();
-    let mut last = last.lock().unwrap();
+    let mut last = last.lock_recover();
     for pane_id in pending {
         /* ponytail: one blocking daemon round trip per watched pane per tick,
         on a dedicated thread — a stalled daemon delays the mirror only */
@@ -935,11 +932,11 @@ pub fn start_remote(app: &tauri::AppHandle, state: &AppStateManager) {
     let listener = match std::net::TcpListener::bind(("127.0.0.1", port)) {
         Ok(l) => l,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            *last_error().lock().unwrap() = Some(format!("Port {port} is already in use"));
+            *last_error().lock_recover() = Some(format!("Port {port} is already in use"));
             return;
         }
         Err(e) => {
-            *last_error().lock().unwrap() = Some(e.to_string());
+            *last_error().lock_recover() = Some(e.to_string());
             return;
         }
     };
@@ -949,24 +946,24 @@ pub fn start_remote(app: &tauri::AppHandle, state: &AppStateManager) {
     runtime, so enter Tauri's managed runtime handle first. */
     let _guard = tauri::async_runtime::handle().inner().enter();
     if let Err(e) = listener.set_nonblocking(true) {
-        *last_error().lock().unwrap() = Some(e.to_string());
+        *last_error().lock_recover() = Some(e.to_string());
         return;
     }
     let tokio_listener = match tokio::net::TcpListener::from_std(listener) {
         Ok(l) => l,
         Err(e) => {
-            *last_error().lock().unwrap() = Some(e.to_string());
+            *last_error().lock_recover() = Some(e.to_string());
             return;
         }
     };
-    *last_error().lock().unwrap() = None;
+    *last_error().lock_recover() = None;
 
     let (out_tx, _) = tokio::sync::broadcast::channel::<RemoteMsg>(256);
     let dirty: Arc<Mutex<std::collections::HashSet<String>>> =
         Arc::new(Mutex::new(std::collections::HashSet::new()));
     let running = Arc::new(AtomicBool::new(true));
     let (kill_tx, kill_rx) = tokio::sync::watch::channel(false);
-    *current_out().lock().unwrap() = Some(out_tx.clone());
+    *current_out().lock_recover() = Some(out_tx.clone());
 
     let ctx = WsCtx {
         token: Arc::new(token),
@@ -987,7 +984,7 @@ pub fn start_remote(app: &tauri::AppHandle, state: &AppStateManager) {
         loop {
             match rx.recv().await {
                 Ok((id, _)) => {
-                    d1.lock().unwrap().insert(id);
+                    d1.lock_recover().insert(id);
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(_) => return,
@@ -1001,7 +998,7 @@ pub fn start_remote(app: &tauri::AppHandle, state: &AppStateManager) {
         loop {
             match rx.recv().await {
                 Ok((id, _)) => {
-                    d2.lock().unwrap().remove(&id);
+                    d2.lock_recover().remove(&id);
                     broadcast(RemoteMsg::Json(js(
                         &json!({"t": "panes", "panes": pane_list(&app2)}),
                     )));
@@ -1036,18 +1033,18 @@ pub fn start_remote(app: &tauri::AppHandle, state: &AppStateManager) {
         run_serve.store(false, Ordering::SeqCst);
     });
 
-    *server().lock().unwrap() = Some(ServerState { kill_tx, running });
+    *server().lock_recover() = Some(ServerState { kill_tx, running });
 }
 
 pub fn stop_remote() {
-    let Some(st) = server().lock().unwrap().take() else {
+    let Some(st) = server().lock_recover().take() else {
         return;
     };
     let _ = st.kill_tx.send(true);
     st.running.store(false, Ordering::SeqCst);
-    *current_out().lock().unwrap() = None;
+    *current_out().lock_recover() = None;
     /* every socket dies with the server; drop their watches with it */
-    watched().lock().unwrap().clear();
+    watched().lock_recover().clear();
 }
 
 // ---------------- cloudflare quick tunnel (public HTTPS) ----------------
@@ -1091,15 +1088,15 @@ fn reap_and_alive(g: &mut Option<TunnelState>) -> bool {
 }
 
 pub fn tunnel_url() -> Option<String> {
-    let mut g = tunnel().lock().unwrap();
+    let mut g = tunnel().lock_recover();
     if !reap_and_alive(&mut g) {
         return None;
     }
-    g.as_ref().and_then(|t| t.url.lock().unwrap().clone())
+    g.as_ref().and_then(|t| t.url.lock_recover().clone())
 }
 
 pub fn tunnel_running() -> bool {
-    reap_and_alive(&mut tunnel().lock().unwrap())
+    reap_and_alive(&mut tunnel().lock_recover())
 }
 
 /* scrapes a `https://...trycloudflare.com` URL out of a cloudflared log line */
@@ -1345,7 +1342,7 @@ pub fn start_tunnel(app: &tauri::AppHandle, port: u16) {
     reap_orphaned_tunnels(port);
     let bin = bundled_cloudflared(app).or_else(|| crate::shell::find_on_path("cloudflared"));
     let Some(bin) = bin else {
-        *tunnel_error().lock().unwrap() = Some("cloudflared is not bundled for this platform and was not found on PATH. Install it from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ to enable public HTTPS.".to_string());
+        *tunnel_error().lock_recover() = Some("cloudflared is not bundled for this platform and was not found on PATH. Install it from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ to enable public HTTPS.".to_string());
         return;
     };
     let mut cmd = std::process::Command::new(&bin);
@@ -1362,11 +1359,11 @@ pub fn start_tunnel(app: &tauri::AppHandle, port: u16) {
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            *tunnel_error().lock().unwrap() = Some(format!("failed to start cloudflared: {e}"));
+            *tunnel_error().lock_recover() = Some(format!("failed to start cloudflared: {e}"));
             return;
         }
     };
-    *tunnel_error().lock().unwrap() = None;
+    *tunnel_error().lock_recover() = None;
     let url: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     let stderr = child.stderr.take();
     let stdout = child.stdout.take();
@@ -1387,7 +1384,7 @@ pub fn start_tunnel(app: &tauri::AppHandle, port: u16) {
             // on a dead child; each reader runs to EOF independently
             for line in (&mut r).lines().map_while(Result::ok) {
                 if let Some(u) = parse_tunnel_url(&line) {
-                    let mut cur = url2.lock().unwrap();
+                    let mut cur = url2.lock_recover();
                     if cur.is_none() {
                         *cur = Some(u);
                     }
@@ -1396,18 +1393,18 @@ pub fn start_tunnel(app: &tauri::AppHandle, port: u16) {
         }
         // if the child exited before printing a URL, surface an error so
         // the panel doesn't stay stuck on "Starting..."
-        if url2.lock().unwrap().is_none() {
-            let mut err = tunnel_error().lock().unwrap();
+        if url2.lock_recover().is_none() {
+            let mut err = tunnel_error().lock_recover();
             if err.is_none() {
                 *err = Some("cloudflared exited without printing a tunnel URL — check network access or try again.".to_string());
             }
         }
     });
-    *tunnel().lock().unwrap() = Some(TunnelState { child, url });
+    *tunnel().lock_recover() = Some(TunnelState { child, url });
 }
 
 pub fn stop_tunnel() {
-    let st = tunnel().lock().unwrap().take();
+    let st = tunnel().lock_recover().take();
     let Some(mut st) = st else { return };
     let _ = st.child.kill();
     let _ = st.child.wait();
@@ -1474,10 +1471,10 @@ pub fn pairing_info(state: &AppStateManager) -> RemotePairing {
         token,
         urls,
         qr,
-        error: last_error().lock().unwrap().clone(),
+        error: last_error().lock_recover().clone(),
         tunnel_url: paired.clone(),
         tunnel_qr: paired.as_deref().and_then(qr_svg),
-        tunnel_error: tunnel_error().lock().unwrap().clone(),
+        tunnel_error: tunnel_error().lock_recover().clone(),
     }
 }
 

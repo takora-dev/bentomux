@@ -15,6 +15,7 @@ use std::sync::{mpsc, Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::Emitter;
 
+use crate::lock::LockExt;
 use crate::pty_host::{connect_host, HostStream, PROTOCOL_VERSION};
 use crate::split_tree::{
     first_leaf_id, leaf_ids, leaf_node, remap_leaves, remove_leaf, tree_from_legacy, PaneNode,
@@ -89,10 +90,10 @@ fn retire_transport(
     out: &Mutex<Option<mpsc::Sender<String>>>,
     stop: &Arc<AtomicBool>,
 ) {
-    let mut current = transport.lock().unwrap();
+    let mut current = transport.lock_recover();
     if current.as_ref().is_some_and(|t| Arc::ptr_eq(&t.stop, stop)) {
         *current = None;
-        *out.lock().unwrap() = None;
+        *out.lock_recover() = None;
     }
 }
 
@@ -194,7 +195,7 @@ impl PtyManager {
     }
 
     fn open_gate(&self) {
-        let mut ready = self.ready.lock().unwrap();
+        let mut ready = self.ready.lock_recover();
         *ready = true;
         self.ready_cv.notify_all();
     }
@@ -208,7 +209,7 @@ impl PtyManager {
     fire if start() was never called at all. A command that reports a
     missing host beats a window that never answers. */
     fn wait_ready(&self) {
-        let mut ready = self.ready.lock().unwrap();
+        let mut ready = self.ready.lock_recover();
         let deadline = std::time::Instant::now() + READY_TIMEOUT;
         while !*ready {
             let now = std::time::Instant::now();
@@ -294,11 +295,11 @@ impl PtyManager {
     /* Sever the live transport: flag its reader thread, shutdown the socket
     so both threads unblock, and drop the writer sender. Idempotent. */
     fn disconnect(&self) {
-        if let Some(transport) = self.transport.lock().unwrap().take() {
+        if let Some(transport) = self.transport.lock_recover().take() {
             transport.stop.store(true, Ordering::Release);
             let _ = transport.socket.shutdown(Shutdown::Both);
         }
-        *self.out.lock().unwrap() = None;
+        *self.out.lock_recover() = None;
     }
 
     fn attach_transport(&self, stream: HostStream) {
@@ -314,7 +315,7 @@ impl PtyManager {
         let (out_tx, out_rx) = mpsc::channel::<String>();
 
         let stop = Arc::new(AtomicBool::new(false));
-        *self.transport.lock().unwrap() = Some(Transport {
+        *self.transport.lock_recover() = Some(Transport {
             stop: stop.clone(),
             socket,
         });
@@ -334,7 +335,7 @@ impl PtyManager {
             }
         });
 
-        *self.out.lock().unwrap() = Some(out_tx);
+        *self.out.lock_recover() = Some(out_tx);
 
         let terms = self.terms.clone();
         let pending = self.pending.clone();
@@ -355,7 +356,7 @@ impl PtyManager {
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_millis(PTY_FLUSH_MS));
             let batch: Vec<(String, String)> = {
-                let mut guard = flush_buffers.lock().unwrap();
+                let mut guard = flush_buffers.lock_recover();
                 if guard.is_empty() {
                     continue;
                 }
@@ -419,7 +420,7 @@ impl PtyManager {
                         from the flusher so ordering per pane is preserved.
                         The app handle arrives with start(), so read it at
                         emit time rather than capturing an Option. */
-                        let mut guard = coalesce.lock().unwrap();
+                        let mut guard = coalesce.lock_recover();
                         let entry = guard.entry(id.clone()).or_default();
                         if entry.len() + chunk.len() > PTY_MAX_BUFFER {
                             let pending = std::mem::take(entry);
@@ -428,7 +429,7 @@ impl PtyManager {
                             if let Some(app) = app.get() {
                                 let _ = app.emit("pty:data", (id.clone(), pending));
                             }
-                            coalesce.lock().unwrap().insert(id, chunk);
+                            coalesce.lock_recover().insert(id, chunk);
                         } else {
                             entry.push_str(&chunk);
                         }
@@ -472,7 +473,7 @@ impl PtyManager {
                     "exit" => {
                         crate::detect::screen::clear_snapshot(&id);
                         let code = msg.get("code").and_then(Value::as_i64).unwrap_or(0) as i32;
-                        if let Some(term) = terms.lock().unwrap().get_mut(&id) {
+                        if let Some(term) = terms.lock_recover().get_mut(&id) {
                             term.alive = false;
                         }
                         let _ = exit_tx.send((id.clone(), code));
@@ -506,7 +507,7 @@ impl PtyManager {
                     /* the host is the source of truth for what exists */
                     "terms" => {
                         if let Some(list) = msg.get("terms").and_then(Value::as_array) {
-                            let mut map = terms.lock().unwrap();
+                            let mut map = terms.lock_recover();
                             map.clear();
                             for entry in list {
                                 if let Some(info) = term_info_from(entry) {
@@ -517,7 +518,7 @@ impl PtyManager {
                     }
                     "spawned" => {
                         if let Some(info) = term_info_from(&msg) {
-                            terms.lock().unwrap().insert(info.id.clone(), info);
+                            terms.lock_recover().insert(info.id.clone(), info);
                         }
                     }
                     _ => {}
@@ -535,7 +536,7 @@ impl PtyManager {
     }
 
     fn send(&self, msg: Value) -> Result<(), String> {
-        let out = self.out.lock().unwrap();
+        let out = self.out.lock_recover();
         let Some(tx) = out.as_ref() else {
             return Err("PTY host not connected".to_string());
         };
@@ -549,19 +550,19 @@ impl PtyManager {
     fn request(&self, msg: Value) -> Result<Value, String> {
         let n = self.next_seq();
         let (tx, rx) = mpsc::channel();
-        self.pending.lock().unwrap().insert(n, tx);
+        self.pending.lock_recover().insert(n, tx);
         let mut msg = msg;
         if let Some(obj) = msg.as_object_mut() {
             obj.insert("n".to_string(), json!(n));
         }
         if let Err(error) = self.send(msg) {
-            self.pending.lock().unwrap().remove(&n);
+            self.pending.lock_recover().remove(&n);
             return Err(error);
         }
         let reply = match rx.recv_timeout(REQUEST_TIMEOUT) {
             Ok(reply) => reply,
             Err(_) => {
-                self.pending.lock().unwrap().remove(&n);
+                self.pending.lock_recover().remove(&n);
                 return Err("PTY host did not answer".to_string());
             }
         };
@@ -629,7 +630,7 @@ impl PtyManager {
     `state_formatted()` and leaves `attached` set. */
     pub fn resync_term(&self, id: &str) -> Result<(), String> {
         self.wait_ready();
-        if !self.terms.lock().unwrap().contains_key(id) {
+        if !self.terms.lock_recover().contains_key(id) {
             return Ok(());
         }
         self.attach(id);
@@ -768,12 +769,12 @@ impl PtyManager {
 
     pub fn get_term(&self, id: &str) -> Option<TermInfo> {
         self.wait_ready();
-        self.terms.lock().unwrap().get(id).cloned()
+        self.terms.lock_recover().get(id).cloned()
     }
 
     pub fn write_term(&self, id: &str, data: &str) -> Result<(), String> {
         self.wait_ready();
-        if !self.terms.lock().unwrap().contains_key(id) {
+        if !self.terms.lock_recover().contains_key(id) {
             return Err(format!("Terminal not found: {}", id));
         }
         crate::runtime::note_user_input(id);
@@ -783,7 +784,7 @@ impl PtyManager {
     pub fn resize_term(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
         self.wait_ready();
         /* unknown terms resize as a no-op, like the pre-daemon version */
-        if !self.terms.lock().unwrap().contains_key(id) {
+        if !self.terms.lock_recover().contains_key(id) {
             return Ok(());
         }
         self.send(json!({ "t": "resize", "id": id, "cols": cols, "rows": rows }))
@@ -791,7 +792,7 @@ impl PtyManager {
 
     pub fn kill_term(&self, id: &str) -> bool {
         self.wait_ready();
-        let known = self.terms.lock().unwrap().remove(id).is_some();
+        let known = self.terms.lock_recover().remove(id).is_some();
         if known {
             crate::detect::screen::clear_snapshot(id);
             let _ = self.send(json!({ "t": "kill", "id": id }));
@@ -802,7 +803,7 @@ impl PtyManager {
     pub fn kill_terms_for_workspace(&self, workspace_id: &str) {
         self.wait_ready();
         let ids: Vec<String> = {
-            let map = self.terms.lock().unwrap();
+            let map = self.terms.lock_recover();
             map.values()
                 .filter(|t| t.workspace_id == workspace_id)
                 .map(|t| t.id.clone())
@@ -815,7 +816,7 @@ impl PtyManager {
 
     pub fn kill_all_terms(&self) {
         self.wait_ready();
-        let ids: Vec<String> = self.terms.lock().unwrap().keys().cloned().collect();
+        let ids: Vec<String> = self.terms.lock_recover().keys().cloned().collect();
         for id in ids {
             self.kill_term(&id);
         }
@@ -824,8 +825,7 @@ impl PtyManager {
     pub fn live_terms(&self) -> Vec<TermInfo> {
         self.wait_ready();
         self.terms
-            .lock()
-            .unwrap()
+            .lock_recover()
             .values()
             .filter(|t| t.alive)
             .cloned()
@@ -841,7 +841,7 @@ impl PtyManager {
 
     fn shutdown_host_now(&self) {
         let _ = self.send(json!({ "t": "shutdown" }));
-        self.terms.lock().unwrap().clear();
+        self.terms.lock_recover().clear();
     }
 }
 
@@ -863,7 +863,7 @@ fn settle(pending: &Arc<Mutex<HashMap<u64, mpsc::Sender<Value>>>>, msg: &Value) 
     let Some(n) = msg.get("n").and_then(Value::as_u64) else {
         return;
     };
-    let tx = pending.lock().unwrap().remove(&n);
+    let tx = pending.lock_recover().remove(&n);
     if let Some(tx) = tx {
         let _ = tx.send(msg.clone());
     }

@@ -3,6 +3,7 @@ Rust port of src/main/shell-detect.ts + path-lookup.ts.
 Windows: pwsh → powershell → cmd, found by scanning PATH × PATHEXT
 (never spawns where.exe). Unix: bash → zsh → fish → /bin/sh. */
 
+use crate::lock::LockExt;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -81,7 +82,7 @@ fn path_dirs() -> Vec<String> {
 /* lowercase filename → full path of its FIRST matching dir (PATH order) */
 #[cfg(windows)]
 fn path_files() -> HashMap<String, PathBuf> {
-    if let Some(cache) = path_cache().lock().unwrap().as_ref() {
+    if let Some(cache) = path_cache().lock_recover().as_ref() {
         if cache.at.elapsed() < CACHE_TTL {
             return cache.files.clone();
         }
@@ -100,7 +101,7 @@ fn path_files() -> HashMap<String, PathBuf> {
             }
         }
     }
-    *path_cache().lock().unwrap() = Some(PathCache {
+    *path_cache().lock_recover() = Some(PathCache {
         at: Instant::now(),
         files: files.clone(),
     });
@@ -109,7 +110,7 @@ fn path_files() -> HashMap<String, PathBuf> {
 
 #[cfg(unix)]
 fn path_files() -> HashMap<String, PathBuf> {
-    if let Some(cache) = path_cache().lock().unwrap().as_ref() {
+    if let Some(cache) = path_cache().lock_recover().as_ref() {
         if cache.at.elapsed() < CACHE_TTL {
             return cache.files.clone();
         }
@@ -135,7 +136,7 @@ fn path_files() -> HashMap<String, PathBuf> {
             }
         }
     }
-    *path_cache().lock().unwrap() = Some(PathCache {
+    *path_cache().lock_recover() = Some(PathCache {
         at: Instant::now(),
         files: files.clone(),
     });
@@ -180,11 +181,11 @@ fn detect_shell_cached() -> &'static Mutex<Option<ShellChoice>> {
 }
 
 pub fn detect_shell() -> ShellChoice {
-    if let Some(cached) = detect_shell_cached().lock().unwrap().as_ref() {
+    if let Some(cached) = detect_shell_cached().lock_recover().as_ref() {
         return cached.clone();
     }
     let choice = detect_shell_uncached();
-    *detect_shell_cached().lock().unwrap() = Some(choice.clone());
+    *detect_shell_cached().lock_recover() = Some(choice.clone());
     choice
 }
 
