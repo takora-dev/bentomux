@@ -181,7 +181,11 @@ function activePaneIds(): string[] {
   return entry ? leavesOf(entry) : [];
 }
 
-export function initKeyboard(): void {
+/* The app installs exactly one keydown handler and keeps it for the life of
+   the window; `initKeyboard` returns the teardown so a test (or a future
+   re-init) can remove it instead of stacking a second handler. */
+export function initKeyboard(): () => void {
+  const events = new AbortController();
   document.addEventListener('keydown', e => {
     if (currentModal) {
       if (e.key === 'Escape') { e.preventDefault(); currentModal.close(); }
@@ -242,5 +246,6 @@ export function initKeyboard(): void {
     if (e.key === 'Escape' && !typing) {
       if (ui.sidebarOpen) { ui.sidebarOpen = false; render(); }
     }
-  });
+  }, { signal: events.signal });
+  return () => events.abort();
 }

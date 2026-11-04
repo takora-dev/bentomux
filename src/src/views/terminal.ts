@@ -36,6 +36,10 @@ interface Live {
   /* the daemon does not own this pane (a stale tab after a restart): it can
      never be resized or replayed, so stop asking */
   gone: boolean;
+  /* every listener this pane owns hangs off one signal, so dispose() is a
+     single abort() instead of a list of removeEventListener calls that a new
+     listener can silently fall off */
+  events: AbortController;
 }
 
 const lives = new Map<string, Live>();
@@ -399,7 +403,12 @@ export function initTerminalEvents(): void {
   });
   api.onFileDrop(handleFileDrop);
 }
-function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTMLElement } {
+function createXterm(tabId: string): {
+  term: Terminal;
+  fit: FitAddon;
+  host: HTMLElement;
+  events: AbortController;
+} {
   const fontFamily = monoFont();
   const fontSize = termFontSize();
   const term = new Terminal({
@@ -457,14 +466,15 @@ function createXterm(tabId: string): { term: Terminal; fit: FitAddon; host: HTML
   // MUST call term.open() before term.element is available
   term.open(host);
 
-  wireXtermEvents(term, tabId);
-  wireFocusIn(host, tabId);
-  wireWheelGuard(term, host);
-  const result = { term, fit, host };
+  const events = new AbortController();
+  wireXtermEvents(term, tabId, events.signal);
+  wireFocusIn(host, tabId, events.signal);
+  wireWheelGuard(term, host, events.signal);
+  const result = { term, fit, host, events };
   return result;
 }
 
-function wireXtermEvents(term: Terminal, tabId: string): void {
+function wireXtermEvents(term: Terminal, tabId: string, signal: AbortSignal): void {
   term.attachCustomKeyEventHandler(e => {
     /* Ctrl+C / Cmd+C dengan selection aktif → copy; tanpa selection → biarkan SIGINT lewat */
     const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && term.hasSelection();
@@ -505,14 +515,14 @@ function wireXtermEvents(term: Terminal, tabId: string): void {
     const live = lives.get(tabId);
     if (live) notifyResize(live);
   });
-  wireClipboardPaste(term, tabId);
+  wireClipboardPaste(term, tabId, signal);
 }
 
 /* Cmd+V of an image or a file → stage the bytes in the temp dir and type the
    resulting absolute path into the PTY. A WebView exposes no filesystem path
    for clipboard files, so without this the terminal only ever received the
    bare name ("image.png"). Plain text falls through to xterm's own paste. */
-function wireClipboardPaste(term: Terminal, tabId: string): void {
+function wireClipboardPaste(term: Terminal, tabId: string, signal: AbortSignal): void {
   const textarea = term.textarea;
   if (!textarea) return;
   textarea.addEventListener('paste', e => {
@@ -530,7 +540,7 @@ function wireClipboardPaste(term: Terminal, tabId: string): void {
     e.preventDefault();
     e.stopPropagation();
     void Promise.all(files.map(stageClipboardFile)).then(paths => writePaths(tabId, paths));
-  });
+  }, { signal });
 }
 
 /* resolves with the temp path, or with the clipboard's own file name when the
@@ -586,7 +596,7 @@ function markFocusedPane(host: HTMLElement, tabId: string): void {
    nobody took is consumed here and applied to the buffer ourselves. That also
    restores scrolling for a pane whose viewport stopped following the buffer,
    where `scrollLines` is the only public path left that still moves it. */
-function wireWheelGuard(term: Terminal, host: HTMLElement): void {
+function wireWheelGuard(term: Terminal, host: HTMLElement, signal: AbortSignal): void {
   host.addEventListener('wheel', (e: WheelEvent) => {
     if (e.defaultPrevented || e.ctrlKey) return;
     e.preventDefault();
@@ -604,14 +614,14 @@ function wireWheelGuard(term: Terminal, host: HTMLElement): void {
        this moves nothing — the gesture is still swallowed, because leaking it
        to the window is never the right answer */
     term.scrollLines(e.deltaY < 0 ? -lines : lines);
-  }, { passive: false });
+  }, { passive: false, signal });
 }
 
-function wireFocusIn(host: HTMLElement, tabId: string): void {
+function wireFocusIn(host: HTMLElement, tabId: string, signal: AbortSignal): void {
   host.addEventListener('focusin', () => {
     lastFocus.set(tabId, Date.now());
     markFocusedPane(host, tabId);
-  });
+  }, { signal });
 }
 
 /* Tauri hands the whole window's OS drops to one webview event, so pick the
@@ -644,7 +654,7 @@ function handleFileDrop(e: FileDropEvent): void {
 function ensureLive(tabId: string): Live {
   let live = lives.get(tabId);
   if (!live) {
-    const { term, fit, host } = createXterm(tabId);
+    const { term, fit, host, events } = createXterm(tabId);
     live = {
       id: tabId,
       term,
@@ -657,6 +667,7 @@ function ensureLive(tabId: string): Live {
       daemonRows: 0,
       daemonCols: 0,
       gone: false,
+      events,
     };
     lives.set(tabId, live);
   }
@@ -672,6 +683,9 @@ export function disposeTerminal(tabId: string): void {
   const live = lives.get(tabId);
   if (!live) return;
   if (live.observer) live.observer.disconnect();
+  /* the host element outlives the pane: it is parked, not destroyed, so its
+     listeners would keep firing against a disposed xterm without this */
+  live.events.abort();
   try { live.term.dispose(); } catch { /* already gone */ }
   pending.delete(tabId);
   resyncNeeded.delete(tabId);
