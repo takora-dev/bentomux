@@ -1,6 +1,6 @@
 # Bentomux Plugin Platform
 
-Governing spec for the "everything is a plugin" workstream. It supersedes the Non-Goals clause of `MIGRATION_TO_TAURI.md` for this workstream only (see `docs/adr/0002-parity-rule-amended.md`). Vocabulary is fixed in `CONTEXT.md` — read that first; the terms **Plugin**, **Contribution**, **Plugin Context**, and **Plugin Skill** have specific meanings here.
+Governing spec for the "everything is a plugin" workstream. It supersedes the Electron-parity Non-Goals clause for this workstream only (see `docs/adr/0002-parity-rule-amended.md`). Vocabulary is fixed in `CONTEXT.md` — read that first; the terms **Plugin**, **Contribution**, **Plugin Context**, and **Plugin Skill** have specific meanings here.
 
 **Status:** built. Execution order lives in `.zcode/plans/plan-plugin-platform.md`. v1 shipped; the marketplace is v2 and is specified in `docs/PLUGIN_MARKETPLACE.md`.
 

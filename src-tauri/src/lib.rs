@@ -1,7 +1,6 @@
 // Bentomux Tauri backend library root.
-// Modules are ported phase-by-phase from the Electron main process
-// (see MIGRATION_TO_TAURI.md). Phase 1 creates the skeleton; each
-// module gains its implementation in its dedicated phase.
+// Each module below is the finished port of its Electron counterpart in
+// ../Bentomux/src/main/; the mapping is documented in CLAUDE.md.
 
 pub mod agent_hooks;
 pub mod agents;

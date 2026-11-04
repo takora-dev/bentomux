@@ -29,7 +29,7 @@ harness that dies at load (STATUS_ENTRYPOINT_NOT_FOUND: the binary imports
 
 ## Architecture
 
-Bentomux is a desktop app for managing AI agent runtime workspaces. This repo (`Bentomux-v2/`) is a **Tauri 2 port** of the original Electron app at `../Bentomux/` — keep parity 1:1, do not redesign or add features. See `MIGRATION_TO_TAURI.md` (spec) and `AI_AGENT_PROMPT.md` (phase instructions).
+Bentomux is a desktop app for managing AI agent runtime workspaces. This repo (`Bentomux-v2/`) is a **Tauri 2 port** of the original Electron app at `../Bentomux/` — keep parity 1:1, do not redesign or add features. The migration is complete: `../Bentomux/` is now the reference for behaviour, not a parallel codebase to keep in step.
 
 **One deliberate exception:** the plugin platform (`docs/PLUGIN_PLATFORM.md`) is a new feature and a new architecture layer, added alongside the existing UI rather than replacing it. It knowingly breaks the parity rule — see `docs/adr/0002-parity-rule-amended.md`. Do not "fix" it back to parity.
 
@@ -89,7 +89,7 @@ Plain TS modules in `src/src/` — no bundled framework. Two windows share the s
 | `remote.rs` | Remote monitor (axum ws + `tokio-tungstenite`, QR via `qrcode`, `local-ip-address`) |
 | `runtime.rs` | Headless screen feed + process poller (`sysinfo`) |
 
-Identifier: `app.bentomux.desktop`. Capabilities: `core:default`, `core:window:default`, `core:event:default` for windows `main` and `approval-overlay` (`src-tauri/capabilities/default.json`). CSP is disabled (`null`).
+Identifier: `app.bentomux.desktop`. Capabilities: `core:default`, `core:window:default`, `core:event:default` for windows `main` and `approval-overlay` (`src-tauri/capabilities/default.json`). CSP is **on** and strict (`src-tauri/tauri.conf.json` → `app.security.csp`): `default-src 'self'`, no `unsafe-eval`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`. Plugin origins are added to `script-src`/`style-src`/`connect-src` by `scripts/gen-plugin-csp.mjs`, which CI checks — a new plugin origin means regenerating that list, not editing the config by hand. `style-src` carries `'unsafe-inline'` because xterm and Shiki set inline styles; `npm run check:csp-inline-styles` guards that.
 
 ### Conventions
 
@@ -101,8 +101,8 @@ Identifier: `app.bentomux.desktop`. Capabilities: `core:default`, `core:window:d
   on the next launch.
 - Persisted JSON on disk must stay `camelCase` — serde renames are load-bearing for existing `bentomux.json` files.
 - Work only in `Bentomux-v2/`; do not modify `../Bentomux/` (original Electron source).
-- Renderer is kept unchanged during backend phases; migration proceeds phase-by-phase per `MIGRATION_TO_TAURI.md`.
-- Rust style per `AI_AGENT_PROMPT.md`: explicit error types, no TODOs, no skipped error handling.
+- Rust style: explicit error types, no TODOs, no skipped error handling.
+- CI gates on `npm run typecheck`, `npm run test:ts`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `npm run test:backend`. Run those five before pushing; a warning is a failure.
 
 ### Importing Other Agent Configs
 
