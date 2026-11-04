@@ -879,6 +879,18 @@ function mountAxis(parent: HTMLElement, node: PaneNode): HTMLElement {
   return axis;
 }
 
+/* Park a page's panes instead of letting them be discarded with their page.
+   `#tabbody` is cleared with innerHTML = '' before every content render, so
+   without this the xterm hosts would be orphaned mid-paint and the app would
+   have to trust a later ensureLive() to find them again. Detaching them into
+   the parking lot first is synchronous and keeps the invariant explicit. */
+export function parkTerminalPage(): void {
+  if (!parking) return;
+  for (const live of lives.values()) {
+    if (live.host.isConnected && !parking.contains(live.host)) parking.append(live.host);
+  }
+}
+
 export function terminalPage(start: PaneNode | string): HTMLElement {
   try {
     const root = h('div', { class: 'terminal-page' });

@@ -5,7 +5,7 @@ import type { TabRec } from '../../shared/types';
 import { leafNode, leafIds, firstLeafId, splitLeaf, removeLeaf, setSplitDir, newNodeKey, treeHasKey, type PaneNode } from '../../shared/split-tree';
 import { ui, type Route, type TabEntry } from '../state';
 import { db, branches, activity } from '../store';
-import { render } from '../render';
+import { render, repaintContent } from '../render';
 import { disposeTerminal, mostRecentPane, resetPaneRatio } from './terminal';
 import { openContextMenu } from '../components/menu';
 import { openModal } from '../components/modal';
@@ -381,7 +381,9 @@ export async function splitTerminalPane(paneId: string, dir: 'v' | 'h' = 'v', be
     entry.tree = splitLeaf(base, paneId, dir, rec.id, key, before);
     activity[rec.id] = Date.now();
     if (entry.workspaceId) lastCreatedWs.set(rec.id, entry.workspaceId);
-    render();
+    /* same route, one more leaf: the tab strip is unchanged and a full pass
+       would detach the panes that are already mounted */
+    repaintContent();
   } catch (e) {
     console.error('split pane failed', e);
   }
@@ -395,7 +397,7 @@ export function setNodeDir(nodeKey: string, dir: 'v' | 'h'): void {
   entry.tree = setSplitDir(entry.tree, nodeKey, dir);
   resetPaneRatio(nodeKey);
   api.setSplitDir(nodeKey, dir);
-  render();
+  repaintContent();
 }
 
 /* close one pane; its axis collapses, anchor re-keys when it was the first pane */
@@ -413,7 +415,7 @@ export async function closeTerminalPane(paneId: string): Promise<void> {
     return;
   }
   reanchorEntryOnPaneClose(entry, tree);
-  render();
+  repaintContent();
 }
 
 /* Cmd+W / File > Close Pane: the focused pane of a split tab goes first; a

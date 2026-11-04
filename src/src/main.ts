@@ -8,7 +8,7 @@ import { $, $$, h } from './dom';
 import { rel, abs } from './time';
 import { ui, type Route, type TabEntry } from './state';
 import { db, setDb, branches, runtime, activity } from './store';
-import { registerRenderers, render } from './render';
+import { registerRenderers, render, repaintContent, noteMountedPage, pageKey, mountedPageKey } from './render';
 import { renderTabs, activate, stepHistory, registerRestoredTab, closeFocusedPaneOrTab } from './views/tabs';
 import { openAddWorkspaceMenu, renderSidebar, patchPaneStatuses, toggleGitPanel, closeRailFlyout } from './views/sidebar';
 import { agentsPage, agentDetailPage } from './views/agents';
@@ -20,6 +20,7 @@ import {
   applyTerminalTheme,
   clearTerminalSelections,
   seedPaneRatios,
+  parkTerminalPage,
 } from './views/terminal';
 import { initKeyboard } from './keyboard';
 import { refreshChangesPill, startPillHeartbeat } from './views/gitPanel';
@@ -190,7 +191,13 @@ function renderRoot(): void {
   applyShellPrefs();
   renderSidebar();
   renderTabs();
-  renderContentInner(ui.route);
+  /* A terminal page owns live xterm hosts. Rebuilding it detaches and
+     re-appends every one of them, which loses keyboard focus, scroll position
+     and IME composition — for a repaint that may only have moved a tab in the
+     strip. Leave a mounted terminal page alone unless the route actually
+     changed; every other view is stateless enough to rebuild. */
+  const sameTerminalPage = ui.route.view === 'terminal' && pageKey(ui.route) === mountedPageKey();
+  if (!sameTerminalPage) renderContentInner(ui.route);
 }
 
 function findTerminalEntry(route: Route): TabEntry | undefined {
@@ -199,6 +206,9 @@ function findTerminalEntry(route: Route): TabEntry | undefined {
 }
 
 function renderContentInner(route: Route): void {
+  noteMountedPage(route);
+  /* detach live panes before the innerHTML = '' below orphans them */
+  parkTerminalPage();
   const c = $('#content');
   const body = $('#tabbody');
   c.classList.remove('full');
@@ -377,7 +387,9 @@ function toggleTheme(): void {
   db.prefs.theme = db.prefs.theme === 'dark' ? 'light' : 'dark';
   void api.setPrefs({ theme: db.prefs.theme });
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
-  render(); /* terminals re-theme in place */
+  /* terminals re-theme in place: the palette comes from CSS tokens, so a
+     content repaint is enough and the panes keep their focus */
+  repaintContent();
 }
 
 export function setThemeMode(mode: 'light' | 'dark' | 'system'): void {
@@ -385,7 +397,7 @@ export function setThemeMode(mode: 'light' | 'dark' | 'system'): void {
   db.prefs.theme = mode;
   void api.setPrefs({ theme: mode });
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
-  render();
+  repaintContent();
 }
 
 export function setPalette(palette: import('../shared/types').PaletteName): void {
@@ -393,7 +405,8 @@ export function setPalette(palette: import('../shared/types').PaletteName): void
   db.prefs.palette = palette;
   void api.setPrefs({ palette });
   applyPaletteClass(palette);
-  render();
+  applyTerminalTheme();
+  repaintContent();
 }
 
 export function setTerminalFont(font: string | null | undefined): void {
