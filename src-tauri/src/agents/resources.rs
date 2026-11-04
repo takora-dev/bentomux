@@ -154,7 +154,7 @@ fn fill_from_snapshot(r: &mut Rich, agent_id: &str, snap: &ResourceSnapshot) {
     match kind {
         ResourceKind::Memory => {
             if it.content.is_none() {
-                it.content = str_from_value(d, "content").map(|s| s.clone());
+                it.content = str_from_value(d, "content");
             }
             if let Some(s) = str_from_value(d, "scope") {
                 it.scope = Some(s);
@@ -247,7 +247,7 @@ fn merged(
             }
         }
     }
-    out.sort_by(|a, b| b.item.updated.cmp(&a.item.updated));
+    out.sort_by_key(|e| std::cmp::Reverse(e.item.updated));
     out
 }
 

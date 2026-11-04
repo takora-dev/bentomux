@@ -293,7 +293,7 @@ impl AgentAdapter for PiAdapter {
                 if !dir_exists(&self.skills_root().to_string_lossy()) {
                     return map;
                 }
-                let Ok(rd) = fs::read_dir(&self.skills_root()) else {
+                let Ok(rd) = fs::read_dir(self.skills_root()) else {
                     return map;
                 };
                 for e in rd.flatten() {
@@ -324,8 +324,13 @@ impl AgentAdapter for PiAdapter {
     fn write(&self, kind: ResourceKind, id: String, name: String, def: ResourceDef) {
         match (kind, def) {
             (ResourceKind::Memory, ResourceDef::Memory(d)) => {
-                let file = if d.scope == MemoryScope::Project && d.workspace_path.is_some() {
-                    PathBuf::from(d.workspace_path.as_ref().unwrap()).join("AGENTS.md")
+                let project_ws = if d.scope == MemoryScope::Project {
+                    d.workspace_path.as_deref()
+                } else {
+                    None
+                };
+                let file = if let Some(ws) = project_ws {
+                    PathBuf::from(ws).join("AGENTS.md")
                 } else {
                     self.agents_global()
                 };

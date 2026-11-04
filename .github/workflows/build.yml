@@ -59,8 +59,10 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run test:ts
       - run: npm run build
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: npm run test:backend
 
       # Split per tool: a failure names the thing that broke instead of a bare

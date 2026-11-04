@@ -232,9 +232,9 @@ fn replace_or_insert(
     from: usize,
     to: usize,
 ) {
-    for i in from..to {
-        if toml_line_key(&lines[i]).as_deref() == Some(key) {
-            lines[i] = format!("{key} = {}", toml_scalar(value));
+    for line in lines.iter_mut().take(to).skip(from) {
+        if toml_line_key(line).as_deref() == Some(key) {
+            *line = format!("{key} = {}", toml_scalar(value));
             return;
         }
     }

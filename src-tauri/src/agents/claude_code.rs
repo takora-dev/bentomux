@@ -55,10 +55,10 @@ impl ClaudeCodeAdapter {
                         .cloned()
                         .unwrap_or_default();
                     let str = |v: &serde_json::Value| v.as_str().unwrap_or("").to_string();
-                    let model = obj.get("model").map(|v| str(v)).unwrap_or_default();
+                    let model = obj.get("model").map(&str).unwrap_or_default();
                     let base_url = env
                         .get("ANTHROPIC_BASE_URL")
-                        .map(|v| str(v))
+                        .map(&str)
                         .unwrap_or_default();
                     let has_key = env
                         .get("ANTHROPIC_AUTH_TOKEN")
@@ -241,7 +241,7 @@ impl AgentAdapter for ClaudeCodeAdapter {
                     let Some(raw) = read_text(&p) else { continue };
                     let (attrs, body) = parse_frontmatter(&raw);
                     let dir_name = e.file_name().to_string_lossy().to_string();
-                    let key = attrs.get("name").cloned().unwrap_or_else(|| dir_name);
+                    let key = attrs.get("name").cloned().unwrap_or(dir_name);
                     map.insert(
                         key.clone(),
                         ListedEntry {
@@ -309,8 +309,13 @@ impl AgentAdapter for ClaudeCodeAdapter {
     fn write(&self, kind: ResourceKind, id: String, name: String, def: ResourceDef) {
         match (kind, def) {
             (ResourceKind::Memory, ResourceDef::Memory(d)) => {
-                let file = if d.scope == MemoryScope::Project && d.workspace_path.is_some() {
-                    PathBuf::from(d.workspace_path.as_ref().unwrap())
+                let project_ws = if d.scope == MemoryScope::Project {
+                    d.workspace_path.as_deref()
+                } else {
+                    None
+                };
+                let file = if let Some(ws) = project_ws {
+                    PathBuf::from(ws)
                         .join(".claude")
                         .join("rules")
                         .join(format!("{id}.md"))

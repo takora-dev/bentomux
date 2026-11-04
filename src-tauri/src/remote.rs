@@ -157,7 +157,7 @@ fn ensure_token(state: &AppStateManager) -> String {
     let token = random_token();
     let tok = token.clone();
     state.patch_prefs(|p| {
-        let r = p.remote.get_or_insert_with(|| RemotePrefs {
+        let r = p.remote.get_or_insert(RemotePrefs {
             enabled: None,
             port: None,
             token: None,
@@ -569,7 +569,10 @@ async fn client_loop(ws: WebSocket, st: WsCtx) {
                 match out {
                     Ok(RemoteMsg::View { pane_id: p, text, html }) => {
                         if watching.lock().unwrap().contains(&p) {
-                            if !send_json(&mut sender, js(&json!({"t": "view", "paneId": p, "text": text, "html": html}))).await { break; }
+                            let msg = json!({"t": "view", "paneId": p, "text": text, "html": html});
+                            if !send_json(&mut sender, js(&msg)).await {
+                                break;
+                            }
                         }
                     }
                     Ok(RemoteMsg::Gone { pane_id: p }) => {
@@ -676,7 +679,7 @@ async fn handle_incoming(
                 .lock()
                 .unwrap()
                 .iter()
-                .filter(|p| wanted.map_or(true, |w| w == p.as_str()))
+                .filter(|p| wanted.is_none_or(|w| w == p.as_str()))
                 .cloned()
                 .collect();
             for p in released {
@@ -1481,7 +1484,7 @@ pub fn set_remote_enabled(
     on: bool,
 ) -> RemotePairing {
     state.patch_prefs(|p| {
-        let r = p.remote.get_or_insert_with(|| RemotePrefs {
+        let r = p.remote.get_or_insert(RemotePrefs {
             enabled: None,
             port: None,
             token: None,
@@ -1551,7 +1554,7 @@ pub fn set_remote_port(
     port: u16,
 ) -> RemotePairing {
     state.patch_prefs(|p| {
-        let r = p.remote.get_or_insert_with(|| RemotePrefs {
+        let r = p.remote.get_or_insert(RemotePrefs {
             enabled: None,
             port: None,
             token: None,

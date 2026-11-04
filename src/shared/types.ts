@@ -615,8 +615,11 @@ export interface BentomuxApi {
   pluginSkillTargets(): Promise<{ agentId: string; agentName: string; path: string; installed: boolean }[]>;
   pluginInstallSkill(agentId: string): Promise<string>;
   pluginScaffold(p: {
-    template: string; dest: string; id: string; name: string;
-    version: string; description: string; author: string;
+    identity: {
+      template: string; id: string; name: string;
+      version: string; description: string; author: string;
+    };
+    dest: string;
   }): Promise<ValidationReport>;
   pluginValidate(path: string, bundled?: boolean): Promise<ValidationReport>;
   pluginManifest(id: string): Promise<PluginManifest>;

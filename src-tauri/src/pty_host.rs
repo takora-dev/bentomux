@@ -890,7 +890,7 @@ fn sweep_term(host: &Host, shared: &Arc<TermShared>) -> bool {
         shared.snapshot_pending.store(true, Ordering::SeqCst);
         return false;
     }
-    let snapshot = term_lock(&shared).snapshot();
+    let snapshot = term_lock(shared).snapshot();
     send_snapshot(host, &shared.id, &snapshot);
     true
 }

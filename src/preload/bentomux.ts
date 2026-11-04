@@ -276,8 +276,11 @@ const api = {
   pluginInstallSkill: (agentId: string) =>
     invoke<string>('plugin_install_skill', { agentId }),
   pluginScaffold: (p: {
-    template: string; dest: string; id: string; name: string;
-    version: string; description: string; author: string;
+    identity: {
+      template: string; id: string; name: string;
+      version: string; description: string; author: string;
+    };
+    dest: string;
   }) => invoke<ValidationReport>('plugin_scaffold', p),
   pluginValidate: (path: string, bundled?: boolean) =>
     invoke<ValidationReport>('plugin_validate', { path, bundled }),

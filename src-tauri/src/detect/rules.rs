@@ -261,7 +261,7 @@ fn matches_rule(rule: &Rule, screen: &ScreenInput) -> bool {
 /** Evaluate rules highest-priority-first. First match wins. */
 pub fn evaluate(manifest: &AgentManifest, screen: &ScreenInput) -> Detection {
     let mut rules: Vec<&Rule> = manifest.rules.iter().collect();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+    rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
     for rule in rules {
         if !matches_rule(rule, screen) {
             continue;

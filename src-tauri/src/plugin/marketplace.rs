@@ -466,7 +466,7 @@ pub fn verify_payload(expected_sha256: &str, bytes: &[u8]) -> PluginResult<()> {
 /// only when the user opens a plugin's details — a per-repo README would
 /// double the sweep's request count for text nobody is looking at yet.
 pub fn readme(repo: &str, git_ref: &str) -> PluginResult<String> {
-    if repo.contains('/') != true || repo.split('/').count() != 2 {
+    if !repo.contains('/') || repo.split('/').count() != 2 {
         return Err(PluginError::Manifest(format!("not an owner/name repo: {}", repo)));
     }
     let url = format!(

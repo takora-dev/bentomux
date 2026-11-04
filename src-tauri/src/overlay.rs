@@ -94,8 +94,8 @@ fn current_position(app: &AppHandle, w: f64, h: f64) -> (f64, f64) {
             (
                 pos.x as f64,
                 pos.y as f64,
-                size.width as f64 / scale as f64,
-                size.height as f64 / scale as f64,
+                size.width as f64 / scale,
+                size.height as f64 / scale,
             )
         }
         _ => (0.0, 0.0, 1920.0, 1080.0),

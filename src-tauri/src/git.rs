@@ -183,25 +183,23 @@ pub fn watch_workspace(workspace_id: &str, ws_path: &str) {
                     .watch(Path::new(&dir), RecursiveMode::NonRecursive)
                     .is_ok()
                 {
-                    for res in rx {
-                        if let Ok(ev) = res {
-                            match ev.kind {
-                                EventKind::Access(_)
-                                | EventKind::Create(_)
-                                | EventKind::Modify(_)
-                                | EventKind::Remove(_) => {}
-                                _ => continue,
-                            }
-                            let is_head = ev
-                                .paths
-                                .iter()
-                                .any(|p| p.file_name().and_then(|n| n.to_str()) == Some("HEAD"));
-                            if is_head {
-                                std::thread::sleep(Duration::from_millis(60));
-                                check_and_emit(&wid2, &ws2);
-                                if !registered(&wid2) {
-                                    break; /* workspace unwatched */
-                                }
+                    for ev in rx.into_iter().flatten() {
+                        match ev.kind {
+                            EventKind::Access(_)
+                            | EventKind::Create(_)
+                            | EventKind::Modify(_)
+                            | EventKind::Remove(_) => {}
+                            _ => continue,
+                        }
+                        let is_head = ev
+                            .paths
+                            .iter()
+                            .any(|p| p.file_name().and_then(|n| n.to_str()) == Some("HEAD"));
+                        if is_head {
+                            std::thread::sleep(Duration::from_millis(60));
+                            check_and_emit(&wid2, &ws2);
+                            if !registered(&wid2) {
+                                break; /* workspace unwatched */
                             }
                         }
                     }
@@ -490,7 +488,7 @@ fn parse_status_line(line: &str) -> Option<GitStatusEntry> {
     if line.len() < 4 {
         return None;
     }
-    let index_status = line.chars().nth(0).unwrap_or(' ');
+    let index_status = line.chars().next().unwrap_or(' ');
     let work_tree_status = line.chars().nth(1).unwrap_or(' ');
     let path = &line[3..];
     if path.is_empty() {
@@ -762,7 +760,7 @@ pub fn remote_info(ws_path: &str) -> GitRemoteInfo {
         let arg_refs: Vec<&str> = vec!["--short", &head_arg];
         run_process(ws_path, &arg_refs, None).ok().and_then(|h| {
             if h.code == 0 {
-                h.stdout.trim().split('/').last().map(String::from)
+                h.stdout.trim().split('/').next_back().map(String::from)
             } else {
                 None
             }

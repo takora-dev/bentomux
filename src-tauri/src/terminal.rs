@@ -294,7 +294,7 @@ fn has_visible_activity(chunk: &[u8]) -> bool {
             }
             continue;
         }
-        if chunk[i] >= 0x20 && chunk[i] != b' ' {
+        if chunk[i] > 0x20 {
             return true;
         }
         i += 1;

@@ -311,7 +311,7 @@ pub(crate) fn download(url: &str) -> PluginResult<Vec<u8>> {
 /// Enable or disable without touching the installed code. Disabling is how a
 /// user takes a broken plugin out of the picture without losing its data.
 pub fn set_enabled(
-    records: &mut Vec<PluginRecord>,
+    records: &mut [PluginRecord],
     id: &str,
     enabled: bool,
 ) -> PluginResult<PluginRecord> {

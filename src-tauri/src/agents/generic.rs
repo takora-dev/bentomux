@@ -7,7 +7,7 @@ detect by config dir or binary on PATH, no resource management
 own config file — native slots where they exist, a namespaced
 `bentomux.modelSettings` block where the tool has none. */
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::state::{Capabilities, ResourceKind};
 
@@ -98,11 +98,11 @@ struct GenEnvOpt {
 /* fields with no native slot in the tool's schema ride in a namespaced
 `bentomux` block the tool ignores, so Apply always round-trips */
 fn bentomux_block_cap(
-    file: &PathBuf,
+    file: &Path,
     fields: Vec<ModelField>,
     formats: Vec<FormatChoice>,
 ) -> ModelSettingsCap {
-    let f = file.clone();
+    let f = file.to_path_buf();
     ModelSettingsCap {
         fields,
         formats,
@@ -594,7 +594,7 @@ pub fn opencode_adapter(ctx: &AdapterCtx) -> Box<dyn AgentAdapter> {
                         .get(provider)
                         .cloned()
                         .unwrap_or(serde_json::json!({}));
-                    let mut next = prev.as_object().map(|m| m.clone()).unwrap_or_default();
+                    let mut next = prev.as_object().cloned().unwrap_or_default();
                     next.insert("name".into(), serde_json::Value::String("Bentomux".into()));
                     let mut options = next
                         .get("options")
@@ -653,20 +653,18 @@ pub fn opencode_adapter(ctx: &AdapterCtx) -> Box<dyn AgentAdapter> {
                                     .cloned()
                                     .unwrap_or_else(|| serde_json::json!({}))
                                     .as_object()
-                                    .map(|o| o.clone())
+                                    .cloned()
                                     .unwrap_or_default()
                             } else {
                                 serde_json::Map::new()
                             };
                             entry.insert("name".into(), serde_json::Value::String(m.clone()));
                             let cmap = if patch.context.is_some() {
-                                if let Some(n) =
-                                    patch.context.as_ref().and_then(|c| context_to_number(c))
-                                {
-                                    Some(serde_json::Value::Number(n.into()))
-                                } else {
-                                    None
-                                }
+                                patch
+                                    .context
+                                    .as_ref()
+                                    .and_then(|c| context_to_number(c))
+                                    .map(|n| serde_json::Value::Number(n.into()))
                             } else {
                                 None
                             };

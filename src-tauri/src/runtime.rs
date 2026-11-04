@@ -32,7 +32,7 @@ pub struct RuntimeStatus {
 }
 
 /* editable model settings exposed on an agent's Model tab */
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ModelSettingsView {
     pub model: String,
@@ -41,17 +41,6 @@ pub struct ModelSettingsView {
     pub format: String,
     /* the stored key is never sent back — presence only */
     pub has_api_key: bool,
-}
-impl Default for ModelSettingsView {
-    fn default() -> Self {
-        ModelSettingsView {
-            model: String::new(),
-            base_url: String::new(),
-            context: String::new(),
-            format: String::new(),
-            has_api_key: false,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
@@ -90,7 +79,7 @@ pub struct ResourceCounts {
     pub mcp: u32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentConfigView {
     pub id: String,
@@ -105,24 +94,6 @@ pub struct AgentConfigView {
     pub model_write_target: Option<String>,
     pub config_path: Option<String>,
     pub counts: ResourceCounts,
-}
-impl Default for AgentConfigView {
-    fn default() -> Self {
-        AgentConfigView {
-            id: String::new(),
-            name: String::new(),
-            detected: false,
-            capabilities: Capabilities::default(),
-            current_model: None,
-            model_settings: None,
-            model_fields: vec![],
-            model_formats: vec![],
-            model_suggestions: vec![],
-            model_write_target: None,
-            config_path: None,
-            counts: ResourceCounts::default(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
@@ -156,10 +127,12 @@ use tauri::{Emitter, Manager};
 use crate::detect::{manifests::manifest_for, rules, screen};
 use crate::pty::PtyManager;
 
+type UpdateHook = Box<dyn Fn(&BTreeMap<String, RuntimeStatus>) + Send + Sync>;
+
 struct RuntimeState {
     app: Option<tauri::AppHandle>,
     /* subscribers outside the renderer, keyed on the latest status set */
-    update_hooks: Vec<Box<dyn Fn(&BTreeMap<String, RuntimeStatus>) + Send + Sync>>,
+    update_hooks: Vec<UpdateHook>,
     last_states: HashMap<String, AgentRunState>,
 }
 
@@ -670,7 +643,7 @@ fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
         Some(rules::RunState::Working) => base.state = Some(AgentRunState::Working),
         Some(rules::RunState::Blocked) => base.state = Some(AgentRunState::Blocked),
     }
-    if matches!(det.state, Some(_)) && det.state != Some(rules::RunState::Unknown) {
+    if det.state.is_some() && det.state != Some(rules::RunState::Unknown) {
         base.matched_rule = det.rule_id;
     }
     base.source = Some("manifest".to_string());
@@ -919,7 +892,7 @@ mod tests {
             match_agent(
                 "python3",
                 Some(
-                    "/Users/mac/.hermes/tools/python-3.14.7-darwin-x64/bin/python3 -I -c import os\012sys.path.insert(0, '/Users/mac/.hermes/hermes-agent')\012from hermes_cli.main import main"
+                    "/Users/mac/.hermes/tools/python-3.14.7-darwin-x64/bin/python3 -I -c import os\nsys.path.insert(0, '/Users/mac/.hermes/hermes-agent')\nfrom hermes_cli.main import main"
                 )
             ),
             Some("hermes")

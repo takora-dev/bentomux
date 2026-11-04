@@ -53,9 +53,12 @@ struct Pending {
     response: mpsc::Sender<Option<String>>,
 }
 
+type CreatedHook = std::sync::Arc<dyn Fn(&AgentApprovalRequest) + Send + Sync>;
+type ClosedHook = std::sync::Arc<dyn Fn(&str) + Send + Sync>;
+
 struct HookReg {
-    created: Vec<std::sync::Arc<dyn Fn(&AgentApprovalRequest) + Send + Sync>>,
-    closed: Vec<std::sync::Arc<dyn Fn(&str) + Send + Sync>>,
+    created: Vec<CreatedHook>,
+    closed: Vec<ClosedHook>,
 }
 
 struct BridgeState {

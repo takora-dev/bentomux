@@ -248,7 +248,7 @@ pub struct ResourceSnapshot {
 /* AgentId → ResourceKind → resource id → snapshot */
 pub type ShadowStore = HashMap<String, HashMap<ResourceKind, HashMap<String, ResourceSnapshot>>>;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Capabilities {
     pub memory: bool,
@@ -256,17 +256,8 @@ pub struct Capabilities {
     pub mcp: bool,
 }
 
-impl Default for Capabilities {
-    fn default() -> Self {
-        Capabilities {
-            memory: false,
-            skills: false,
-            mcp: false,
-        }
-    }
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AgentInfo {
     pub id: String,
@@ -279,18 +270,6 @@ pub struct AgentInfo {
     pub config_path: Option<String>,
 }
 
-impl Default for AgentInfo {
-    fn default() -> Self {
-        AgentInfo {
-            id: String::new(),
-            name: String::new(),
-            detected: false,
-            capabilities: Capabilities::default(),
-            current_model: None,
-            config_path: None,
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -864,7 +843,7 @@ mod tests {
     #[test]
     fn test_custom_palette_roundtrip() {
         let path = temp_path("custom-palette");
-        let mut mgr = AppStateManager::new(path.clone());
+        let mgr = AppStateManager::new(path.clone());
         mgr.patch_state_sync(|s| {
             s.prefs.palette = Some("custom".to_string());
             s.prefs.custom_palette = Some(CustomPalette {

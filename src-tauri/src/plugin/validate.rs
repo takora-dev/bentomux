@@ -109,17 +109,11 @@ impl ValidationReport {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ValidateOptions {
     /// Bundled plugins ship under the reserved publisher; third-party ones
     /// must not. Set by the caller, since the folder alone cannot say.
     pub bundled: bool,
-}
-
-impl Default for ValidateOptions {
-    fn default() -> Self {
-        ValidateOptions { bundled: false }
-    }
 }
 
 /// Validate a plugin folder. Never panics and never executes plugin code:

@@ -172,6 +172,19 @@ pub fn plugin_templates(app: tauri::AppHandle) -> Vec<TemplateInfo> {
     out
 }
 
+/// The identity a scaffolded plugin is stamped with. Grouped so the command
+/// stays readable: seven flat strings read as seven interchangeable arguments.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScaffoldIdentity {
+    pub template: String,
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub author: String,
+}
+
 /// Scaffold a plugin from a template into `dest`.
 ///
 /// Refuses a non-empty destination: the wizard must never overwrite a folder
@@ -180,15 +193,18 @@ pub fn plugin_templates(app: tauri::AppHandle) -> Vec<TemplateInfo> {
 /// renderer so the same code path serves the CLI and the app.
 #[tauri::command]
 pub fn plugin_scaffold(
-    template: String,
+    identity: ScaffoldIdentity,
     dest: String,
-    id: String,
-    name: String,
-    version: String,
-    description: String,
-    author: String,
     app: tauri::AppHandle,
 ) -> Result<ValidationReport, String> {
+    let ScaffoldIdentity {
+        template,
+        id,
+        name,
+        version,
+        description,
+        author,
+    } = identity;
     use crate::plugin::validate::{validate_dir_with, ValidateOptions};
 
     let Some(root) = templates_root(&app) else {
@@ -671,7 +687,7 @@ fn update_from_marketplace(
             out = Some(existing.clone());
         }
     });
-    out.ok_or_else(|| PluginError::NotFound(installed.id))
+    out.ok_or(PluginError::NotFound(installed.id))
 }
 
 /// Read the manifest out of a downloaded archive without installing it.
@@ -997,7 +1013,7 @@ mod tests {
             &out.source,
             PluginSource::Url { repo: Some(r), url } if r == repo && url == ASSET
         ));
-        assert_eq!(v1.exists(), true, "sanity: the old zip is still on disk");
+        assert!(v1.exists(), "sanity: the old zip is still on disk");
         std::fs::remove_dir_all(&root).ok();
     }
 

@@ -157,6 +157,12 @@ impl Drop for PtyManager {
     }
 }
 
+impl Default for PtyManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PtyManager {
     /* Cheap and I/O-free on purpose: this runs on the Tauri Builder, before
     the window exists, so `pty` is managed before WebView2 can fire its
@@ -1085,7 +1091,7 @@ mod tests {
             split_tree: None,
             title: Some("restored".into()),
         }];
-        let restored = second.restore_terms(&[workspace.clone()], &tabs);
+        let restored = second.restore_terms(std::slice::from_ref(&workspace), &tabs);
         assert_eq!(restored.len(), 1);
         assert_eq!(
             restored[0].id, id,
@@ -1157,7 +1163,7 @@ mod tests {
                 drop(previous);
             }
             let next = connect_test_manager(&host);
-            let restored = next.restore_terms(&[workspace.clone()], &[tab.clone()]);
+            let restored = next.restore_terms(std::slice::from_ref(&workspace), std::slice::from_ref(&tab));
             assert_eq!(restored.len(), 1, "restore failed on cycle {cycle}");
             let restored_tree = restored[0].split_tree.as_ref().expect("split preserved");
             let leaves = crate::split_tree::leaf_ids(restored_tree);
@@ -1436,7 +1442,7 @@ mod tests {
             title: Some("restored".into()),
         }];
 
-        let restored = mgr.restore_terms(&[workspace.clone()], &open_tabs);
+        let restored = mgr.restore_terms(std::slice::from_ref(&workspace), &open_tabs);
         assert_eq!(restored.len(), 1);
         let tab = &restored[0];
         assert_eq!(tab.title.as_deref(), Some("restored"));
@@ -1458,7 +1464,7 @@ mod tests {
             split_tree: tree_from_legacy(&legacy, None),
             title: None,
         };
-        let restored = mgr.restore_terms(&[workspace.clone()], &[single]);
+        let restored = mgr.restore_terms(std::slice::from_ref(&workspace), std::slice::from_ref(&single));
         assert_eq!(restored.len(), 1);
         assert!(restored[0].split_tree.is_none());
         assert!(mgr.get_term(&restored[0].id).is_some());
