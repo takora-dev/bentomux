@@ -46,7 +46,7 @@
 .git-file-row{
   display:flex;align-items:center;gap:8px;
   width:100%;padding:6px 8px;
-  border-radius:5px;color:var(--ink-2);
+  border-radius:var(--r-sm);color:var(--ink-2);
   background:transparent;border:0;outline:0;cursor:pointer;
   font:12px/1.3 var(--mono);text-align:left;
   transition:background .1s,color .1s;
@@ -78,7 +78,7 @@
 .git-commit{padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px}
 .git-commit textarea{
   width:100%;min-height:64px;max-height:160px;resize:vertical;
-  padding:8px 10px;border:1px solid var(--line);border-radius:6px;
+  padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--bg);color:var(--ink);font:12.5px/1.5 var(--mono);
   outline:none;
 }
@@ -113,7 +113,7 @@
 .git-graph-meta{flex:0 0 auto;color:var(--ink-3);font-size:10.5px}
 .git-ref{
   flex:0 0 auto;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  padding:1px 5px;border-radius:4px;font-size:10px;line-height:1.4;
+  padding:1px 5px;border-radius:var(--r-sm);font-size:10px;line-height:1.4;
   border:1px solid var(--line);color:var(--ink-3);
 }
 .git-ref-head{color:var(--accent-ink);border-color:var(--accent-tint);background:var(--accent-tint)}
@@ -132,7 +132,7 @@
 .commit-refs{display:flex;flex-wrap:wrap;gap:6px}
 .commit-message{
   margin:0;padding:10px 12px;
-  border:1px solid var(--line);border-radius:6px;background:var(--bg);
+  border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);
   font:12.5px/1.6 var(--mono);color:var(--ink);
   white-space:pre-wrap;overflow-wrap:anywhere;
 }
@@ -142,7 +142,7 @@
   color:var(--ink-3);
 }
 .commit-parent{
-  padding:2px 7px;border:1px solid var(--line);border-radius:5px;
+  padding:2px 7px;border:1px solid var(--line);border-radius:var(--r-sm);
   background:transparent;color:var(--ink-2);cursor:pointer;
   font:11.5px/1.5 var(--mono);
 }
@@ -154,7 +154,7 @@
 }
 .commit-summary .add,.commit-file-stat .add{color:#3fb950}
 .commit-summary .del,.commit-file-stat .del{color:#ff7b72}
-.commit-file{border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.commit-file{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
 .commit-file + .commit-file{margin-top:6px}
 .commit-file-row{
   display:flex;align-items:center;gap:8px;width:100%;
@@ -245,7 +245,7 @@
   margin:8px;padding:10px 12px;
   background:color-mix(in srgb,var(--danger) 10%,transparent);
   border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);
-  border-radius:6px;color:var(--danger);
+  border-radius:var(--r-md);color:var(--danger);
   font:12px/1.4 var(--mono);
   white-space:pre-wrap;
 }
@@ -462,7 +462,7 @@
   display:inline-flex;align-items:center;gap:7px;
   height:24px;padding:0 9px;
   margin:0 4px 0 0;
-  border:1px solid var(--line);border-radius:11px;
+  border:1px solid var(--line);border-radius:var(--r-full);
   background:var(--surface);color:var(--ink-2);
   font:11.5px/1 var(--mono);
   cursor:pointer;outline:none;
@@ -481,19 +481,19 @@
 
 /* settings modal: remote pairing */
 .remote-pair img{width:180px;height:180px;display:block;border:1px solid var(--line);
-  border-radius:10px;background:#fff;padding:8px}
+  border-radius:var(--r-lg);background:#fff;padding:8px}
 .remote-urlrow{display:flex;gap:8px;min-width:0}
 .remote-url{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px}
 
 /* sidebar bottom dock: remote button + popover */
 .sidebar-remote{position:relative}
 .sidebar-remote.active{background:var(--accent-tint);color:var(--accent-ink)}
-.dock-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;
+.dock-dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:var(--r-full);
   background:transparent;pointer-events:none}
 .dock-dot.on{background:var(--accent)}
 .remote-pop{position:fixed;z-index:120;width:288px;max-height:calc(100vh - 100px);
   overflow:auto;background:var(--surface);border:1px solid var(--line-2);
-  border-radius:12px;padding:12px 14px;box-shadow:0 12px 36px rgba(32,29,25,.18)}
+  border-radius:var(--r-lg);padding:12px 14px;box-shadow:0 12px 36px rgba(32,29,25,.18)}
 .remote-pop-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
   margin-bottom:4px}
 .remote-pop-status{font-size:11px;color:var(--ink-3)}

@@ -18,6 +18,9 @@
 :root.dark.palette-eink .diff-line.diff-add{background:rgba(255,255,255,.12)}
 :root.dark.palette-eink .diff-line.diff-add .sign{color:#ffffff}
 :root.dark.palette-eink .diff-line.diff-del{background:rgba(255,255,255,.05)}
+/* classic squares everything with the blanket rule above; e-ink keeps its
+   corners but goes achromatic, so the status colours follow ink/bg */
+:root.palette-eink{--state-idle:var(--ink);--state-busy:var(--ink-2);--state-blocked:var(--ink)}
 
 /* ---------------- pastel-pixel: pixel-art personality ----------------
    The cozy-pixel layer on top of the tokens: chunky 2px edges on the
@@ -31,7 +34,7 @@
 
 :root.palette-pastel-pixel .btn,
 :root.dark.palette-pastel-pixel .btn{
-  border-width:2px;border-radius:7px;
+  border-width:2px;border-radius:var(--r-md);
   box-shadow:2px 2px 0 0 var(--px-shadow);
 }
 :root.palette-pastel-pixel .btn.ghost,
@@ -50,7 +53,7 @@
   background:color-mix(in srgb,var(--accent) 82%,#fff);
 }
 :root.palette-pastel-pixel .btn.danger-strong{color:#4d2433}
-:root.palette-pastel-pixel .welcome-step-num{border-radius:6px;color:#4a2810}
+:root.palette-pastel-pixel .welcome-step-num{border-radius:var(--r-md);color:#4a2810}
 
 /* cards and popovers carry the same hard shadow */
 :root.palette-pastel-pixel .card,
@@ -93,11 +96,14 @@
 /* warm dim under modals, squared status pixels, pixel scrollbar thumbs */
 :root.palette-pastel-pixel .overlay{background:rgba(92,58,24,.32)}
 :root.dark.palette-pastel-pixel .overlay{background:rgba(28,18,10,.5)}
+/* pastel-pixel keeps the app's rounded corners on purpose — its personality
+   is the chunky 2px edge and the hard offset shadow, not square geometry, so
+   it inherits the radius scale untouched. Only the pixel dots square off. */
 :root.palette-pastel-pixel .thinking i,
 :root.palette-pastel-pixel .dock-dot,
 :root.palette-pastel-pixel .nav-item .dot,
-:root.palette-pastel-pixel .agent-status::before{border-radius:1px}
-:root.palette-pastel-pixel *::-webkit-scrollbar-thumb{border-radius:2px}
+:root.palette-pastel-pixel .agent-status::before{border-radius:var(--r-full)}
+:root.palette-pastel-pixel *::-webkit-scrollbar-thumb{border-radius:var(--r-sm)}
 
 /* faint checker dither on the large empty chrome surfaces */
 :root.palette-pastel-pixel .sidebar,
@@ -172,10 +178,11 @@
 :root.palette-pixelated .key-chip{border-width:2px}
 
 /* status pixels and scrollbar thumbs are square */
+:root.palette-pixelated{--r-sm:0;--r-md:0;--r-lg:0;--r-full:0}
 :root.palette-pixelated .thinking i,
 :root.palette-pixelated .dock-dot,
 :root.palette-pixelated .nav-item .dot,
-:root.palette-pixelated .agent-status::before{border-radius:1px}
+:root.palette-pixelated .agent-status::before{border-radius:var(--r-full)}
 :root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
 
 /* soft dim under modals */
@@ -209,11 +216,6 @@
 :root.palette-pixelated .update-progress-track,
 :root.palette-pixelated .update-progress-fill,
 :root.palette-pixelated .update-badge{border-radius:0}
-:root.palette-pixelated .thinking i,
-:root.palette-pixelated .dock-dot,
-:root.palette-pixelated .nav-item .dot,
-:root.palette-pixelated .agent-status::before{border-radius:1px}
-:root.palette-pixelated *::-webkit-scrollbar-thumb{border-radius:0}
 
 /* Silkscreen is a small-caps bitmap face: it needs the extra tracking and
    slightly larger optical size to stay legible, and it must not be asked to

@@ -1,5 +1,5 @@
 /* ---------------- update banner ---------------- */
-.update-banner{position:fixed;bottom:16px;right:16px;z-index:900;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:13px;color:var(--ink)}
+.update-banner{position:fixed;bottom:16px;right:16px;z-index:900;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:13px;color:var(--ink)}
 .update-banner[hidden]{display:none}
 .update-banner-body{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
 .update-banner-msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -11,12 +11,12 @@
 .update-progress{display:flex;align-items:center;gap:9px;width:100%}
 .update-progress-track{
   position:relative;flex:1;min-width:0;height:8px;
-  background:var(--tint);border:1px solid var(--line);border-radius:999px;
+  background:var(--tint);border:1px solid var(--line);border-radius:var(--r-full);
   overflow:hidden;
 }
 .update-progress-bar{height:100%;width:100%}
 .update-progress-fill{
-  height:100%;width:0;border-radius:999px;
+  height:100%;width:0;border-radius:var(--r-full);
   background:linear-gradient(90deg,var(--accent),var(--accent-ink));
   transition:width .25s ease;
 }
@@ -30,7 +30,7 @@
 .update-status-card{
   display:flex;flex-direction:column;gap:12px;
   padding:14px 15px;
-  border:1px solid var(--line);border-radius:10px;
+  border:1px solid var(--line);border-radius:var(--r-lg);
   background:var(--surface);
 }
 .update-status-head{display:flex;align-items:center;gap:10px;min-width:0}
@@ -38,7 +38,7 @@
 .update-status-detail{font-size:12px;color:var(--ink-3);line-height:1.45;overflow-wrap:anywhere}
 .update-badge{
   flex:0 0 auto;display:inline-flex;align-items:center;
-  height:20px;padding:0 9px;border-radius:999px;
+  height:20px;padding:0 9px;border-radius:var(--r-full);
   font-size:11px;font-weight:550;letter-spacing:.01em;
   background:var(--tint);color:var(--ink-2);white-space:nowrap;
 }

@@ -15,8 +15,8 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    border-radius: 10px;
-    clip-path: inset(0 round 10px);
+    border-radius: var(--r-lg, 12px);
+    clip-path: inset(0 round var(--r-lg, 12px));
     font-family: var(--sans, system-ui, sans-serif);
   }
   @keyframes island-in {
@@ -31,7 +31,7 @@
     flex-direction: column;
     background: var(--surface, #fff);
     border: 1px solid var(--line, rgba(0, 0, 0, .14));
-    border-radius: 10px;
+    border-radius: var(--r-lg, 12px);
     padding: 14px 16px;
     box-shadow: 0 16px 40px rgba(32, 29, 25, .16);
     font-size: 12.5px;
@@ -53,7 +53,7 @@
     font: 11.5px/1.6 var(--mono, Consolas, monospace);
     background: var(--content-bg, rgba(0, 0, 0, .04));
     border: 1px solid var(--line, rgba(0, 0, 0, .14));
-    border-radius: 8px;
+    border-radius: var(--r-md, 8px);
     padding: 7px 9px;
     margin-top: 5px;
     white-space: pre-wrap;
@@ -68,7 +68,7 @@
     justify-content: center;
     height: 30px;
     padding: 0 12px;
-    border-radius: 6px;
+    border-radius: var(--r-sm, 4px);
     border: 1px solid var(--line-2, rgba(0, 0, 0, .2));
     background: var(--surface, #fff);
     font: 500 12.5px var(--sans, system-ui, sans-serif);
@@ -96,7 +96,7 @@
   :root.palette-pastel-pixel .btn,
   :root.dark.palette-pastel-pixel .btn {
     border-width: 2px;
-    border-radius: 7px;
+    border-radius: var(--r-sm, 4px);
     box-shadow: 2px 2px 0 0 var(--px-shadow);
   }
   :root.palette-pastel-pixel .btn.ghost,

@@ -18,7 +18,7 @@
 
 /* icons a plugin supplies as an image; they do not follow --ink, which is
    the accepted cost of never inlining plugin markup (see plugin/icons.ts) */
-.plugin-icon{width:14px;height:14px;display:block;object-fit:contain;border-radius:2px}
+.plugin-icon{width:14px;height:14px;display:block;object-fit:contain;border-radius:var(--r-sm)}
 
 /* sidebar rows contributed by plugins */
 .plugin-nav-label{margin-top:10px}
@@ -28,7 +28,7 @@
 /* welcome-page widget grid */
 .welcome-widgets{width:100%;margin-top:18px;text-align:left}
 .widget-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
-.widget-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.widget-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px 12px;min-width:0}
 .widget-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .widget-title{font-size:12px;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .widget-source{font-size:10px;color:var(--ink-3);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -41,11 +41,11 @@
 /* settings → Plugins section */
 .plugin-studio{display:flex;flex-direction:column;gap:10px}
 .plugin-empty{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
-.plugin-row{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.plugin-row{border:1px solid var(--line);border-radius:var(--r-lg);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
 .plugin-row-head{display:flex;align-items:center;gap:8px;min-width:0}
 .plugin-name{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plugin-version{font-size:11px;color:var(--ink-3)}
-.plugin-status{font-size:11px;padding:1px 6px;border-radius:999px;background:var(--tint);color:var(--ink-2)}
+.plugin-status{font-size:11px;padding:1px 6px;border-radius:var(--r-full);background:var(--tint);color:var(--ink-2)}
 .plugin-status.status-active{background:var(--accent-tint);color:var(--accent)}
 .plugin-status.status-errored{background:rgba(200,60,60,.12);color:var(--danger)}
 .plugin-row-id{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
@@ -66,7 +66,7 @@
 .plugin-market-refresh:disabled{opacity:.55;cursor:default}
 /* Search and result count share one row; the field flexes, the count does not. */
 .plugin-market-bar{display:flex;align-items:center;gap:8px}
-.plugin-market-search-wrap{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;padding:0 9px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.plugin-market-search-wrap{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;padding:0 9px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
 .plugin-market-search-wrap:focus-within{border-color:var(--accent)}
 .plugin-market-search-icon{flex:0 0 auto;color:var(--ink-3);font-size:13px;line-height:1}
 .plugin-market-search{flex:1 1 auto;min-width:0;padding:6px 0;font:inherit;font-size:12px;color:var(--ink);background:none;border:0}
@@ -81,7 +81,7 @@
 .plugin-market-page{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .plugin-market-stats{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ink-3)}
 .plugin-market-note{margin:0;font-size:11px;color:var(--ink-3);line-height:1.45}
-.plugin-readme{margin:0;padding:8px 10px;max-height:280px;overflow:auto;background:var(--tint);border-radius:8px;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.plugin-readme{margin:0;padding:8px 10px;max-height:280px;overflow:auto;background:var(--tint);border-radius:var(--r-md);font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Plugin Studio: install review, validation report, uninstall */
 .plugin-studio-head{display:flex;gap:8px;margin-bottom:4px}
@@ -104,30 +104,30 @@
 .plugin-report-list li{display:flex;gap:6px;flex-direction:column}
 .plugin-report-list code{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
 .plugin-report-list.warnings{color:var(--ink-3)}
-.plugin-badge{font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--ink-3)}
+.plugin-badge{font-size:10px;padding:1px 6px;border-radius:var(--r-full);border:1px solid var(--line);color:var(--ink-3)}
 .btn.danger{color:var(--danger)}
 
 /* Plugin Creator wizard */
 .creator-lede{margin:0 0 4px;font-size:13px;color:var(--ink-2)}
 .creator-templates{display:flex;flex-direction:column;gap:6px;min-width:380px;max-width:480px;max-height:56vh;overflow:auto}
-.creator-template{display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 11px;background:var(--surface);border:1px solid var(--line);border-radius:9px;cursor:pointer;font:inherit;color:var(--ink)}
+.creator-template{display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 11px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;font:inherit;color:var(--ink)}
 .creator-template:hover{border-color:var(--accent)}
 .creator-template-name{font-size:13px;font-weight:600;font-family:var(--mono)}
 .creator-template-desc{font-size:12px;color:var(--ink-2);line-height:1.4}
 .creator-form{display:flex;flex-direction:column;gap:10px;min-width:380px;max-width:480px}
 .creator-field{display:flex;flex-direction:column;gap:4px}
 .creator-field label{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
-.creator-field input[type=text]{padding:6px 9px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px}
+.creator-field input[type=text]{padding:6px 9px;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
 .creator-field input[type=text]:focus{outline:none;border-color:var(--accent)}
 .creator-hint{font-size:11px;color:var(--ink-3)}
 .creator-dest{font-family:var(--mono);font-size:11px;color:var(--ink-3);overflow-wrap:anywhere}
 .creator-problem{font-size:12px;color:var(--danger);min-height:16px;line-height:1.4}
 .creator-handoff{display:flex;flex-direction:column;gap:9px;min-width:400px;max-width:520px}
 .creator-handoff p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
-.creator-prompt{width:100%;box-sizing:border-box;padding:8px 10px;font-family:var(--mono);font-size:12px;line-height:1.5;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;resize:vertical}
+.creator-prompt{width:100%;box-sizing:border-box;padding:8px 10px;font-family:var(--mono);font-size:12px;line-height:1.5;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);resize:vertical}
 .creator-actions{display:flex;gap:8px}
 
 /* Plugin Studio: authoring-skill install */
-.plugin-skill-target{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;flex-wrap:wrap}
+.plugin-skill-target{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);flex-wrap:wrap}
 .plugin-skill-agent{font-size:13px;font-weight:600;color:var(--ink);flex:0 0 auto}
 .plugin-skill-target .plugin-row-id{flex:1;min-width:0;overflow-wrap:anywhere}

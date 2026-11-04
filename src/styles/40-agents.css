@@ -6,7 +6,7 @@
 }
 .agent-card{
   display:flex;flex-direction:column;gap:10px;text-align:left;
-  padding:13px;border:1px solid var(--line);border-radius:8px;
+  padding:13px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--surface);cursor:pointer;min-height:0;
   transition:border-color .12s,background .12s;
 }
@@ -14,7 +14,7 @@
 .agent-card.off{opacity:.6}
 .agent-card-h{display:flex;align-items:center;gap:10px}
 .agent-card-avatar{
-  width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;
   background:var(--tint);color:var(--ink-2);flex:0 0 auto;
 }
 .agent-card-id{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
@@ -27,11 +27,11 @@
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .agent-card-model .muted{color:var(--ink-3)}
-.agent-card-model code{background:var(--tint);padding:1px 5px;border-radius:4px}
+.agent-card-model code{background:var(--tint);padding:1px 5px;border-radius:var(--r-sm)}
 .agent-card-pills{display:flex;gap:5px;flex-wrap:wrap}
 .agent-card-pills .pill{
   display:inline-flex;align-items:center;gap:4px;
-  font-size:10.5px;padding:2px 6px;border-radius:4px;border:1px solid var(--line);
+  font-size:10.5px;padding:2px 6px;border-radius:var(--r-sm);border:1px solid var(--line);
   color:var(--ink-3);background:var(--surface);
 }
 .agent-card-pills .pill.on{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-tint)}
@@ -50,14 +50,14 @@
   padding-bottom:12px;border-bottom:1px solid var(--line);
   color:var(--ink-2);font-size:12px;
 }
-.agent-settings-meta code{font:11.5px var(--mono);background:var(--tint);padding:1px 6px;border-radius:4px}
+.agent-settings-meta code{font:11.5px var(--mono);background:var(--tint);padding:1px 6px;border-radius:var(--r-sm)}
 .agent-section-empty{
   display:flex;align-items:center;gap:8px;
-  padding:10px 12px;border:1px dashed var(--line);border-radius:7px;
+  padding:10px 12px;border:1px dashed var(--line);border-radius:var(--r-md);
   color:var(--ink-2);font-size:12.5px;
 }
 .agent-section-hint{margin:6px 0 0;font-size:11.5px;color:var(--ink-2)}
-.agent-section-hint code{font:11px var(--mono);background:var(--tint);padding:1px 5px;border-radius:4px}
+.agent-section-hint code{font:11px var(--mono);background:var(--tint);padding:1px 5px;border-radius:var(--r-sm)}
 
 .agent-model-row{display:flex;gap:12px;align-items:flex-start}
 .agent-model-fields{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
@@ -70,7 +70,7 @@
 }
 .agent-resource-card{
   display:flex;align-items:center;gap:10px;text-align:left;
-  padding:10px 12px;border:1px solid var(--line);border-radius:7px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--surface);cursor:pointer;
   transition:border-color .12s,background .12s;
 }
@@ -95,7 +95,7 @@
 .agent-detail-id .agent-card-avatar{width:32px;height:32px}
 .agent-detail-id .grow{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
 .agent-detail-id b{font-size:14px;font-weight:600;color:var(--ink)}
-.agent-detail-id code{font:11.5px var(--mono);background:var(--tint);padding:1px 6px;border-radius:4px}
+.agent-detail-id code{font:11.5px var(--mono);background:var(--tint);padding:1px 6px;border-radius:var(--r-sm)}
 
 .agent-subtab-bar{
   display:flex;gap:4px;flex-wrap:wrap;
@@ -104,7 +104,7 @@
 }
 .agent-subtab{
   display:inline-flex;align-items:center;gap:6px;
-  padding:6px 11px;border:1px solid var(--line);border-radius:6px;
+  padding:6px 11px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:12.5px;
   transition:border-color .1s,color .1s,background .1s;
 }
@@ -119,13 +119,13 @@
 /* inline editor (replaces the modal for add/edit of memory/skills/mcp) */
 .resource-editor{
   display:flex;flex-direction:column;gap:16px;
-  padding:20px 22px;border:1px solid var(--line);border-radius:10px;
+  padding:20px 22px;border:1px solid var(--line);border-radius:var(--r-lg);
   background:var(--surface);
 }
 .resource-editor-h{display:flex;align-items:center;gap:8px}
 .editor-back{
   display:inline-flex;align-items:center;gap:6px;
-  padding:6px 10px;border:1px solid var(--line);border-radius:6px;
+  padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:12.5px;
   transition:border-color .1s,color .1s,background .1s;
 }
