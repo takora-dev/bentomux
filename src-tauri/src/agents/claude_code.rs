@@ -55,8 +55,12 @@ impl ClaudeCodeAdapter {
                         .cloned()
                         .unwrap_or_default();
                     let str = |v: &serde_json::Value| v.as_str().unwrap_or("").to_string();
-                    let model = obj.get("model").map(&str).unwrap_or_default();
-                    let base_url = env.get("ANTHROPIC_BASE_URL").map(&str).unwrap_or_default();
+                    /* `map(str)`, not `map(&str)`: the closure takes &Value, so
+                    Option<&Value>::map already hands it a reference and the
+                    extra borrow is redundant (clippy 1.99 flags it under
+                    needless_borrows_for_generic_args) */
+                    let model = obj.get("model").map(str).unwrap_or_default();
+                    let base_url = env.get("ANTHROPIC_BASE_URL").map(str).unwrap_or_default();
                     let has_key = env
                         .get("ANTHROPIC_AUTH_TOKEN")
                         .map(|v| !str(v).is_empty())
