@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { registerRenderers, render, repaintContent, noteMountedPage, pageKey } from './render';
 import { ui, type Route } from './state';
+import { leafNode, splitLeaf, removeLeaf, setSplitDir, type PaneNode } from '../shared/split-tree';
 
 /* render() and repaintContent() decide whether a state change is allowed to
    detach a live terminal. Getting that wrong is invisible in a screenshot and
@@ -35,6 +36,7 @@ describe('repaintContent()', () => {
     content = vi.fn<(route: Route) => void>();
     sidebar = vi.fn<() => void>();
     registerRenderers({ root, content, sidebar });
+    ui.tabs = [];
   });
 
   it('repaints the page without touching the shell when the page is unchanged', () => {
@@ -60,6 +62,51 @@ describe('repaintContent()', () => {
     repaintContent();
     expect(content).not.toHaveBeenCalled();
     expect(root).not.toHaveBeenCalled();
+  });
+
+  /* The pane tree is what the page area is built from, so a tree change makes
+     the mounted DOM stale even though the route never moved. Splitting a pane
+     used to leave the new pane only in the state (the sidebar lists each leaf)
+     while the page area kept showing one terminal. */
+  describe('a terminal pane tree that changed', () => {
+    const mountTree = (tree: PaneNode) => {
+      ui.route = terminal;
+      ui.tabs = [{ id: 'term:pane-1', route: terminal, tree }];
+      noteMountedPage(terminal);
+    };
+
+    it('repaints the page when a pane is split off', () => {
+      mountTree(leafNode('pane-1'));
+      ui.tabs[0].tree = splitLeaf(leafNode('pane-1'), 'pane-1', 'v', 'pane-2', 'k1');
+      repaintContent();
+      expect(content).toHaveBeenCalledTimes(1);
+      expect(root).not.toHaveBeenCalled();
+    });
+
+    it('repaints the page when a pane closes', () => {
+      mountTree(splitLeaf(leafNode('pane-1'), 'pane-1', 'v', 'pane-2', 'k1'));
+      ui.tabs[0].tree = removeLeaf(ui.tabs[0].tree!, 'pane-2')!;
+      repaintContent();
+      expect(content).toHaveBeenCalledTimes(1);
+      expect(root).not.toHaveBeenCalled();
+    });
+
+    it('repaints the page when a split flips direction', () => {
+      mountTree(splitLeaf(leafNode('pane-1'), 'pane-1', 'v', 'pane-2', 'k1'));
+      ui.tabs[0].tree = setSplitDir(ui.tabs[0].tree!, 'k1', 'h');
+      repaintContent();
+      expect(content).toHaveBeenCalledTimes(1);
+      expect(root).not.toHaveBeenCalled();
+    });
+
+    it('settles after the repaint: the same tree twice is not rebuilt again', () => {
+      mountTree(leafNode('pane-1'));
+      ui.tabs[0].tree = splitLeaf(leafNode('pane-1'), 'pane-1', 'v', 'pane-2', 'k1');
+      repaintContent();
+      noteMountedPage(terminal);
+      repaintContent();
+      expect(content).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('does rebuild a terminal page when the route moved to a different pane', () => {

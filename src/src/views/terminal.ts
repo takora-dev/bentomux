@@ -724,9 +724,17 @@ export function mostRecentPane(ids: string[]): string {
   return [...ids].sort((x, y) => (lastFocus.get(y) || 0) - (lastFocus.get(x) || 0))[0] || ids[0];
 }
 
-/* a sidebar item picked this pane: make it the focus target on next mount */
+/* A sidebar row, a palette hit or an approval jump picked this pane: make it
+   the focus target for the next mount, and take the caret now when the pane is
+   already on screen — a page whose route did not move is never rebuilt, so
+   priming alone left the caret in the pane the user was leaving. The
+   mounted-and-visible test is the one the live data path uses. */
 export function primePaneFocus(paneId: string): void {
   lastFocus.set(paneId, Date.now());
+  const live = lives.get(paneId);
+  if (live && live.host.isConnected && !parking.contains(live.host)) {
+    try { live.term.focus(); } catch { /* pane gone */ }
+  }
 }
 
 /* move focus to a specific pane of the active tab (keyboard focus actions) */

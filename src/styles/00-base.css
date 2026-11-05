@@ -276,3 +276,24 @@ body.pane-hidden .top-tools .top-tabs{margin-left:8px}.titlebar:not(.has-tabs) .
 .closed{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:var(--bg)}.closed[hidden],.win[hidden]{display:none !important}
 .closed-mark{font-size:16px;font-weight:650}
 .spacer{flex:1 1 0}
+
+/* ---------------- theme cross-fade ----------------
+   The palette is a set of custom properties, and a custom property is not
+   animatable — so the fade has to sit on the properties that consume them.
+   `.theme-fade` is on <html> only while a switch is in flight (main.ts holds
+   it for ~340ms), which is the point: a permanent `*` transition list would
+   override every component's own tuned transition. Inside that window the
+   tokens are the only thing changing anyway. xterm paints its cells from its
+   own theme object, so applyTerminalTheme() updates them in the same frame —
+   the host around them still fades with everything else. */
+:root.theme-fade *,
+:root.theme-fade *::before,
+:root.theme-fade *::after{
+  transition:background-color .3s ease,color .3s ease,border-color .3s ease,
+    outline-color .3s ease,box-shadow .3s ease,fill .3s ease,stroke .3s ease!important;
+}
+@media (prefers-reduced-motion:reduce){
+  :root.theme-fade *,
+  :root.theme-fade *::before,
+  :root.theme-fade *::after{transition:none!important}
+}

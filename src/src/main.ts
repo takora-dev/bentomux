@@ -8,7 +8,7 @@ import { $, $$, h, markup } from './dom';
 import { rel, abs } from './time';
 import { ui, type Route, type TabEntry } from './state';
 import { db, setDb, branches, runtime, activity } from './store';
-import { registerRenderers, render, repaintContent, noteMountedPage, pageKey, mountedPageKey } from './render';
+import { registerRenderers, render, repaintContent, noteMountedPage, pageKey, pageIsMounted } from './render';
 import { renderTabs, activate, stepHistory, registerRestoredTab, closeFocusedPaneOrTab } from './views/tabs';
 import { openAddWorkspaceMenu, renderSidebar, patchPaneStatuses, toggleGitPanel, closeRailFlyout } from './views/sidebar';
 import { welcomePage, disposeWidgets } from './views/welcome';
@@ -199,9 +199,9 @@ function renderRoot(): void {
   /* A terminal page owns live xterm hosts. Rebuilding it detaches and
      re-appends every one of them, which loses keyboard focus, scroll position
      and IME composition — for a repaint that may only have moved a tab in the
-     strip. Leave a mounted terminal page alone unless the route actually
-     changed; every other view is stateless enough to rebuild. */
-  const sameTerminalPage = ui.route.view === 'terminal' && pageKey(ui.route) === mountedPageKey();
+     strip. Leave a mounted terminal page alone unless the route or its pane
+     tree changed; every other view is stateless enough to rebuild. */
+  const sameTerminalPage = ui.route.view === 'terminal' && pageIsMounted(ui.route);
   if (!sameTerminalPage) renderContentInner(ui.route);
 }
 
@@ -432,20 +432,51 @@ export function resolveTheme(): 'light' | 'dark' {
 function toggleTheme(): void {
   db.prefs.theme = db.prefs.theme === 'dark' ? 'light' : 'dark';
   void api.setPrefs({ theme: db.prefs.theme });
-  document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
-  paintThemeGlyph();
-  /* terminals re-theme in place: the palette comes from CSS tokens, so a
-     content repaint is enough and the panes keep their focus */
-  repaintContent();
+  applyTheme();
 }
 
 export function setThemeMode(mode: 'light' | 'dark' | 'system'): void {
   if (db.prefs.theme === mode) return;
   db.prefs.theme = mode;
   void api.setPrefs({ theme: mode });
-  document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
+  applyTheme();
+}
+
+/* Every theme change lands here. The class alone only recolours the CSS
+   chrome: xterm paints its cells from the theme object it was created with,
+   not from the tokens, so a pane keeps the old background and ink until
+   applyTerminalTheme() hands it the new palette — which used to happen only
+   when the page was rebuilt (a split, a tab switch). */
+export function applyTheme(): void {
+  const html = document.documentElement;
+  const dark = resolveTheme() === 'dark';
+  if (html.classList.contains('dark') !== dark) startThemeFade();
+  html.classList.toggle('dark', dark);
   paintThemeGlyph();
+  applyTerminalTheme();
   repaintContent();
+}
+
+/* How long the stylesheet cross-fades a theme switch; the class has to outlive
+   the longest transition so nothing is still animating when it is removed. */
+const THEME_FADE_MS = 300;
+let themeFadeTimer: number | null = null;
+
+/* The colour tokens are plain custom properties and a custom property is not
+   animatable, so the fade lives on the properties that consume them (see the
+   `.theme-fade` block in styles/00-base.css). Adding the class and the `dark`
+   flip in the same task would give the browser one style recalc instead of
+   two, and a transition needs two — hence the forced layout below. */
+function startThemeFade(): void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const html = document.documentElement;
+  html.classList.add('theme-fade');
+  void html.offsetHeight;
+  if (themeFadeTimer != null) clearTimeout(themeFadeTimer);
+  themeFadeTimer = window.setTimeout(() => {
+    themeFadeTimer = null;
+    html.classList.remove('theme-fade');
+  }, THEME_FADE_MS + 40);
 }
 
 export function setPalette(palette: import('../shared/types').PaletteName): void {
@@ -913,10 +944,7 @@ async function boot(): Promise<void> {
 
   /* Sync dark class when OS theme changes and user is on 'system' */
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (!db.prefs.theme || db.prefs.theme === 'system') {
-      document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
-      render();
-    }
+    if (!db.prefs.theme || db.prefs.theme === 'system') applyTheme();
   });
 
   /* live subscriptions before anything renders */
