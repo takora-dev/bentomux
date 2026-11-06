@@ -9,7 +9,7 @@ import { openContextMenu, closeContextMenu, contextMenuAnchoredTo } from '../com
 import { toggleSeg } from '../components/toggle';
 import { ic, IC } from '../icons';
 import { db } from '../store';
-import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, backgroundImageUrl } from '../main';
+import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, applyTabStripPref, backgroundImageUrl } from '../main';
 import { accelFor, formatAccel, applyKeyPreset, setShortcuts, KEY_PRESETS, RESERVED_ACCELS, type ActionId, type KeyPresetId, type ReservedAccel } from '../keyboard';
 import { PALETTES, CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, type CustomPalette, type PaletteName, type AgentHooksStatus, type Prefs, type Backgrounds, type BackgroundSpec, type BackgroundFit } from '../../shared/types';
 import { isColor, toHex } from '../../shared/color';
@@ -399,6 +399,9 @@ function buildAppearanceSection(paint: () => void): HTMLElement {
     field('Workspace labels', toggleSeg(db.prefs.showTabGroupNames !== false,
       on => setPref('showTabGroupNames', on, renderTabs))),
     hint('Workspace names before their tab groups in the top bar. Hover a group to see its name while labels are hidden.'),
+    field('Tab bar', toggleSeg(db.prefs.hideTabStrip !== true,
+      on => setPref('hideTabStrip', !on, applyTabStripPref), { labels: ['Hidden', 'Shown'] })),
+    hint('The tab strip in the title bar. With it hidden, terminals are still listed per workspace in the pane on the left.'),
     buildBackgroundBlock(paint));
 }
 

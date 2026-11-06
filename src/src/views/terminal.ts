@@ -950,6 +950,11 @@ export function terminalPage(start: PaneNode | string): HTMLElement {
     if (focusLive) {
       requestAnimationFrame(() => {
         try { focusLive.term.focus(); } catch { /* pane gone */ }
+        /* mark the pane the split lands on before anything is clicked: the
+           inactive-pane dimming and the sidebar's active row both key off
+           .pane.focused, and a pane that has never received focusin would
+           otherwise read as inactive. focusin refines this from here on. */
+        markFocusedPane(focusLive.host, focusLive.id);
       });
     }
 

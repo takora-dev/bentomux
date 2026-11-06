@@ -396,6 +396,11 @@ function confirmRemove(ws: { id: string; name: string; path: string }): void {
    when this module is first imported (set later via setDb() from main). */
 let lastExpanded: Record<string, boolean> | null = null;
 
+/* Pane ids the list has already painted. A pane seen for the first time fades
+   and slides in; one that goes away plays the exit animation. null until the
+   first paint, so the startup pass never animates. */
+let seenPaneIds: Set<string> | null = null;
+
 function navItem(label: string, iconName: keyof typeof IC, view: Route['view']): HTMLElement {
   const active = ui.route.view === view
     || (view === 'agents' && ui.route.view === 'agentDetail');
@@ -604,6 +609,7 @@ function workspaceFolder(ws: { id: string; name: string; path: string }, open: b
     class: 'folder' + (open ? ' open' : ''),
     title: ws.path,
     'data-ws': ws.id,
+    'aria-expanded': open ? 'true' : 'false',
     onclick: () => {
       if (pressOnMenu) return;
       if (suppressFolderClick) {
@@ -613,6 +619,9 @@ function workspaceFolder(ws: { id: string; name: string; path: string }, open: b
       toggleWorkspaceExpanded(ws.id, open);
     },
   },
+    /* the caret is the disclosure affordance; the whole row is the button, so
+       it carries aria-expanded rather than the caret being a nested control */
+    markup('span', { class: 'ws-chevron', 'aria-hidden': 'true' }, IC.chev),
     markup('span', { class: 'folder-icon' }, IC.folder),
     h('span', { class: 'folder-name' }, ws.name),
     workspaceMenuSpan(ws));
@@ -654,6 +663,7 @@ function workspaceMenuSpan(ws: { id: string; name: string; path: string }): HTML
 
 function renderWorkspaces(): void {
   const newExpanded: Record<string, boolean> = {};
+  const nextSeen = new Set<string>();
   for (const ws of db.workspaces) {
     const open = db.prefs.expanded?.[ws.id] !== false;
     /* reveal only on a true user-driven expand (false → true). A ws we haven't
@@ -666,10 +676,112 @@ function renderWorkspaces(): void {
     nav.append(workspaceFolder(ws, open));
     if (!open) continue;
     const kids = wsPanes(ws.id);
-    for (const row of kids) nav.append(paneItem(row, PANE_INDENT, reveal));
+    for (const row of kids) {
+      /* a pane the list has not shown before slides in — this is what a split
+         (or a new terminal) looks like — while a pane it already knew stays put
+         through the ~1 Hz status repaint */
+      const fresh = reveal || (seenPaneIds !== null && !seenPaneIds.has(row.paneId));
+      nextSeen.add(row.paneId);
+      nav.append(paneItem(row, PANE_INDENT, fresh));
+    }
     if (!kids.length) nav.append(h('div', { class: 'empty-note' }, 'No terminals'));
   }
   lastExpanded = newExpanded;
+  seenPaneIds = nextSeen;
+}
+
+/* ---------------- pane rows leaving the list ----------------
+   renderSidebar() rebuilds the nav from scratch, which would make a closed
+   terminal blink out between two paints. The rows the next paint will not draw
+   are detached first and re-inserted where they sat, so they can fold shut
+   (.workspace-child.leaving). A row leaves when its pane closed, its tab
+   closed, or its workspace collapsed. */
+
+interface LeavingRow {
+  el: HTMLElement;
+  paneId: string;
+  /* the row that sat above it: a pane id, or nothing when it was the first
+     row of its workspace */
+  anchorPane: string | null;
+  wsId: string | null;
+  /* measured while the row was still in flow, so the exit keyframes can fold
+     it from its real height */
+  height: number;
+}
+
+function takeLeavingRows(): LeavingRow[] {
+  const nav = $('#nav');
+  if (!nav) return [];
+  /* the pane set the next paint will draw: every pane of every open workspace */
+  const staying = new Set<string>();
+  for (const ws of db.workspaces) {
+    if (db.prefs.expanded?.[ws.id] === false) continue;
+    for (const { paneId } of wsPanes(ws.id)) staying.add(paneId);
+  }
+  const leaving: LeavingRow[] = [];
+  let anchorPane: string | null = null;
+  let wsId: string | null = null;
+  for (const child of $$(':scope > *', nav)) {
+    if (child.classList.contains('folder')) {
+      wsId = child.dataset.ws || null;
+      anchorPane = null;
+      continue;
+    }
+    const paneId = child.dataset.pane;
+    if (!paneId) {
+      anchorPane = null;
+      continue;
+    }
+    if (staying.has(paneId)) {
+      anchorPane = paneId;
+      continue;
+    }
+    const height = child.offsetHeight;
+    child.remove();
+    leaving.push({ el: child, paneId, anchorPane, wsId, height });
+    /* a row below this one may be leaving too; point it at its own previous
+       sibling, which the re-insertion resolves through the ghost map */
+    anchorPane = paneId;
+  }
+  return leaving;
+}
+
+/* where a leaving row goes back to: after the sibling it had, or under its
+   workspace folder when it was the first row of the group */
+function leavingAnchor(nav: HTMLElement, row: LeavingRow, placed: Map<string, HTMLElement>): HTMLElement | null {
+  const sibling = row.anchorPane
+    ? placed.get(row.anchorPane)
+      ?? nav.querySelector<HTMLElement>('.workspace-child[data-pane="' + CSS.escape(row.anchorPane) + '"]')
+    : null;
+  if (sibling) return sibling;
+  if (!row.wsId) return null;
+  return nav.querySelector<HTMLElement>('.folder[data-ws="' + CSS.escape(row.wsId) + '"]');
+}
+
+function dropLeavingRows(leaving: LeavingRow[]): void {
+  if (!leaving.length) return;
+  const nav = $('#nav');
+  if (!nav) return;
+  const placed = new Map<string, HTMLElement>();
+  for (const row of leaving) {
+    /* a whole workspace may have gone away with it, leaving nothing to anchor
+       to: that row is simply gone, with nothing to animate */
+    const anchor = leavingAnchor(nav, row, placed);
+    if (!anchor) continue;
+    const el = row.el;
+    el.classList.remove('reveal', 'active', 'drop-above', 'drop-below');
+    el.classList.add('leaving');
+    /* a ghost must not answer lookups meant for live rows (patchPaneStatuses,
+       pane drag targets) nor hold focus */
+    el.removeAttribute('data-pane');
+    el.setAttribute('aria-hidden', 'true');
+    el.style.setProperty('--leaving-h', row.height + 'px');
+    el.addEventListener('animationend', (ev: Event) => {
+      if ('animationName' in ev && (ev as AnimationEvent).animationName === 'sidebar-row-out') el.remove();
+    });
+    anchor.after(el);
+    placed.set(row.paneId, el);
+  }
 }
 
 /* ---------------- compact workspace rail ----------------
@@ -941,6 +1053,9 @@ function renderWsRail(): void {
 export function renderSidebar(): void {
   if (lastExpanded == null) lastExpanded = { ...(db.prefs?.expanded || {}) };
   const nav = $('#nav');
+  /* detach the rows this paint will not draw before the nav is cleared, so
+     they can be re-inserted and animated out */
+  const leaving = takeLeavingRows();
   nav.innerHTML = '';
 
   nav.append(searchTriggerButton(), workspaceLabelRow());
@@ -959,6 +1074,8 @@ export function renderSidebar(): void {
   renderWsRail();
   renderBottomDock();
   renderGitPanel();
+  /* last: every anchor the leaving rows use is in the DOM by now */
+  dropLeavingRows(leaving);
 }
 
 /* bottom dock sits below the scrollable nav list and is always visible —

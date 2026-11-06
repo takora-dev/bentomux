@@ -530,7 +530,7 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .terminal-host{position:absolute;inset:0;contain:layout paint}
 .mux-body{contain:layout paint}
 .terminal-host.drop-active{outline:2px dashed var(--accent);outline-offset:-3px}
-.mux-body.split .terminal-host{margin:var(--term-pad);padding:var(--term-pad-in);border:1px solid var(--line);border-radius:var(--r-md);box-sizing:content-box;transition:border-color .12s}
+.mux-body.split .terminal-host{margin:var(--term-pad);padding:var(--term-pad-in);border:1px solid var(--line);border-radius:var(--r-md);box-sizing:content-box;transition:border-color .12s,opacity .12s,filter .12s}
 .terminal-page .mux-body{position:relative;margin:0;overflow:hidden}
 .xterm,.xterm .xterm-viewport,.xterm .xterm-screen{border-radius:0}
 /* Keep xterm's native viewport in charge of scrollback. Hiding overflow
@@ -554,9 +554,17 @@ body.resizing-panes{cursor:col-resize;user-select:none}
 body.resizing-stacked{cursor:row-resize;user-select:none}
 /* the focused pane's card lights up its border instead of a separate marker */
 .pane.focused .terminal-host{border-color:var(--accent)}
+/* ...and the panes that are not focused recede: dimmed and desaturated, so the
+   shell actually receiving keys is obvious at a glance rather than signalled
+   by the accent border alone. Split view only — a lone pane is always active. */
+.mux-body.split .pane:not(.focused) .terminal-host{opacity:.55;filter:saturate(.75)}
 
 /* tabs are the core of the desktop app: keep the strip visible with the sidebar open too */
 body:not(.pane-hidden) .titlebar.has-tabs .top-tools{display:flex!important}
+/* Settings > Appearance > Tab bar: the strip is hidden on the user's request.
+   The titlebar itself stays (window drag + pane/back/forward buttons), and the
+   sidebar keeps listing every terminal per workspace. */
+body.tabstrip-hidden .titlebar #tabstrip{display:none}
 .titlebar.has-tabs .top-tools{flex:1 1 auto;min-width:0}
 .titlebar.has-tabs .tspacer{display:none}
 

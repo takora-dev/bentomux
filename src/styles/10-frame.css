@@ -156,6 +156,13 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 /* a clickable control inside a draggable row must not inherit the row's grab
    cursor; the row's own cursor rule is more specific, so restate it here */
 .workspace-child .pane-close,.ws-flyout .pane-close{cursor:pointer}.workspace-child:hover .pane-close,.workspace-child:focus-visible .pane-close,.pane-close:focus-visible{opacity:1}.pane-close:hover{background:var(--tint);color:var(--ink)}.workspace-child.drop-above::before,.workspace-child.drop-below::after{content:"";position:absolute;left:12px;right:8px;height:3px;border-radius:var(--r-sm);background:var(--accent);box-shadow:0 0 7px color-mix(in srgb,var(--accent) 55%,transparent);pointer-events:none;z-index:2}.workspace-child.drop-above::before{top:-2px}.workspace-child.drop-below::after{bottom:-2px}.workspace-child.reveal{animation:workspace-reveal .22s ease both}.workspace-child.reveal:nth-child(2){animation-delay:.02s}.workspace-child.reveal:nth-child(3){animation-delay:.04s}.workspace-child.reveal:nth-child(4){animation-delay:.06s}@keyframes workspace-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* a pane row on its way out of the list: it keeps its place (and its measured
+   height, passed in as --leaving-h) and folds shut, so the rows below close the
+   gap instead of the row blinking out between two paints */
+.workspace-child.leaving{pointer-events:none;overflow:hidden;animation:sidebar-row-out .2s ease forwards}
+.workspace-child.leaving .pane-close{display:none}
+@keyframes sidebar-row-out{from{opacity:1;height:var(--leaving-h,42px)}to{opacity:0;height:0;margin-top:0;transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){.workspace-child.leaving{animation-duration:.01s}}
 .folder{
   display:flex;align-items:center;gap:6px;
   width:100%;height:30px;padding:0 9px 0 7px;
@@ -165,6 +172,12 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 }
 .folder-name{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folder-icon{display:flex;color:var(--ink-3)}
+/* disclosure caret in front of the folder: it rotates to say whether the
+   workspace's terminals are showing, so the state reads before the rows
+   themselves animate in or out */
+.ws-chevron{display:flex;flex:0 0 12px;color:var(--ink-3);transform:rotate(0deg);transition:transform .18s ease,color .12s}
+.folder.open .ws-chevron{transform:rotate(90deg)}
+.folder:hover .ws-chevron,.folder:focus-visible .ws-chevron{color:var(--ink-2)}
 .folder{position:relative}
 .folder.dragging{opacity:.45;transform:scale(.98);background:var(--surface-2);box-shadow:0 4px 12px color-mix(in srgb,var(--ink) 16%,transparent)}
 body.workspace-dragging{user-select:none;cursor:grabbing}

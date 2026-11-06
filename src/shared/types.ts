@@ -116,6 +116,8 @@ export interface Prefs {
   sidebarWidth?: number;
   /* workspace name labels before tab groups in the top bar; absent = shown */
   showTabGroupNames?: boolean;
+  /* hide the whole titlebar tab strip; absent = shown */
+  hideTabStrip?: boolean;
   /* terminal split divider positions: split-node key → '%' of the axis */
   paneRatios?: Record<string, number>;
   expanded?: Record<string, boolean>;

@@ -5,7 +5,7 @@ import type { TabRec } from '../../shared/types';
 import { leafNode, leafIds, firstLeafId, splitLeaf, removeLeaf, setSplitDir, newNodeKey, treeHasKey, type PaneNode } from '../../shared/split-tree';
 import { ui, type Route, type TabEntry } from '../state';
 import { db, branches, activity } from '../store';
-import { render, repaintContent } from '../render';
+import { render, repaintContent, renderSidebar } from '../render';
 import { disposeTerminal, mostRecentPane, resetPaneRatio } from './terminal';
 import { openContextMenu } from '../components/menu';
 import { openModal } from '../components/modal';
@@ -385,6 +385,10 @@ export async function splitTerminalPane(paneId: string, dir: 'v' | 'h' = 'v', be
     /* same route, one more leaf: the tab strip is unchanged and a full pass
        would detach the panes that are already mounted */
     repaintContent();
+    /* the sidebar does track the pane set, and the runtime status tick that
+       would otherwise add this row arrives up to a second later — paint it
+       now, so the new pane is in the list the moment it exists */
+    renderSidebar();
   } catch (e) {
     console.error('split pane failed', e);
   }
@@ -417,6 +421,9 @@ export async function closeTerminalPane(paneId: string): Promise<void> {
   }
   reanchorEntryOnPaneClose(entry, tree);
   repaintContent();
+  /* drop the closed pane's row now: the leaving animation needs the old row
+     while it is still in the DOM (the same wait applies as in the split) */
+  renderSidebar();
 }
 
 /* Cmd+W / File > Close Pane: the focused pane of a split tab goes first; a

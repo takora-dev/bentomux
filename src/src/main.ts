@@ -179,12 +179,23 @@ export async function applyBackgrounds(): Promise<void> {
   }
 }
 
+/* The titlebar tab strip is a shell pref, not a page: hiding it only swaps a
+   body class, so the same helper serves boot and the Settings toggle. */
+export function applyTabStripPref(): void {
+  document.body.classList.toggle('tabstrip-hidden', db.prefs.hideTabStrip === true);
+}
+
 function applyShellPrefs(): void {
   document.documentElement.style.setProperty('--sidebar-width', (db.prefs.sidebarWidth || MIN_SIDEBAR_WIDTH) + 'px');
   document.title = 'Bentomux';
   document.body.classList.toggle('pane-hidden', db.prefs.paneHidden === true);
+  applyTabStripPref();
   document.body.classList.toggle('git-panel-open', ui.gitPanelOpen);
   document.documentElement.classList.toggle('dark', resolveTheme() === 'dark');
+  /* the glyph is painted from the class above, so it has to be repainted
+     wherever the class is set — paintStaticIcons() runs before this and would
+     otherwise leave the boot glyph showing the wrong theme */
+  paintThemeGlyph();
   applyPaletteClass(db.prefs.palette);
   applyFontPrefs();
   void applyBackgrounds();
@@ -430,7 +441,11 @@ export function resolveTheme(): 'light' | 'dark' {
 }
 
 function toggleTheme(): void {
-  db.prefs.theme = db.prefs.theme === 'dark' ? 'light' : 'dark';
+  /* flip away from the theme actually on screen, not from the stored pref: with
+     the default 'system' pref the stored value is not a theme at all, so the
+     old form could write back the mode already in use and the first click did
+     nothing (the icon looked one step behind until the second click) */
+  db.prefs.theme = resolveTheme() === 'dark' ? 'light' : 'dark';
   void api.setPrefs({ theme: db.prefs.theme });
   applyTheme();
 }
