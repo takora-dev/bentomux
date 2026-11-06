@@ -51,7 +51,18 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          cache-on-failure: true
+          # v1: the v0 entry for the current Cargo.lock was saved by a run that
+          # failed at clippy, i.e. before any release build, so it held the
+          # dev/check artefacts only. The key then hit exactly on every later
+          # run, which means rust-cache never re-saved it and each run had to
+          # recompile all ~660 dependency crates in release and test profiles
+          # (Build 431s -> ~1050s on macOS, backend tests 22s -> ~200s).
+          # A new prefix abandons that entry: the next run is cold and seeds a
+          # complete one.
+          prefix-key: v1-rust
+          # a failed run must never pin a half-built cache under a live key;
+          # that is exactly how the v0 entry went bad
+          cache-on-failure: false
 
       - name: Add macOS universal targets
         if: runner.os == 'macOS'
