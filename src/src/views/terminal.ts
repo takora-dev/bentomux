@@ -18,6 +18,7 @@ import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
 import { xtermTheme } from '../terminal-theme';
 import { splitTerminalPane, closeTerminalPane, setNodeDir, syncWorkspaceForPane } from './tabs';
+import { SCROLL_SENSITIVITY, wheelTargetRow } from './wheel';
 import api from '../../preload/bentomux';
 
 interface Live {
@@ -437,9 +438,10 @@ function createXterm(tabId: string): {
        the fractional accumulator, so a gentle flick (deltaY 2-4) scrolls a
        couple of lines at most or nothing at all. An agent CLI in the
        alternate screen forwards the wheel to the app as mouse reports, and
-       with almost every event dropped the app never sees a scroll. 3 is the
-       same multiplier VS Code ships for its own xterm panes. */
-    scrollSensitivity: 3,
+       with almost every event dropped the app never sees a scroll. The guard
+       below uses the same multiplier, so a gesture xterm drops scrolls by the
+       same distance as one it takes. */
+    scrollSensitivity: SCROLL_SENSITIVITY,
     fastScrollSensitivity: 10,
     /* apps emit truecolor that assumes a dark canvas; on light backgrounds
        plain white must darken rather than vanish into the page */
@@ -588,40 +590,46 @@ function markFocusedPane(host: HTMLElement, tabId: string): void {
 /* xterm has no public focus event; its hidden textarea bubbles focusin */
 /* Last line of defence for the wheel.
 
-   xterm consumes a wheel event in two places: the Viewport scrollable element
-   (local scrollback) and the mouse-report listener it binds when the running
-   app enables wheel tracking. Both can decline the same event, and xterm's own
-   handling of a wheel over a buffer that HAS scrollback is a no-op — its `wheel`
-   listener only acts when `hasScrollback` is false (CoreBrowserTerminal.ts).
-   Nothing then cancels the event, so it bubbles out of the pane and WebKit
-   hands it to the nearest ancestor scroller. That used to be `.tabbody`: the
-   window rubber-banded, titlebar and sidebar sliding away, while the pane — the
-   thing under the cursor — did not move.
+   xterm can take a wheel event and move nothing, in two ways that leave a pane
+   looking like "the wheel stopped working" while everything else about it is
+   fine:
 
-   The listener sits on the host, so it runs after xterm's own handlers: a wheel
-   xterm took never reaches it (xterm's `cancel` stops propagation), and a wheel
-   nobody took is consumed here and applied to the buffer ourselves. That also
-   restores scrolling for a pane whose viewport stopped following the buffer,
-   where `scrollLines` is the only public path left that still moves it. */
+     - it drops wheel handling outright once the running app turns on wheel
+       tracking (`handleMouseWheel: false`, Viewport.ts), and
+     - its mouse-report listener cancels every wheel it sees, including the ones
+       `consumeWheelEvent` decides are too small to report (a gentle trackpad
+       flick), so nothing at all happens.
+
+   Neither state can be read off the event afterwards: both end with
+   `defaultPrevented` set and propagation stopped, and the scroll xterm does
+   commit lands on a later task, so it cannot be compared against either. The
+   gesture is therefore taken here, in the capture phase on the host, before
+   every handler xterm owns — one owner, applied in the same task as the event.
+
+   The normal buffer is ours: it has scrollback, and a wheel over it means
+   "show me older lines". The alternate screen is left entirely to xterm: it
+   has no scrollback, the running app scrolls itself, and xterm has already
+   turned the gesture into arrows or mouse reports for it. */
 function wireWheelGuard(term: Terminal, host: HTMLElement, signal: AbortSignal): void {
   host.addEventListener('wheel', (e: WheelEvent) => {
-    if (e.defaultPrevented || e.ctrlKey) return;
-    e.preventDefault();
-    e.stopPropagation();
+    /* pinch-zoom (ctrl+wheel) and horizontal-only gestures are xterm's */
+    if (e.ctrlKey || e.deltaY === 0) return;
+    const buffer = term.buffer.active;
+    if (buffer.type !== 'normal' || buffer.baseY === 0) return;
     /* Measure the cell from the DOM rather than from the renderer: this path
        exists for the case where xterm's cached dimensions are wrong. */
     const screen = host.querySelector('.xterm-screen');
     const screenHeight = screen ? screen.getBoundingClientRect().height : 0;
     const cellHeight = term.rows > 0 && screenHeight > 0 ? screenHeight / term.rows : 0;
-    if (e.deltaY === 0 || cellHeight <= 0) return;
-    /* the sensitivity the terminal was configured with (3), so a wheel that
-       lands here feels the same as one xterm handled */
-    const lines = Math.max(1, Math.round((Math.abs(e.deltaY) * 3) / cellHeight));
-    /* an app in the alternate screen scrolls itself and has no scrollback, so
-       this moves nothing — the gesture is still swallowed, because leaking it
-       to the window is never the right answer */
-    term.scrollLines(e.deltaY < 0 ? -lines : lines);
-  }, { passive: false, signal });
+    const target = wheelTargetRow(buffer.viewportY, e.deltaY, cellHeight, buffer.baseY);
+    if (target === buffer.viewportY) return;
+    e.preventDefault();
+    e.stopPropagation();
+    /* an absolute row, not a delta: the viewport keeps a cached scrollTop of
+       its own, and a gesture that arrives on a stale one would move by the
+       wrong amount — the failure this guard exists to survive */
+    term.scrollToLine(target);
+  }, { capture: true, passive: false, signal });
 }
 
 function wireFocusIn(host: HTMLElement, tabId: string, signal: AbortSignal): void {
