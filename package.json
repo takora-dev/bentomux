@@ -22,6 +22,7 @@
     "test:installer": "sh scripts/verify-installer.sh",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",
+    "dev:lite": "node scripts/tauri-dev.mjs --lean",
     "plugin:templates": "node scripts/gen-plugin-templates.mjs",
     "plugin:check": "node scripts/check-plugin-templates.mjs",
     "plugin:skill": "node scripts/gen-plugin-skill.mjs",
