@@ -101,7 +101,7 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
   user-select:none;
 }
 .nav-item:hover{background:var(--tint);color:var(--ink)}
-.nav-item.active{background:var(--accent-tint);color:var(--accent-ink);font-weight:550}
+.nav-item.active{background:var(--selection-bg);color:var(--accent-ink);font-weight:550}
 /* keep hover/active backgrounds from visually merging between stacked rows */
 .nav-item + .nav-item{margin-top:3px}
 .nav-item .ic{display:flex;flex:0 0 auto;opacity:.75}
@@ -113,45 +113,28 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
   border-radius:var(--r-md);padding:0 6px;
 }
 .nav-item.sub{padding-left:24px}
-.nav-item .dot{width:5px;height:5px;border-radius:var(--r-full);background:var(--ink-3);opacity:.7;flex:0 0 auto}.workspace-row{display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1}.branch-icon{display:flex;align-items:flex-start;padding-top:2px;flex:0 0 14px;color:var(--ink-3);line-height:14px}.workspace-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}.workspace-main{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* the agent row must NOT clip: it holds the status ripple, which expands to 3.2x its 7px core. overflow:hidden here sliced the ripple into a square. The row's own text is short (a state word and a runtime name), so it clips its children instead of itself. */
-.workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}/* 9px of gap, not 5px: the ripple grows to 3.2x its 7px core, so it reaches
-   14.7px from the element's left edge. At a 5px gap the label started at 12px
-   and the ring washed over its first letter. 9px puts the text at 16px, which
-   clears the widest ripple by ~1.3px and still leaves the dot and the word
-   reading as one unit at rest. */
-.agent-status{position:relative;display:inline-flex;align-items:center;gap:9px;text-transform:lowercase;color:var(--state-idle)}
-/* The indicator is three layers on one 7px core:
-     ::before  the core itself, with a static halo ring for weight at small size
-     ::after   a single ripple that leaves the core, expands and fades
-     the dot   a second ripple, offset half a period, so the beat is continuous
-   Two ripples rather than one is what makes it read as a pulse instead of a
-   blink. Every state ripples — the colour says which state, the rhythm says
-   the agent is alive — but each state gets its own tempo so they stay
-   distinguishable in a list where several panes are visible at once. */
-.agent-status::before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:var(--r-full);background:currentColor;box-shadow:0 0 0 2px color-mix(in srgb,currentColor 24%,transparent)}
-.agent-status::after{content:"";position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:var(--r-full);background:currentColor;opacity:0;pointer-events:none;z-index:0}
+.nav-item .dot{width:5px;height:5px;border-radius:var(--r-full);background:var(--ink-3);opacity:.7;flex:0 0 auto}.workspace-row{display:flex;align-items:flex-start;gap:7px;min-width:0;flex:1}.workspace-copy{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;text-align:left}.workspace-main{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* Metadata clips long branch names without changing the row geometry. */
+.workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}/* Runtime identity is separate from activity; shell has no activity dot. */
+.runtime-icon{display:flex;align-items:center;justify-content:center;padding-top:1px;flex:0 0 15px;width:15px;color:var(--ink-2)}
+.runtime-icon svg{width:15px;height:15px;flex:none}
+.workspace-agent{overflow:hidden;min-height:14px;line-height:14px;gap:5px}
+.workspace-branch{display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;color:var(--ink-3)}
+.metadata-git-icon{display:flex;flex:0 0 12px}
+.metadata-git-icon svg{width:12px;height:12px}
+.branch-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell-label,.agent-sep{flex:none}
+.agent-status{position:relative;display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--state-idle)}
+.agent-status::before{content:"";width:6px;height:6px;flex:0 0 6px;border-radius:var(--r-full);background:currentColor}
 .agent-status.idle{color:var(--state-idle)}
-.agent-status.running,.agent-status.working{color:var(--state-busy)}
-.agent-status.blocked{color:var(--state-blocked)}
-/* the second ripple lives on a child so both can be timed independently;
-   panes without one still get the single ::after ripple */
-.agent-status .pulse{position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:var(--r-full);background:currentColor;opacity:0;pointer-events:none;z-index:0}
-/* the label sits above both ripples, otherwise the expanding ring washes over
-   the first letter and the state stops being readable mid-beat */
-.agent-status-label{position:relative;z-index:1}
-/* each state names its own period and offsets the second ripple by half of it,
-   so the two never land on the same frame */
-.agent-status.idle::after{animation:agent-ping 3.2s cubic-bezier(0,0,.2,1) infinite}
-.agent-status.idle .pulse{animation:agent-ping 3.2s cubic-bezier(0,0,.2,1) -1.6s infinite}
-.agent-status.working::after,.agent-status.running::after{animation:agent-ping 1.8s cubic-bezier(0,0,.2,1) infinite}
-.agent-status.working .pulse,.agent-status.running .pulse{animation:agent-ping 1.8s cubic-bezier(0,0,.2,1) -.9s infinite}
-/* blocked is the state that needs the user: slowest beat */
-.agent-status.blocked::after{animation:agent-ping 2.6s cubic-bezier(0,0,.2,1) infinite}
-.agent-status.blocked .pulse{animation:agent-ping 2.6s cubic-bezier(0,0,.2,1) -1.3s infinite}
-@keyframes agent-ping{0%{transform:scale(1);opacity:.45}70%,100%{transform:scale(3.2);opacity:0}}
-/* the halo is a static weight cue, so it survives reduced motion; only the
-   ripples stop */
-@media (prefers-reduced-motion:reduce){.agent-status::after,.agent-status .pulse{animation:none!important}}
+.agent-status.working{color:var(--state-busy)}
+.agent-status.thinking{color:var(--state-thinking)}
+.agent-status.waiting{color:var(--state-blocked)}
+.agent-status.error{color:var(--state-error)}
+.agent-status.working::before,.agent-status.thinking::before{animation:agent-activity-pulse 2.4s ease-in-out infinite}
+@keyframes agent-activity-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.agent-status::before{animation:none!important}}
+/* Keep the existing deeper selection in dark mode only. */
+:root.dark .workspace-child.active{background:color-mix(in srgb,#1E3A5F 20%,var(--surface))}
 .agent-sep{color:var(--line-2)}.workspace-child{height:42px;position:relative;cursor:grab;touch-action:none}.workspace-child:active{cursor:grabbing}.workspace-child.drop-above,.workspace-child.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}.pane-close{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:var(--r-sm);color:var(--ink-3);font-size:16px;line-height:1;opacity:0;cursor:pointer}
 /* a clickable control inside a draggable row must not inherit the row's grab
    cursor; the row's own cursor rule is more specific, so restate it here */
@@ -213,7 +196,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   transition:background .12s,border-color .12s,color .12s;
 }
 .ws-rail-item:hover{background:var(--tint);border-color:var(--line-2);color:var(--ink)}
-.ws-rail-item.active{background:var(--accent-tint);border-color:var(--accent);color:var(--accent-ink)}
+.ws-rail-item.active{background:var(--selection-bg);border-color:var(--accent);color:var(--accent-ink)}
 .ws-rail-initials{pointer-events:none;text-transform:uppercase}
 /* loudest pane state in the workspace, drawn on the button's corner.
    A workspace with no terminals has no state, so no dot. */
@@ -221,10 +204,12 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:var(--r-full);
   pointer-events:none;display:none;
 }
-.ws-rail-status.idle,.ws-rail-status.running,.ws-rail-status.working,.ws-rail-status.blocked{display:block}
-.ws-rail-status.idle{background:#668b6f}
-.ws-rail-status.running,.ws-rail-status.working{background:#b18a32}
-.ws-rail-status.blocked{background:#b23c2b}
+.ws-rail-status.idle,.ws-rail-status.working,.ws-rail-status.thinking,.ws-rail-status.waiting,.ws-rail-status.error{display:block}
+.ws-rail-status.idle{background:var(--state-idle)}
+.ws-rail-status.working{background:var(--state-busy)}
+.ws-rail-status.thinking{background:var(--state-thinking)}
+.ws-rail-status.waiting{background:var(--state-blocked)}
+.ws-rail-status.error{background:var(--state-error)}
 
 /* hover flyout for one rail button. z-index sits above the sidebar (50 in the
    narrow-viewport layout) but below the modal overlay (60), so an open dialog

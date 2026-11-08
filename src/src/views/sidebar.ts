@@ -22,6 +22,7 @@ import { dockEntries, sidebarEntries } from '../plugin/registry';
 import { ensureActive, pluginAssetUrl } from '../plugin/loader';
 import { contributionIcon, contributionLabel } from '../plugin/icons';
 import api from '../../preload/bentomux';
+import { activityStatus, runtimeType, runtimeName, runtimeIcon, runtimeMetadata, type ActivityStatus } from '../components/runtime-status';
 
 const PANE_INDENT = 24;
 
@@ -44,19 +45,21 @@ export function patchPaneStatuses(): boolean {
    marker. Shared by the sidebar list and the compact rail's flyout so both
    stay in step from the same tick without a rebuild. */
 function patchPaneRow(btn: HTMLElement, paneId: string): boolean {
-  const st = runtime[paneId];
-  const status = st?.state ?? (st?.running ? 'working' : 'idle');
-  const agent = st?.runtime || 'shell';
-  const statusEl = btn.querySelector('.agent-status');
-  const agentEl = statusEl?.nextElementSibling?.nextElementSibling;
-  if (!statusEl || !(agentEl instanceof HTMLElement)) return false;
-  const wantClass = 'agent-status ' + status;
-  if (statusEl.className !== wantClass) statusEl.className = wantClass;
-  /* the status element holds the pulse child too, so patch the label span by
-     itself — writing textContent here would drop the ripple */
-  const labelEl = statusEl.querySelector('.agent-status-label');
-  if (labelEl && labelEl.textContent !== status) labelEl.textContent = status;
-  if (agentEl.textContent !== agent) agentEl.textContent = agent;
+  const entry = ui.tabs.find(t => t.route.view === 'terminal' && leavesOf(t).includes(paneId));
+  if (!entry) return false;
+  const m = paneViewModel({ entry, paneId });
+  const iconEl = btn.querySelector('.runtime-icon');
+  const metadataEl = btn.querySelector('.workspace-agent');
+  const nameEl = btn.querySelector('.workspace-name');
+  if (!iconEl || !metadataEl || !(nameEl instanceof HTMLElement)) return false;
+  const key = JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch]);
+  if (btn.dataset.metadata !== key) {
+    iconEl.replaceWith(runtimeIcon(m.runtimeType));
+    metadataEl.replaceWith(runtimeMetadata(m.runtimeType, m.activityStatus, m.gitBranch));
+    btn.dataset.metadata = key;
+  }
+  if (nameEl.textContent !== m.terminalName) nameEl.textContent = m.terminalName;
+  nameEl.title = m.terminalName;
   const timeEl = btn.querySelector('.workspace-time');
   if (timeEl instanceof HTMLElement) {
     const ts = activity[paneId] || Date.now();
@@ -69,7 +72,6 @@ function patchPaneRow(btn: HTMLElement, paneId: string): boolean {
   }
   /* the focused pane can change without the pane set changing (a split
      focuses its new shell), so the active marker is patched here too */
-  const entry = ui.tabs.find(t => t.route.view === 'terminal' && leavesOf(t).includes(paneId));
   const isActive = !!entry && ui.route.view === 'terminal' && entry.id === ui.activeTab
     && mostRecentPane(leavesOf(entry)) === paneId;
   btn.classList.toggle('active', isActive);
@@ -106,10 +108,10 @@ interface PaneViewModel {
   entry: TabEntry;
   paneId: string;
   isActive: boolean;
-  branch: string | null;
-  workspaceName: string;
-  status: string;
-  agent: string | null;
+  gitBranch: string | null;
+  terminalName: string;
+  activityStatus: ActivityStatus | null;
+  runtimeType: string;
   timestamp: number;
 }
 
@@ -125,9 +127,7 @@ function wsPanes(wsId: string): PaneRow[] {
 
 function paneViewModel({ entry, paneId }: PaneRow): PaneViewModel {
   const st = runtime[paneId];
-  const status = st?.state ?? (st?.running ? 'working' : 'idle');
-  const agent = st?.runtime || null;
-  const ws = db.workspaces.find(w => w.id === entry.workspaceId);
+  const detectedRuntime = runtimeType(st?.runtime);
   const isActive = ui.route.view === 'terminal'
     && entry.id === ui.activeTab
     && mostRecentPane(leavesOf(entry)) === paneId;
@@ -135,10 +135,10 @@ function paneViewModel({ entry, paneId }: PaneRow): PaneViewModel {
     entry,
     paneId,
     isActive,
-    branch: branches.get(entry.workspaceId || '') || null,
-    workspaceName: ws?.name || 'terminal',
-    status,
-    agent,
+    gitBranch: branches.get(entry.workspaceId || '') || null,
+    terminalName: runtimeName(detectedRuntime),
+    activityStatus: activityStatus(detectedRuntime, st?.state),
+    runtimeType: detectedRuntime,
     timestamp: activity[paneId] || Date.now(),
   };
 }
@@ -179,23 +179,16 @@ function paneItem(row: PaneRow, pad: number, reveal: boolean = false, draggable:
     class: 'nav-item sub workspace-child' + (m.isActive ? ' active' : '') + (reveal ? ' reveal' : ''),
     style: 'padding-left:' + pad + 'px',
     'data-pane': m.paneId,
+    'data-metadata': JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch]),
     onclick: () => activatePane(m.paneId, m.entry.id),
   },
     h('span', { class: 'workspace-row' },
-      markup('span', { class: 'branch-icon' }, IC.git),
+      runtimeIcon(m.runtimeType),
       h('span', { class: 'workspace-copy' },
         h('span', { class: 'workspace-main' },
-          h('span', { class: 'workspace-name' }, m.branch || m.workspaceName),
+          h('span', { class: 'workspace-name', title: m.terminalName }, m.terminalName),
           h('time', { class: 'workspace-time', 'data-ts': String(m.timestamp), title: abs(m.timestamp) }, rel(m.timestamp))),
-        h('span', { class: 'workspace-agent' },
-          /* .pulse is the second ripple; the first is the element's own ::after.
-             Two, offset half a period, make the indicator beat continuously
-             instead of flashing once and pausing. */
-          h('span', { class: 'agent-status ' + m.status },
-            h('span', { class: 'pulse' }),
-            h('span', { class: 'agent-status-label' }, m.status)),
-          h('span', { class: 'agent-sep' }, '·'),
-          h('span', {}, m.agent || 'shell'))),
+        runtimeMetadata(m.runtimeType, m.activityStatus, m.gitBranch)),
       close));
   if (draggable) {
     btn.addEventListener('pointerdown', e => startPaneDrag(e, btn, m.paneId));
@@ -804,7 +797,7 @@ let railFlyoutList: HTMLElement | null = null;
 let railFlyoutIds = '';
 let railCloseTimer: number | null = null;
 
-const STATUS_RANK: Record<string, number> = { blocked: 3, working: 2, running: 2, idle: 1 };
+const STATUS_RANK: Record<string, number> = { error: 5, waiting: 4, thinking: 3, working: 2, idle: 1 };
 
 /* two-letter mark for the rail button: words → initials, otherwise the first
    two characters. Keeps same-named folders distinguishable at 44px wide. */
@@ -821,7 +814,8 @@ function workspaceStatus(wsId: string): string | null {
   let best: string | null = null;
   for (const { paneId } of wsPanes(wsId)) {
     const st = runtime[paneId];
-    const status = st?.state ?? (st?.running ? 'working' : 'idle');
+    const status = activityStatus(runtimeType(st?.runtime), st?.state);
+    if (!status) continue;
     if (!best || (STATUS_RANK[status] || 0) > (STATUS_RANK[best] || 0)) best = status;
   }
   return best;
