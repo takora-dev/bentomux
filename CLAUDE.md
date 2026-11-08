@@ -52,7 +52,8 @@ src-tauri/
   src/                  # Rust backend (see below)
   capabilities/default.json  # Window + permission grants (main + approval-overlay)
   tauri.conf.json       # App config, bundle, windows, resources
-  tauri.windows.conf.json  # Windows-only overlay: frameless main window (decorations:false)
+  tauri.windows.conf.json  # Windows overlay: frameless main window (decorations:false)
+  tauri.linux.conf.json    # Linux: transparent frameless window + app controls + CSS rounded corners
   build.rs              # tauri-build
   icons/                # App icons
 resources/

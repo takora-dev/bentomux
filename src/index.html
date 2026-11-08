@@ -73,9 +73,9 @@
         <span class="git-pill-add" data-role="add">+0</span>
         <span class="git-pill-del" data-role="del">-0</span>
       </button>
-      <!-- Windows draws its own caption bar off (`decorations: false` in
-           tauri.windows.conf.json), so the OS buttons live here instead.
-           `.win-btn` is hidden unless <html> carries `.windows`. -->
+      <!-- Windows and Linux disable native decorations in their platform
+           Tauri configs, so window buttons live here instead.
+           `.win-btn` is shown for `.windows` and `.linux` on <html>. -->
       <div class="win-controls">
         <button id="themeBtn" class="tbtn" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
         <button id="winMinBtn" class="tbtn win-btn" title="Minimize" aria-label="Minimize"></button>

@@ -252,6 +252,12 @@ input,textarea,select{font:inherit;color:inherit}
 *::-webkit-scrollbar-track{background:transparent}
 *::-webkit-scrollbar-corner{background:transparent}
 
+/* Linux has no native rounded frame. Keep the WebView canvas transparent and
+   clip the entire UI (including fixed overlays) to Windows-style 8px corners.
+   Maximized/fullscreen windows must fill the screen without corner gaps. */
+html.linux,html.linux body{background:transparent}
+html.linux:not(.fullscreen) body:not(.maximized){clip-path:inset(0 round 8px)}
+
 .app{height:100vh;display:flex;overflow:hidden}
 .win{width:100%;height:100%;display:grid;grid-template-columns:var(--sidebar-width,248px) minmax(0,1fr) 0;grid-template-rows:38px minmax(0,1fr);background:var(--bg);transition:grid-template-columns .32s cubic-bezier(.22,.61,.36,1);overflow:hidden}
 body.git-panel-open .win{grid-template-columns:var(--sidebar-width,248px) minmax(0,1fr) 340px}

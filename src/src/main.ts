@@ -35,9 +35,10 @@ import { IC, icon } from './icons';
 import api from '../preload/bentomux';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 document.documentElement.classList.toggle('macos', /Mac/.test(navigator.platform));
-/* Windows runs frameless (tauri.windows.conf.json) and draws its own window
-   buttons, so the stylesheet needs to know which platform it is on. */
+/* Windows and Linux run frameless (their platform-specific Tauri configs)
+   and share the app's window buttons. macOS keeps its native traffic lights. */
 document.documentElement.classList.toggle('windows', /Win/.test(navigator.platform));
+document.documentElement.classList.toggle('linux', /Linux/.test(navigator.platform));
 
 /* Suppress native browser context menu everywhere except inside
    .terminal-page which wires its own contextmenu handler.
@@ -522,10 +523,13 @@ function wireTheme(): void {
 }
 
 function wireWindowControls(): void {
-  api.onMaximized(max => {
+  const setMaximizedClass = (max: boolean): void => {
     ui.maximized = max;
     document.body.classList.toggle('maximized', max);
-  });
+  };
+  api.onMaximized(setMaximizedClass);
+  /* Reloads can land in a maximized window; sync the glyph and Linux corners. */
+  void getCurrentWindow().isMaximized().then(setMaximizedClass);
   /* html.fullscreen drives the macOS side-tools reflow: fullscreen hides the
      traffic lights, so the sidebar header buttons stop hugging the right
      edge. Sync once on boot too — a reload can land mid-fullscreen. */
@@ -534,9 +538,8 @@ function wireWindowControls(): void {
   };
   api.onFullscreen(setFullscreenClass);
   void getCurrentWindow().isFullscreen().then(setFullscreenClass);
-  /* The three OS buttons only exist on Windows (the other platforms keep their
-     native frame), but the handlers are harmless there: the elements are in
-     the DOM either way and the commands are cross-platform. */
+  /* Windows and Linux share these window buttons; macOS keeps its native
+     traffic lights. The elements and cross-platform handlers exist everywhere. */
   $('#winMinBtn').addEventListener('click', () => { api.minimize(); });
   $('#winMaxBtn').addEventListener('click', () => { api.toggleMaximize(); });
   /* X closes the window, but the backend turns that into a hide: the app
