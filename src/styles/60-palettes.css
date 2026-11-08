@@ -20,7 +20,7 @@
 :root.dark.palette-eink .diff-line.diff-del{background:rgba(255,255,255,.05)}
 /* classic squares everything with the blanket rule above; e-ink keeps its
    corners but goes achromatic, so the status colours follow ink/bg */
-:root.palette-eink{--state-idle:var(--ink);--state-busy:var(--ink-2);--state-blocked:var(--ink)}
+:root.palette-eink{--state-idle:var(--ink);--state-busy:var(--ink-2);--state-thinking:var(--ink-2);--state-blocked:var(--ink);--state-error:var(--ink)}
 
 /* ---------------- pastel-pixel: pixel-art personality ----------------
    The cozy-pixel layer on top of the tokens: chunky 2px edges on the

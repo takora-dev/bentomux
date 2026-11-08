@@ -16,9 +16,11 @@
   --content-bg:#FFFFFF;
   --line:var(--alabaster-grey);--line-2:var(--silver);--tint:rgba(35,42,52,.07);
   --accent:#2563EB;--accent-ink:#1D4ED8;--accent-tint:rgba(37,99,235,.11);--danger:#DC2626;
+  /* A surface-based selection keeps light palettes airy, including custom accents. */
+  --selection-bg:color-mix(in srgb,var(--accent) 8%,var(--surface));
   /* agent runtime states — one source for the sidebar rows, the tab dots and
      the search palette, so a state reads the same colour everywhere */
-  --state-idle:#3E9B62;--state-busy:#C08A2E;--state-blocked:#C2402F;
+  --state-idle:#4ADE80;--state-busy:#60A5FA;--state-thinking:#A78BFA;--state-blocked:#FBBF24;--state-error:#F87171;
   --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:"SF Mono",Menlo,Monaco,Consolas,"Courier New",monospace;
   /* radius scale — every corner in the app picks one of these four. Nothing
@@ -30,7 +32,7 @@
   --term-pad-in:10px;
 }
 /* default dark — neutral charcoal canvas, one step lighter chrome */
-:root.dark{--bg:#17181B;--surface:#222428;--ink:#E8EAED;--ink-2:#A6ABB3;--ink-3:#71767E;--line:#2C2F34;--line-2:#3B3F45;--tint:rgba(255,255,255,.07);--accent:#4C8EF9;--accent-ink:#7CACFF;--accent-tint:rgba(76,142,249,.16);--danger:#E5534B;--content-bg:#17181B;--state-idle:#57C77F;--state-busy:#E0A94B;--state-blocked:#E56A5A}
+:root.dark{--bg:#17181B;--surface:#222428;--ink:#E8EAED;--ink-2:#A6ABB3;--ink-3:#71767E;--line:#2C2F34;--line-2:#3B3F45;--tint:rgba(255,255,255,.07);--accent:#4C8EF9;--accent-ink:#7CACFF;--accent-tint:rgba(76,142,249,.16);--selection-bg:var(--accent-tint);--danger:#E5534B;--content-bg:#17181B;--state-idle:#4ADE80;--state-busy:#60A5FA;--state-blocked:#FBBF24}
 
 /* ---------------- palettes (light + dark) ----------------
    Each palette overrides only the semantic color tokens used by the
