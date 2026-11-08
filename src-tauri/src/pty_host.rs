@@ -649,6 +649,35 @@ fn utf8_locale_overrides(
     out
 }
 
+/* AppImage's loader paths are for Bentomux itself, not host commands.
+Login scripts may invoke flatpak, whose system libcurl cannot use the bundled
+libnghttp2. Only strip paths inside APPDIR; keep user-provided library paths
+and leave the app/daemon environment untouched. */
+#[cfg(target_os = "linux")]
+fn clean_appimage_library_path(cmd: &mut CommandBuilder) -> Result<(), String> {
+    let Some(appdir) = cmd.get_env("APPDIR").filter(|v| !v.is_empty()) else {
+        return Ok(());
+    };
+    let appdir = std::path::PathBuf::from(appdir);
+    if !appdir.is_absolute() {
+        return Ok(());
+    }
+    let Some(value) = cmd.get_env("LD_LIBRARY_PATH") else {
+        return Ok(());
+    };
+    let paths: Vec<_> = std::env::split_paths(value)
+        .filter(|path| !path.starts_with(&appdir))
+        .collect();
+    if paths.is_empty() {
+        cmd.env_remove("LD_LIBRARY_PATH");
+    } else {
+        let value =
+            std::env::join_paths(paths).map_err(|e| format!("Invalid shell library path: {e}"))?;
+        cmd.env("LD_LIBRARY_PATH", value);
+    }
+    Ok(())
+}
+
 fn spawn_term(
     host: &Arc<Host>,
     workspace_id: &str,
@@ -669,6 +698,8 @@ fn spawn_term(
         .map_err(|e| format!("PTY creation failed: {}", e))?;
 
     let mut cmd = CommandBuilder::new(&shell.file);
+    #[cfg(target_os = "linux")]
+    clean_appimage_library_path(&mut cmd)?;
     for arg in &shell.args {
         cmd.arg(arg);
     }
@@ -998,6 +1029,46 @@ pub fn run_host() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn appimage_library_paths_do_not_leak_into_shells() {
+        let mut cmd = CommandBuilder::new("/bin/sh");
+        cmd.env("APPDIR", "/tmp/.mount_bentomux");
+        cmd.env(
+            "LD_LIBRARY_PATH",
+            "/tmp/.mount_bentomux/usr/lib:/opt/custom/lib:/tmp/.mount_bentomux/lib:/tmp/.mount_bentomux-other/lib",
+        );
+        clean_appimage_library_path(&mut cmd).unwrap();
+        assert_eq!(
+            cmd.get_env("LD_LIBRARY_PATH"),
+            Some(std::ffi::OsStr::new(
+                "/opt/custom/lib:/tmp/.mount_bentomux-other/lib"
+            ))
+        );
+
+        cmd.env("LD_LIBRARY_PATH", "/tmp/.mount_bentomux/usr/lib");
+        clean_appimage_library_path(&mut cmd).unwrap();
+        assert_eq!(cmd.get_env("LD_LIBRARY_PATH"), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn non_appimage_library_paths_are_unchanged() {
+        let mut cmd = CommandBuilder::new("/bin/sh");
+        cmd.env("LD_LIBRARY_PATH", "/opt/custom/lib");
+        for appdir in [None, Some(""), Some("relative/path")] {
+            cmd.env_remove("APPDIR");
+            if let Some(appdir) = appdir {
+                cmd.env("APPDIR", appdir);
+            }
+            clean_appimage_library_path(&mut cmd).unwrap();
+            assert_eq!(
+                cmd.get_env("LD_LIBRARY_PATH"),
+                Some(std::ffi::OsStr::new("/opt/custom/lib"))
+            );
+        }
+    }
 
     fn test_shared(id: &str) -> Arc<TermShared> {
         Arc::new(TermShared {
