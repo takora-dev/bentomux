@@ -7,7 +7,8 @@ https://github.com/lobehub/lobe-icons
 Files are bundled locally, not fetched at runtime. Claude uses the Claude mark;
 Codex uses the OpenAI mark. Other included marks: Gemini, GitHub Copilot,
 DeepSeek, Qwen, Ollama and Mistral. Additional agent marks: Amp, Antigravity,
-Cline, Cursor, Devin, Grok, Kimi, Kiro, Muse, OpenCode, Pi and Qoder.
+Cline, Cursor, Devin, Grok, Hermes Agent, Kimi, Kiro, Muse, OpenCode, Pi and
+Qoder.
 Source catalog: https://lobehub.com/icons
 
 Brand marks remain their owners' trademarks. Runtimes without an available

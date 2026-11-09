@@ -20,6 +20,7 @@ import pi from '../assets/runtime/pi.svg?raw';
 import opencode from '../assets/runtime/opencode.svg?raw';
 import devin from '../assets/runtime/devin.svg?raw';
 import cursor from '../assets/runtime/cursor.svg?raw';
+import hermes from '../assets/runtime/hermes.svg?raw';
 
 export type ActivityStatus = 'idle' | 'working' | 'thinking' | 'waiting' | 'error';
 
@@ -75,8 +76,11 @@ export function runtimeIcon(runtime: string): HTMLElement {
     opencode,
     devin,
     cursor,
+    hermes,
     agy: antigravity,
     qodercli: qoder,
+    'hermes-agent': hermes,
+    hermesagent: hermes,
   };
   const logo = agentLogos[key] ?? (key.includes('claude') || key.includes('anthropic') ? claude
     : key.includes('codex') || key.includes('openai') ? openai

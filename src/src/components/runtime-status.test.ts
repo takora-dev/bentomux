@@ -38,13 +38,14 @@ describe('runtime identity and activity', () => {
   });
   it('uses bundled LobeHub marks for additional detected agents', () => {
     const fallback = runtimeIcon('unlisted-agent').innerHTML;
-    for (const agent of ['amp', 'antigravity', 'agy', 'cline', 'cursor', 'devin', 'grok', 'kimi', 'kiro', 'muse', 'opencode', 'pi', 'qodercli']) {
+    for (const agent of ['amp', 'antigravity', 'agy', 'cline', 'cursor', 'devin', 'grok', 'hermes', 'hermes-agent', 'kimi', 'kiro', 'muse', 'opencode', 'pi', 'qodercli']) {
       const icon = runtimeIcon(agent);
       expect(icon.querySelector('svg')).not.toBeNull();
       expect(icon.innerHTML).not.toBe(fallback);
     }
     expect(runtimeIcon('agy').innerHTML).toBe(runtimeIcon('antigravity').innerHTML);
     expect(runtimeIcon('qodercli').innerHTML).toBe(runtimeIcon('qoder').innerHTML);
+    expect(runtimeIcon('hermes-agent').innerHTML).toBe(runtimeIcon('hermes').innerHTML);
   });
   it('never renders a status indicator or idle label for shell', () => {
     const el = runtimeMetadata('shell', activityStatus('shell', 'idle'), null);
