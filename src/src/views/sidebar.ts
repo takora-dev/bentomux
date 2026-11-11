@@ -22,7 +22,7 @@ import { dockEntries, sidebarEntries } from '../plugin/registry';
 import { ensureActive, pluginAssetUrl } from '../plugin/loader';
 import { contributionIcon, contributionLabel } from '../plugin/icons';
 import api from '../../preload/bentomux';
-import { activityStatus, runtimeType, runtimeName, runtimeIcon, runtimeMetadata, type ActivityStatus } from '../components/runtime-status';
+import { activityStatus, runtimeType, runtimeName, runtimeColor, runtimeIcon, runtimeMetadata, type ActivityStatus } from '../components/runtime-status';
 
 const PANE_INDENT = 24;
 
@@ -52,11 +52,14 @@ function patchPaneRow(btn: HTMLElement, paneId: string): boolean {
   const metadataEl = btn.querySelector('.workspace-agent');
   const nameEl = btn.querySelector('.workspace-name');
   if (!iconEl || !metadataEl || !(nameEl instanceof HTMLElement)) return false;
-  const key = JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch]);
+  const key = JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch, m.isActive]);
   if (btn.dataset.metadata !== key) {
-    iconEl.replaceWith(runtimeIcon(m.runtimeType));
+    iconEl.replaceWith(runtimeIcon(m.runtimeType, m.isActive));
     metadataEl.replaceWith(runtimeMetadata(m.runtimeType, m.activityStatus, m.gitBranch));
     btn.dataset.metadata = key;
+    const color = runtimeColor(m.runtimeType);
+    if (color) btn.style.setProperty('--runtime-color', color);
+    else btn.style.removeProperty('--runtime-color');
   }
   if (nameEl.textContent !== m.terminalName) nameEl.textContent = m.terminalName;
   nameEl.title = m.terminalName;
@@ -72,9 +75,7 @@ function patchPaneRow(btn: HTMLElement, paneId: string): boolean {
   }
   /* the focused pane can change without the pane set changing (a split
      focuses its new shell), so the active marker is patched here too */
-  const isActive = !!entry && ui.route.view === 'terminal' && entry.id === ui.activeTab
-    && mostRecentPane(leavesOf(entry)) === paneId;
-  btn.classList.toggle('active', isActive);
+  btn.classList.toggle('active', m.isActive);
   return true;
 }
 
@@ -157,6 +158,7 @@ function onRevealEnd(btn: HTMLElement): void {
 
 function paneItem(row: PaneRow, pad: number, reveal: boolean = false, draggable: boolean = true): HTMLElement {
   const m = paneViewModel(row);
+  const color = runtimeColor(m.runtimeType);
   const close = h('span', {
     class: 'pane-close',
     role: 'button',
@@ -177,13 +179,13 @@ function paneItem(row: PaneRow, pad: number, reveal: boolean = false, draggable:
   });
   const btn = h('button', {
     class: 'nav-item sub workspace-child' + (m.isActive ? ' active' : '') + (reveal ? ' reveal' : ''),
-    style: 'padding-left:' + pad + 'px',
+    style: 'padding-left:' + pad + 'px;' + (color ? '--runtime-color:' + color : ''),
     'data-pane': m.paneId,
-    'data-metadata': JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch]),
+    'data-metadata': JSON.stringify([m.runtimeType, m.activityStatus, m.gitBranch, m.isActive]),
     onclick: () => activatePane(m.paneId, m.entry.id),
   },
     h('span', { class: 'workspace-row' },
-      runtimeIcon(m.runtimeType),
+      runtimeIcon(m.runtimeType, m.isActive),
       h('span', { class: 'workspace-copy' },
         h('span', { class: 'workspace-main' },
           h('span', { class: 'workspace-name', title: m.terminalName }, m.terminalName),
@@ -1072,16 +1074,13 @@ export function renderSidebar(): void {
   dropLeavingRows(leaving);
 }
 
-/* bottom dock sits below the scrollable nav list and is always visible —
-   the settings gear and the remote toggle live here so they don't get
-   pushed out of reach by long workspace lists. */
+/* Inline bottom actions stay below the scrollable nav/rail in both sidebar
+   modes. Theme switching remains in the topbar, outside this live render slot. */
 function renderBottomDock(): void {
   const dock = $('#sidebarBottom');
   if (!dock) return;
   dock.innerHTML = '';
-  /* plugin buttons sit in the middle (the centered slot) with settings
-     left and remote right, so a plugin dock icon reads as the primary
-     action instead of the gear. */
+  /* Keep the same action order in the expanded row and compact column. */
   dock.append(settingsGearButton(), ...pluginDockButtons(), remoteDockButton());
 }
 

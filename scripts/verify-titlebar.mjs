@@ -301,9 +301,9 @@ async function main() {
   await page.screenshot({ path: join(root, 'out', 'status-dots.png'), clip: { x: 0, y: 540, width: 300, height: 70 } });
   await page.evaluate(() => document.getElementById('statusPreview')?.remove());
 
-  /* --- 5. the static titlebar buttons got their glyphs --- */
+  /* --- 5. the static shell buttons got their glyphs --- */
   const glyphs = await page.evaluate(() =>
-    ['#backTopBtn', '#redoTopBtn', '#themeBtn', '#compactAddBtn', '#compactSettingsBtn', '#winMinBtn', '#winCloseBtn']
+    ['#backTopBtn', '#redoTopBtn', '#themeBtn', '#compactAddBtn', '#winMinBtn', '#winCloseBtn']
       .map(sel => [sel, !!document.querySelector(sel + ' svg')]));
   check('static buttons have lucide glyphs', glyphs.every(([, has]) => has), JSON.stringify(glyphs));
 

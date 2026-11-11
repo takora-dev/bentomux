@@ -1,6 +1,6 @@
 # Runtime brand marks
 
-Vendored monochrome provider SVG marks from `@lobehub/icons-static-svg` 1.102.0:
+Vendored provider SVG marks from `@lobehub/icons-static-svg` 1.102.0:
 https://www.npmjs.com/package/@lobehub/icons-static-svg
 https://github.com/lobehub/lobe-icons
 
@@ -10,6 +10,13 @@ DeepSeek, Qwen, Ollama and Mistral. Additional agent marks: Amp, Antigravity,
 Cline, Cursor, Devin, Grok, Hermes Agent, Kimi, Kiro, Muse, OpenCode, Pi and
 Qoder.
 Source catalog: https://lobehub.com/icons
+
+Active sidebar rows use the upstream `*-color.svg` artwork for Amp,
+Antigravity, Claude, DeepSeek, Devin, Gemini, Kimi, Kiro, Mistral, Muse, Qoder
+and Qwen, preserving their original fills and gradients. Other marks have no
+color variant in this distribution and stay monochrome (theme-aware ink).
+Inactive rows use the monochrome marks. Title colors use a representative fill
+from the corresponding color artwork; monochrome brands use theme ink.
 
 Brand marks remain their owners' trademarks. Runtimes without an available
 matching mark keep the neutral fallback; never substitute an unrelated logo.

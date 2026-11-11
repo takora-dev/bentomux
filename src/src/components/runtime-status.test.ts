@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runtimeType, runtimeName, activityStatus, runtimeIcon, runtimeMetadata, statusIndicator } from './runtime-status';
+import { runtimeType, runtimeName, activityStatus, runtimeColor, runtimeIcon, runtimeMetadata, statusIndicator } from './runtime-status';
 
 describe('runtime identity and activity', () => {
   it('names sessions by runtime rather than workspace or branch', () => {
@@ -46,6 +46,64 @@ describe('runtime identity and activity', () => {
     expect(runtimeIcon('agy').innerHTML).toBe(runtimeIcon('antigravity').innerHTML);
     expect(runtimeIcon('qodercli').innerHTML).toBe(runtimeIcon('qoder').innerHTML);
     expect(runtimeIcon('hermes-agent').innerHTML).toBe(runtimeIcon('hermes').innerHTML);
+  });
+  it('resolves brand colors consistently with provider marks and aliases', () => {
+    expect(runtimeColor('claude')).toBe('#D97757');
+    expect(runtimeColor('codex')).toBe('var(--ink)');
+    expect(runtimeColor('gemini')).toBe('#3186FF');
+    for (const [alias, brand] of [
+      [' Claude-Code ', 'claude'], ['anthropic', 'claude'],
+      ['openai', 'codex'], ['gemini-cli', 'gemini'],
+      ['github-copilot', 'copilot'], ['agy', 'antigravity'],
+      ['qodercli', 'qoder'], ['hermes-agent', 'hermes'], ['hermesagent', 'hermes'],
+    ]) {
+      expect(runtimeColor(alias)).toBe(runtimeColor(brand));
+      expect(runtimeIcon(alias).innerHTML).toBe(runtimeIcon(brand).innerHTML);
+      expect(runtimeIcon(alias, true).innerHTML).toBe(runtimeIcon(brand, true).innerHTML);
+    }
+  });
+  it('keeps monochrome brands theme-aware and unknown runtimes neutral', () => {
+    for (const agent of ['codex', 'copilot', 'cursor', 'grok', 'ollama', 'opencode', 'pi', 'hermes', 'cline']) {
+      expect(runtimeColor(agent)).toBe('var(--ink)');
+    }
+    for (const agent of ['shell', '', 'unlisted-agent', '<img onerror=alert(1)>', 'constructor']) {
+      expect(runtimeColor(agent)).toBeNull();
+    }
+  });
+  it('uses original color artwork only when selected', () => {
+    for (const agent of ['amp', 'antigravity', 'claude', 'deepseek', 'devin', 'gemini', 'kimi', 'kiro', 'mistral', 'muse', 'qoder', 'qwen']) {
+      const inactive = runtimeIcon(agent, false);
+      const active = runtimeIcon(agent, true);
+      expect(inactive.classList.contains('runtime-icon-color')).toBe(false);
+      expect(active.classList.contains('runtime-icon-color')).toBe(true);
+      expect(active.innerHTML).not.toBe(inactive.innerHTML);
+      // The title accent must come from the actual artwork, not an invented hue.
+      expect(active.innerHTML.toLowerCase()).toContain(runtimeColor(agent)?.toLowerCase());
+    }
+    expect(runtimeIcon('claude', true).querySelector('[fill="#D97757"]')).not.toBeNull();
+  });
+  it('preserves multicolor fills, gradients and their local definitions', () => {
+    for (const agent of ['gemini', 'muse']) {
+      const icon = runtimeIcon(agent, true);
+      expect(icon.querySelector('linearGradient, radialGradient')).not.toBeNull();
+      for (const part of icon.querySelectorAll('[fill^="url("]')) {
+        const id = part.getAttribute('fill')?.match(/^url\(#(.+)\)$/)?.[1];
+        expect(id).toBeDefined();
+        expect(icon.querySelector(`[id="${id}"]`)).not.toBeNull();
+      }
+    }
+    const antigravity = runtimeIcon('antigravity', true);
+    expect(antigravity.querySelector('[fill="#FC413D"]')).not.toBeNull();
+    expect(antigravity.querySelector('[fill="#00B95C"]')).not.toBeNull();
+    const mistral = runtimeIcon('mistral', true);
+    expect(mistral.querySelector('[fill="#FF8205"]')).not.toBeNull();
+    expect(mistral.querySelector('[fill="#E10500"]')).not.toBeNull();
+  });
+  it('does not invent color variants for monochrome brands or shell', () => {
+    for (const agent of ['codex', 'copilot', 'cursor', 'pi', 'hermes', 'shell', 'unlisted-agent']) {
+      expect(runtimeIcon(agent, true).innerHTML).toBe(runtimeIcon(agent, false).innerHTML);
+      expect(runtimeIcon(agent, true).classList.contains('runtime-icon-color')).toBe(false);
+    }
   });
   it('never renders a status indicator or idle label for shell', () => {
     const el = runtimeMetadata('shell', activityStatus('shell', 'idle'), null);

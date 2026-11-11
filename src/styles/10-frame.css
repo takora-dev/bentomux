@@ -1,16 +1,14 @@
 /* ---------------- frame ---------------- */
 
-.sidebar{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--bg)}
 body.pane-hidden .win{grid-template-columns:72px minmax(0,1fr) 0}
 body.pane-hidden.git-panel-open .win{grid-template-columns:72px minmax(0,1fr) 340px}
 .nav{flex:1;overflow-y:auto;padding:12px 12px 16px}
 .sidebar{grid-column:1;grid-row:1 / -1;position:relative;
-  border-right:1px solid var(--line);
   display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
-  background:var(--surface);opacity:1;transition:opacity .32s cubic-bezier(.22,.61,.36,1), border-color .32s ease;
+  background:var(--surface);opacity:1;transition:opacity .32s cubic-bezier(.22,.61,.36,1);
 }
-body.pane-hidden .sidebar{opacity:1;pointer-events:auto;border-color:var(--line)}
-body.pane-hidden .sidebar .nav,body.pane-hidden .sidebar .sidebar-bottom{display:none}
+body.pane-hidden .sidebar{opacity:1;pointer-events:auto}
+body.pane-hidden .sidebar .nav{display:none}
 body.pane-hidden .sidebar .side-tools{height:auto;flex:0 0 auto;flex-direction:column;justify-content:flex-start;padding:12px 0 8px;gap:8px}
 body.pane-hidden .sidebar .side-tools #paneBtn{order:1;margin:0}
 body.pane-hidden .sidebar .side-tools #compactAddBtn{order:2}
@@ -19,9 +17,9 @@ body:not(.pane-hidden) .sidebar .side-tools #compactAddBtn{display:none!importan
 body.pane-hidden .top-tools #paneTopBtn{display:none}
 body.pane-hidden .top-tools #backTopBtn,body.pane-hidden .top-tools #redoTopBtn{display:inline-flex}
 .macos body.pane-hidden .sidebar .side-tools{padding-top:42px}
-body.pane-hidden .sidebar .compact-sidebar-footer{display:flex}
-body.pane-hidden .sidebar .compact-sidebar-footer .compact-sidebar-btn{display:flex;width:28px;height:28px;margin:0 auto}
-body.pane-hidden .sidebar .compact-sidebar-footer .compact-sidebar-btn svg{width:14px;height:14px}
+body.pane-hidden .sidebar-actions{flex-direction:column;align-items:center;padding:8px 0}
+body.pane-hidden .sidebar-dock{flex-direction:column;align-items:center}
+body.pane-hidden .sidebar-dock .sidebar-remote{margin-left:0}
 body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-select:none!important}
 .side-tools{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:2px;padding:0 8px}.sidebar-resize{position:absolute;top:0;right:-3px;bottom:0;width:6px;cursor:col-resize;z-index:20}.sidebar-resize:hover{background:var(--accent-tint)}
 .macos .side-tools{height:38px;flex-basis:38px;align-items:center;justify-content:flex-end;padding:0 8px}
@@ -30,8 +28,11 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
    hug the right edge, and the collapsed-rail traffic-light pad goes away. */
 .macos.fullscreen .side-tools{justify-content:flex-start}
 .macos.fullscreen body.pane-hidden .sidebar .side-tools{padding-top:12px}
-.sidebar-bottom{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding:6px 10px 8px;border-top:1px solid var(--line);background:var(--bg);min-height:34px}
-.compact-sidebar-footer{display:none;flex:0 0 40px;align-items:center;border-top:1px solid var(--line);background:var(--bg)}
+/* Bottom controls belong to the sidebar, without a separate footer surface. */
+.sidebar-actions{flex:0 0 auto;margin-top:auto;display:flex;align-items:flex-end;gap:4px;padding:8px 12px;background:transparent}
+.sidebar-dock{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+.sidebar-dock .sidebar-remote{margin-left:auto}
+.sidebar-actions .iconbtn svg{width:14px;height:14px}
 .side-tools .tbtn{width:30px;height:28px}
 /* The pane toggle carries both glyphs and swaps them: the app mark at rest,
    the panel icon on hover/focus. Same pattern as the maximize button's
@@ -48,7 +49,9 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 }
 .identity .who{display:flex;flex-direction:column;line-height:1.3}
 .identity .sub{color:var(--ink-3);font-size:11px}
-.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;position:relative;display:flex;flex-direction:column;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
+/* The sidebar, titlebar and exposed frame share one surface. The inset content
+   is clipped to its inner corners, including full-bleed terminal pages. */
+.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;margin:0 8px 8px 0;border-radius:var(--r-lg);padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
 
 /* ---------------- a titlebar tab ----------------
    Tile + label + close. Only the active tab is a pill; inactive tabs stay
@@ -117,6 +120,11 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}/* Runtime identity is separate from activity; shell has no activity dot. */
 .runtime-icon{display:flex;align-items:center;justify-content:center;padding-top:1px;flex:0 0 15px;width:15px;color:var(--ink-2)}
 .runtime-icon svg{width:15px;height:15px;flex:none}
+/* Only the selected runtime identity takes its brand color, not metadata. */
+.workspace-child.active .runtime-icon{color:var(--runtime-color,var(--ink-2))}
+/* Mixed-color artwork may still use currentColor for its monochrome parts. */
+.workspace-child.active .runtime-icon-color{color:var(--ink)}
+.workspace-child.active .workspace-name{color:var(--runtime-color,var(--accent-ink))}
 .workspace-agent{overflow:hidden;min-height:14px;line-height:14px;gap:5px}
 .workspace-branch{display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;color:var(--ink-3)}
 .metadata-git-icon{display:flex;flex:0 0 12px}

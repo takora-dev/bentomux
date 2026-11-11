@@ -368,7 +368,7 @@ export function disposePluginViews(pluginId?: string): void {
 
 /* ---------------- app bar wiring ---------------- */
 
-/* The titlebar's static buttons ship as empty elements in index.html and get
+/* The shell's static buttons ship as empty elements in index.html and get
    their glyph here, from the one icon set the whole app draws from. Doing it
    at boot instead of in the markup keeps index.html free of hand-written SVG
    that drifts from `icons.ts`. */
@@ -380,7 +380,6 @@ const STATIC_GLYPHS: Array<[string, () => string]> = [
   ['#backBtn', () => icon('back', 14)],
   ['#redoBtn', () => icon('chev', 14)],
   ['#compactAddBtn', () => icon('folderPlus', 16)],
-  ['#compactSettingsBtn', () => icon('gear', 18)],
   ['#winMinBtn', () => icon('minus', 12)],
   ['#winCloseBtn', () => icon('close', 12)],
 ];
@@ -418,9 +417,6 @@ function wirePaneToggle(): void {
   $('#paneBtn').addEventListener('click', togglePaneHidden);
   $('#paneTopBtn').addEventListener('click', togglePaneHidden);
   $('#compactAddBtn').addEventListener('click', e => openAddWorkspaceMenu(e.currentTarget as HTMLElement));
-  $('#compactSettingsBtn').addEventListener('click', () => {
-    void import('./views/settings').then(m => m.openSettingsModal());
-  });
 }
 
 function wireHistory(): void {

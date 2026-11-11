@@ -21,6 +21,18 @@ import opencode from '../assets/runtime/opencode.svg?raw';
 import devin from '../assets/runtime/devin.svg?raw';
 import cursor from '../assets/runtime/cursor.svg?raw';
 import hermes from '../assets/runtime/hermes.svg?raw';
+import claudeColor from '../assets/runtime/claude-color.svg?raw';
+import geminiColor from '../assets/runtime/gemini-color.svg?raw';
+import deepseekColor from '../assets/runtime/deepseek-color.svg?raw';
+import qwenColor from '../assets/runtime/qwen-color.svg?raw';
+import mistralColor from '../assets/runtime/mistral-color.svg?raw';
+import antigravityColor from '../assets/runtime/antigravity-color.svg?raw';
+import ampColor from '../assets/runtime/amp-color.svg?raw';
+import qoderColor from '../assets/runtime/qoder-color.svg?raw';
+import museColor from '../assets/runtime/muse-color.svg?raw';
+import kimiColor from '../assets/runtime/kimi-color.svg?raw';
+import kiroColor from '../assets/runtime/kiro-color.svg?raw';
+import devinColor from '../assets/runtime/devin-color.svg?raw';
 
 export type ActivityStatus = 'idle' | 'working' | 'thinking' | 'waiting' | 'error';
 
@@ -60,38 +72,67 @@ export function activityStatus(runtime: string, state: string | null | undefined
   return 'idle';
 }
 
-export function runtimeIcon(runtime: string): HTMLElement {
-  const name = runtimeType(runtime);
-  const key = name.toLowerCase();
-  const agentLogos: Record<string, string> = {
-    antigravity,
-    amp,
-    grok,
-    cline,
-    qoder,
-    muse,
-    kimi,
-    kiro,
-    pi,
-    opencode,
-    devin,
-    cursor,
-    hermes,
-    agy: antigravity,
-    qodercli: qoder,
-    'hermes-agent': hermes,
-    hermesagent: hermes,
+interface RuntimeBrand {
+  logo: string;
+  colorLogo?: string;
+  color: string;
+}
+
+/* Active icons use the bundled upstream color artwork, including gradients.
+   Title colors use a representative fill from that artwork. Brands without a
+   color variant stay monochrome, with theme ink for light/dark visibility. */
+const runtimeBrands: Record<string, RuntimeBrand> = {
+  claude: { logo: claude, colorLogo: claudeColor, color: '#D97757' },
+  openai: { logo: openai, color: 'var(--ink)' },
+  gemini: { logo: gemini, colorLogo: geminiColor, color: '#3186FF' },
+  copilot: { logo: copilot, color: 'var(--ink)' },
+  deepseek: { logo: deepseek, colorLogo: deepseekColor, color: '#4D6BFE' },
+  qwen: { logo: qwen, colorLogo: qwenColor, color: '#082DFF' },
+  ollama: { logo: ollama, color: 'var(--ink)' },
+  mistral: { logo: mistral, colorLogo: mistralColor, color: '#FA500F' },
+  antigravity: { logo: antigravity, colorLogo: antigravityColor, color: '#3186FF' },
+  amp: { logo: amp, colorLogo: ampColor, color: '#F34E3F' },
+  grok: { logo: grok, color: 'var(--ink)' },
+  cline: { logo: cline, color: 'var(--ink)' },
+  qoder: { logo: qoder, colorLogo: qoderColor, color: '#2ADB5C' },
+  muse: { logo: muse, colorLogo: museColor, color: '#0082FB' },
+  kimi: { logo: kimi, colorLogo: kimiColor, color: '#1783FF' },
+  kiro: { logo: kiro, colorLogo: kiroColor, color: '#9046FF' },
+  pi: { logo: pi, color: 'var(--ink)' },
+  opencode: { logo: opencode, color: 'var(--ink)' },
+  devin: { logo: devin, colorLogo: devinColor, color: '#0294DE' },
+  cursor: { logo: cursor, color: 'var(--ink)' },
+  hermes: { logo: hermes, color: 'var(--ink)' },
+};
+
+function runtimeBrand(runtime: string): RuntimeBrand | null {
+  const key = runtimeType(runtime).toLowerCase();
+  const aliases: Record<string, string> = {
+    agy: 'antigravity',
+    qodercli: 'qoder',
+    'hermes-agent': 'hermes',
+    hermesagent: 'hermes',
   };
-  const logo = agentLogos[key] ?? (key.includes('claude') || key.includes('anthropic') ? claude
-    : key.includes('codex') || key.includes('openai') ? openai
-    : key.includes('gemini') ? gemini
-    : key.includes('copilot') ? copilot
-    : key.includes('deepseek') ? deepseek
-    : key.includes('qwen') ? qwen
-    : key.includes('ollama') ? ollama
-    : key.includes('mistral') ? mistral : null);
+  const brand = aliases[key] ?? (key.includes('claude') || key.includes('anthropic') ? 'claude'
+    : key.includes('codex') || key.includes('openai') ? 'openai'
+    : ['gemini', 'copilot', 'deepseek', 'qwen', 'ollama', 'mistral'].find(name => key.includes(name)) ?? key);
+  return Object.hasOwn(runtimeBrands, brand) ? runtimeBrands[brand] : null;
+}
+
+export function runtimeColor(runtime: string): string | null {
+  return runtimeBrand(runtime)?.color ?? null;
+}
+
+export function runtimeIcon(runtime: string, active: boolean = false): HTMLElement {
+  const name = runtimeType(runtime);
+  const brand = runtimeBrand(runtime);
+  const colorLogo = active ? brand?.colorLogo : null;
   // Unknown providers use the existing neutral glyph, not a fabricated brand.
-  return markup('span', { class: 'runtime-icon', title: name, 'aria-label': name }, logo ?? (name === 'shell' ? IC.term : IC.diamond));
+  return markup('span', {
+    class: 'runtime-icon' + (colorLogo ? ' runtime-icon-color' : ''),
+    title: name,
+    'aria-label': name,
+  }, colorLogo ?? brand?.logo ?? (name === 'shell' ? IC.term : IC.diamond));
 }
 
 export function statusIndicator(status: ActivityStatus): HTMLElement {

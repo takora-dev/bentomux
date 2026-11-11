@@ -39,7 +39,6 @@
    against :root.dark .terminal-page is resolved by block order. The titlebar
    also starts clipping: it has no overflow rule of its own, and the scaled
    layer must not bleed over the content area. */
-:root.bg-sidebar .sidebar-bottom,:root.bg-sidebar .compact-sidebar-footer{background:transparent}
 :root.bg-topbar .top-tabs .tabadd{background:transparent}
 :root.bg-topbar .titlebar{overflow:hidden}
 :root.bg-content .terminal-page{background:transparent}
