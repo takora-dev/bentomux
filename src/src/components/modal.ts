@@ -37,11 +37,12 @@ export function openModal(opts: { title?: string; body?: HTMLElement | Kid[]; fo
   }
   currentModal = { close, overlay, body: bodyEl, foot: footEl };
 
-  const first = bodyEl.querySelector('input,textarea,select') || footEl.querySelector('.primary,.btn');
+  const first = bodyEl.querySelector('input,textarea,select,[role="combobox"]') || footEl.querySelector('.primary,.btn');
   if (first) setTimeout(() => (first as HTMLElement).focus(), 0);
   return { close, overlay, body: bodyEl, foot: footEl };
 }
 
 export function field(label: string, control: HTMLElement): HTMLElement {
+  if (control.matches('.select-input') && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
   return h('div', { class: 'field' }, h('label', {}, label), control);
 }

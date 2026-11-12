@@ -22,6 +22,15 @@ export interface MenuItem {
 export interface MenuSep { sep: true }
 export type MenuEntry = MenuItem | MenuSep;
 
+export interface MenuOptions {
+  role?: 'menu' | 'listbox';
+  id?: string;
+  selectedIndex?: number;
+  minWidth?: number;
+  onClose?: () => void;
+}
+
+let onClosed: (() => void) | null = null;
 let current: HTMLElement | null = null;
 /* element that opened the menu as a left-click toggle; pointerdowns on it
    don't dismiss the menu so its own click handler can close it instead */
@@ -72,6 +81,9 @@ export function closeContextMenu(): void {
   keyFn = null;
   current?.remove();
   current = null;
+  const callback = onClosed;
+  onClosed = null;
+  callback?.();
 }
 
 export function contextMenuAnchoredTo(el: Element): boolean {
@@ -158,10 +170,45 @@ function buildMenu(entries: MenuEntry[], isSub: boolean): HTMLElement {
   return menu;
 }
 
-export function openContextMenu(x: number, y: number, entries: MenuEntry[], toggleAnchorEl?: Element): void {
+export function openContextMenu(x: number, y: number, entries: MenuEntry[], toggleAnchorEl?: Element, options: MenuOptions = {}): void {
   closeContextMenu();
   const menu = buildMenu(entries, false);
+  const listbox = options.role === 'listbox';
+  if (options.id) menu.id = options.id;
+  if (options.minWidth != null) menu.style.minWidth = Math.min(options.minWidth, window.innerWidth - 8) + 'px';
+  if (listbox) {
+    menu.classList.add('select-menu');
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-label', toggleAnchorEl?.getAttribute('aria-label') || toggleAnchorEl?.textContent || 'Options');
+  }
   document.body.append(menu);
+  const rows = Array.from(menu.querySelectorAll<HTMLElement>(':scope > .ctx-item'));
+  let active = Math.max(0, Math.min(options.selectedIndex ?? 0, rows.length - 1));
+  const activate = (index: number): void => {
+    active = index;
+    rows.forEach((row, i) => row.classList.toggle('active', i === active));
+    const row = rows[active];
+    if (row) {
+      toggleAnchorEl?.setAttribute('aria-activedescendant', row.id);
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  };
+  if (listbox) {
+    rows.forEach((row, index) => {
+      row.id = `${menu.id}-option-${index}`;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', String(index === options.selectedIndex));
+      const hint = row.querySelector('.ctx-hint');
+      if (hint?.textContent === '✓') {
+        hint.setAttribute('aria-hidden', 'true');
+        row.removeAttribute('title');
+      }
+      row.tabIndex = -1;
+      row.addEventListener('pointerdown', e => e.preventDefault());
+      row.addEventListener('pointerenter', () => activate(index));
+    });
+    activate(active);
+  }
 
   /* clamp inside the viewport once measured */
   const r = menu.getBoundingClientRect();
@@ -169,6 +216,7 @@ export function openContextMenu(x: number, y: number, entries: MenuEntry[], togg
   menu.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
   current = menu;
   toggleAnchor = toggleAnchorEl ?? null;
+  onClosed = options.onClose ?? null;
   /* opening again without closing first must not leave the previous menu's
      listeners attached to the new controller */
   dismiss.abort();
@@ -178,7 +226,43 @@ export function openContextMenu(x: number, y: number, entries: MenuEntry[], togg
     if (toggleAnchor && e.target instanceof Node && toggleAnchor.contains(e.target)) return;
     if (!menu.contains(e.target as Node)) closeContextMenu();
   };
-  keyFn = (e: KeyboardEvent): void => { if (e.key === 'Escape') closeContextMenu(); };
+  let typed = '';
+  let typedAt = 0;
+  keyFn = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      closeContextMenu();
+      if (listbox) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (toggleAnchorEl instanceof HTMLElement && toggleAnchorEl.isConnected) toggleAnchorEl.focus();
+      }
+      return;
+    }
+    if (!listbox || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Tab') { closeContextMenu(); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (rows.length) activate((active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length);
+    } else if (e.key === 'Home' || e.key === 'End') {
+      if (rows.length) activate(e.key === 'Home' ? 0 : rows.length - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      rows[active]?.click();
+    } else if (e.key.length === 1) {
+      const now = Date.now();
+      typed = (now - typedAt < 600 ? typed : '') + e.key.toLocaleLowerCase();
+      typedAt = now;
+      const prefix = [...typed].every(char => char === typed[0]) ? typed[0] : typed;
+      const start = typed.length === 1 || prefix.length === 1 ? active + 1 : active;
+      for (let offset = 0; offset < rows.length; offset++) {
+        const index = (start + offset) % rows.length;
+        if (rows[index].querySelector('.ctx-label')?.textContent?.toLocaleLowerCase().startsWith(prefix)) {
+          activate(index);
+          break;
+        }
+      }
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
   /* defer so the very event that opened the menu can't dismiss it */
   setTimeout(() => {
     if (!current || !dismissFn || !keyFn) return;

@@ -54,20 +54,16 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;margin:0 8px 8px 0;border-radius:var(--r-lg);padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
 
 /* ---------------- a titlebar tab ----------------
-   Tile + label + close. Only the active tab is a pill; inactive tabs stay
-   flat so a strip of ten tabs does not turn into ten competing buttons. The
-   tile is deliberately small (16px) and the glyph inside it smaller still —
-   it is an identity chip, not a button, so it must not compete with the
-   label for attention. */
+   Tile + label + close. The active tab gets a quiet hover-like fill;
+   inactive tabs stay flat. The 14px identity tile and 10px glyph must not
+   compete with the label for attention. */
 .tab{display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 0;height:28px;padding:0 9px 0 6px;margin:0 1px;border:0;border-radius:var(--r-full);background:transparent;color:var(--ink-2);font-size:12px;overflow:hidden;cursor:pointer;transition:background .14s ease,color .14s ease,box-shadow .14s ease}
 .tab:hover{background:var(--tint);color:var(--ink)}
-.tab.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.10),0 0 0 1px color-mix(in srgb,var(--ink) 7%,transparent)}
-.tab.active:hover{background:var(--surface)}
-/* the identity tile: fixed square so labels line up across tabs. The glyph is
-   drawn at 11px inside a 16px box — at 18px it read as a button sitting next
-   to the label instead of a colour mark in front of it. */
-.tab-tile{display:flex;align-items:center;justify-content:center;flex:0 0 17px;width:17px;height:17px;border-radius:var(--r-sm);background:var(--tile,var(--ink-3));color:#fff;opacity:.6;transition:opacity .14s ease}
-.tab-tile svg{width:12px;height:12px;display:block}
+.tab.active{background:var(--tint);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 8%,transparent)}
+.tab.active:hover{background:var(--tint)}
+/* Fixed identity tiles keep labels aligned without reading as buttons. */
+.tab-tile{display:flex;align-items:center;justify-content:center;flex:0 0 14px;width:14px;height:14px;border-radius:var(--r-sm);background:var(--tile,var(--ink-3));color:#fff;opacity:.6;transition:opacity .14s ease}
+.tab-tile svg{width:10px;height:10px;display:block}
 /* Lucide's terminal glyph sits in the upper-left of its 24-unit box (ink bbox
    x4..20, y5..19), so a flex-centred SVG box reads 1px high and 1px left inside
    a square tile. Nudging it by the difference between the box centre and the
@@ -120,11 +116,11 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .workspace-agent{display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}.workspace-main{font-size:12px;line-height:14px}.workspace-time{margin-left:auto;flex:0 0 auto;color:var(--ink-3);font:10px var(--mono)}.workspace-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.workspace-agent{color:var(--ink-3);font-size:10px}/* Runtime identity is separate from activity; shell has no activity dot. */
 .runtime-icon{display:flex;align-items:center;justify-content:center;padding-top:1px;flex:0 0 15px;width:15px;color:var(--ink-2)}
 .runtime-icon svg{width:15px;height:15px;flex:none}
-/* Only the selected runtime identity takes its brand color, not metadata. */
+/* Only the selected runtime icon takes its brand color; titles stay neutral. */
 .workspace-child.active .runtime-icon{color:var(--runtime-color,var(--ink-2))}
 /* Mixed-color artwork may still use currentColor for its monochrome parts. */
 .workspace-child.active .runtime-icon-color{color:var(--ink)}
-.workspace-child.active .workspace-name{color:var(--runtime-color,var(--accent-ink))}
+.workspace-child.active .workspace-name{color:var(--ink)}
 .workspace-agent{overflow:hidden;min-height:14px;line-height:14px;gap:5px}
 .workspace-branch{display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;color:var(--ink-3)}
 .metadata-git-icon{display:flex;flex:0 0 12px}
@@ -141,8 +137,8 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .agent-status.working::before,.agent-status.thinking::before{animation:agent-activity-pulse 2.4s ease-in-out infinite}
 @keyframes agent-activity-pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @media (prefers-reduced-motion:reduce){.agent-status::before{animation:none!important}}
-/* Keep the existing deeper selection in dark mode only. */
-:root.dark .workspace-child.active{background:color-mix(in srgb,#1E3A5F 20%,var(--surface))}
+/* Selection uses the same quiet fill as hover, with a neutral title. */
+.workspace-child.active{background:var(--tint);color:var(--ink)}
 .agent-sep{color:var(--line-2)}.workspace-child{height:42px;position:relative;cursor:grab;touch-action:none}.workspace-child:active{cursor:grabbing}.workspace-child.drop-above,.workspace-child.drop-below{background:color-mix(in srgb,var(--accent) 8%,transparent)}.pane-close{display:flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:var(--r-sm);color:var(--ink-3);font-size:16px;line-height:1;opacity:0;cursor:pointer}
 /* a clickable control inside a draggable row must not inherit the row's grab
    cursor; the row's own cursor rule is more specific, so restate it here */
@@ -241,3 +237,87 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 .ws-flyout-foot{flex:0 0 auto;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
 .ws-flyout-new{height:28px;color:var(--ink-2)}
 .ws-flyout-new .ic{display:flex;flex:0 0 auto;opacity:.75}
+
+/* ---------------- dark frosted chrome ----------------
+   Native Acrylic (Windows) / vibrancy (macOS) blurs the desktop; CSS backdrop
+   filtering alone cannot sample outside the WebView. Keep every canvas layer
+   above that native backdrop clear, then tint the shared chrome once on .win.
+   Terminal content stays opaque; geometry and per-row rendering are unchanged. */
+:root.dark,:root.dark body{background:transparent}
+:root .app{
+  --chrome-solid:var(--bg);
+  --chrome-glass:color-mix(in srgb,var(--bg) 68%,transparent);
+  --chrome-edge:color-mix(in srgb,var(--ink) 10%,transparent);
+  --chrome-hover:var(--tint);
+  --chrome-selection:var(--selection-bg);
+  --chrome-shadow:rgba(32,29,25,.12);
+  /* No opaque underlay: the OS backdrop must reach the chrome. */
+  background:transparent;
+}
+:root.dark .app{--chrome-shadow:rgba(8,8,10,.22)}
+:root .win{
+  /* Light chrome stays solid; only dark mode opts into the glass below. */
+  background:var(--surface);
+  border-radius:var(--r-lg);
+  outline:1px solid var(--chrome-edge);
+  outline-offset:-1px;
+  box-shadow:inset 0 1px 0 var(--chrome-edge),0 12px 36px var(--chrome-shadow);
+}
+:root.dark .sidebar,:root.dark .titlebar{
+  /* Soft chrome text hierarchy; terminal colors and agent identity stay intact. */
+  --ink:var(--chrome-text-primary);
+  --ink-2:var(--chrome-text-secondary);
+  --ink-3:var(--chrome-text-muted);
+  background-color:transparent;
+  color:var(--ink);
+}
+:root.dark .content{
+  /* An inset edge, not a layout border: xterm's measured size is unchanged. */
+  outline:1px solid var(--chrome-edge);
+  outline-offset:-1px;
+  box-shadow:0 4px 20px rgba(8,8,10,.16);
+}
+:root.dark .sidebar :is(.nav-item,.folder){border-radius:var(--r-lg)}
+:root.dark .sidebar :is(.nav-item,.folder,.iconbtn),
+:root.dark .titlebar :is(.tab,.tbtn){
+  transition:background-color .14s ease,color .14s ease,box-shadow .14s ease;
+}
+:root.dark .sidebar .folder:hover{background:var(--chrome-hover)}
+:root.dark .sidebar .ws-rail{border-top-color:transparent}
+:root.dark .sidebar .ws-rail-item{
+  background:var(--chrome-hover);
+  border-color:var(--chrome-edge);
+}
+:root.dark .sidebar .ws-rail-item:hover{background:var(--chrome-selection)}
+:root.dark .sidebar .ws-rail-item.active{background:var(--chrome-selection);border-color:var(--accent)}
+:root.dark .titlebar .tab.active{
+  background:var(--chrome-hover);
+  box-shadow:inset 0 0 0 1px var(--chrome-edge);
+  color:var(--ink);
+}
+/* Native maximize/fullscreen must still fill the window without corner gaps. */
+:root body.maximized .win,:root.fullscreen .win{border-radius:0;outline:0;box-shadow:none}
+@supports ((backdrop-filter:blur(40px)) or (-webkit-backdrop-filter:blur(40px))){
+  :root.dark .win{
+    background:var(--chrome-glass);
+    -webkit-backdrop-filter:blur(40px);
+    backdrop-filter:blur(40px);
+  }
+}
+/* Readability never relies on blur support or a user's transparency setting. */
+@media (prefers-reduced-transparency:reduce),(forced-colors:active){
+  :root.dark .app{background:var(--chrome-solid)}
+  :root.dark .win{
+    background:var(--chrome-solid);
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+  }
+}
+@media (prefers-contrast:more){
+  :root .app{--chrome-edge:color-mix(in srgb,var(--ink) 26%,transparent)}
+  :root.dark .win{background:var(--chrome-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+@media (prefers-reduced-motion:reduce){
+  :root.dark .sidebar :is(.nav-item,.folder,.iconbtn),
+  :root.dark .titlebar :is(.tab,.tbtn){transition:none}
+}

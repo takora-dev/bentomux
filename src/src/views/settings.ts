@@ -337,7 +337,7 @@ function buildBackgroundEditor(zone: keyof Backgrounds, redraw: () => void): HTM
       h('span', { class: 'bg-row-label' }, label), input, out);
   };
 
-  const fitSel = selectEl(BG_FITS, cur.fit ?? 'cover');
+  const fitSel = selectEl(BG_FITS, cur.fit ?? 'cover', { 'aria-label': 'Placement' });
   fitSel.addEventListener('change', () => {
     cur.fit = fitSel.value as BackgroundFit;
     previewImg.style.objectFit = cur.fit === 'contain' ? 'contain' : 'cover';
@@ -373,7 +373,7 @@ function buildBackgroundEditor(zone: keyof Backgrounds, redraw: () => void): HTM
 let bgZone: keyof Backgrounds = 'sidebar';
 
 function buildBackgroundBlock(_paint: () => void): HTMLElement {
-  const zoneSel = selectEl(BG_ZONE_LABELS, bgZone);
+  const zoneSel = selectEl(BG_ZONE_LABELS, bgZone, { 'aria-label': 'Background area' });
   const body = h('div', { class: 'bg-zone-editor' });
   /* the cards redraw only themselves: a full section repaint would rebuild this
      block and drop the Area selection mid-flow (pick image → repaint → Sidebar) */
@@ -452,7 +452,7 @@ function buildPresetRow(paint: () => void): HTMLElement {
     ['iterm', 'iTerm2'],
   ];
   if (active === 'custom') opts.push(['custom', 'Custom']);
-  const sel = selectEl(opts, active);
+  const sel = selectEl(opts, active, { 'aria-label': 'Preset' });
   sel.addEventListener('change', () => {
     /* 'custom' is a display-only marker of the current hand-edited state, not
        a preset you can switch back into — ignore picking it */

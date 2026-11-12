@@ -52,7 +52,7 @@
   transition:border-color .12s,background .12s;
 }
 .palette-select:hover{border-color:var(--line);background:var(--tint)}
-.palette-caret{display:flex;margin-left:auto;transform:rotate(90deg);color:var(--ink-3)}
+.palette-caret{display:flex;flex:0 0 12px;width:12px;height:12px;margin-left:auto;transform:rotate(90deg);color:var(--ink-3)}
 .palette-caret svg{width:12px;height:12px}
 .palette-swatch{display:inline-flex;gap:3px;align-items:center;flex:0 0 auto}
 .palette-swatch>span{width:14px;height:14px;border-radius:var(--r-sm);border:1px solid rgba(0,0,0,.08)}

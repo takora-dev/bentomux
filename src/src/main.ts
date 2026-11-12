@@ -29,6 +29,7 @@ import { initAutoUpdate, updateStatus, onUpdateChange } from './updates';
 import { topbarEntries, tabRenderer, modalRenderer } from './plugin/registry';
 import { openPluginTab } from './views/tabs';
 import { openModal, currentModal } from './components/modal';
+import { installTooltips } from './components/tooltip';
 import { initPlugins, ensureActive, pluginAssetUrl, onPluginsChanged, bindHost, onTeardown } from './plugin/loader';
 import { contributionIcon, contributionLabel } from './plugin/icons';
 import { IC, icon } from './icons';
@@ -39,6 +40,13 @@ document.documentElement.classList.toggle('macos', /Mac/.test(navigator.platform
    and share the app's window buttons. macOS keeps its native traffic lights. */
 document.documentElement.classList.toggle('windows', /Win/.test(navigator.platform));
 document.documentElement.classList.toggle('linux', /Linux/.test(navigator.platform));
+
+const stopTooltips = installTooltips();
+window.addEventListener('pagehide', stopTooltips, { once: true });
+if (import.meta.hot) import.meta.hot.dispose(() => {
+  window.removeEventListener('pagehide', stopTooltips);
+  stopTooltips();
+});
 
 /* Suppress native browser context menu everywhere except inside
    .terminal-page which wires its own contextmenu handler.

@@ -52,7 +52,12 @@
         "minHeight": 600,
         "resizable": true,
         "decorations": true,
-        "transparent": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "windowEffects": {
+          "effects": ["underWindowBackground"],
+          "state": "active"
+        },
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "fullscreen": false

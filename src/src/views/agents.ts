@@ -112,8 +112,8 @@ export function agentsPage(): HTMLElement {
 /* ============== detail page: header + sub-tabs ============== */
 
 interface MemoryFields {
-  scopeSel: HTMLSelectElement;
-  wsSel: HTMLSelectElement;
+  scopeSel: HTMLButtonElement;
+  wsSel: HTMLButtonElement;
   wsSelWrap: HTMLElement;
 }
 
@@ -226,7 +226,7 @@ function buildModelTab(agentId: string, view: AgentConfigView, onApplied: (next:
     type: 'password', autocomplete: 'off',
     placeholder: cur.hasApiKey ? 'Saved — leave blank to keep' : 'API key',
   }) as HTMLInputElement;
-  const formatCtl: HTMLInputElement | HTMLSelectElement = view.modelFormats.length
+  const formatCtl: HTMLInputElement | HTMLButtonElement = view.modelFormats.length
     ? selectEl([['', '— default —'], ...view.modelFormats.map(f => [f.value, f.label] as [string, string])], cur.format || '')
     : h('input', { value: cur.format, placeholder: 'e.g. openai-completions' }) as HTMLInputElement;
 

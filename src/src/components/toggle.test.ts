@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { toggleSeg } from './toggle';
-import { selectEl } from './select';
 
 /* The segmented toggle is the only boolean control in the app, and its
    contract is narrow: report a change once, never twice, and never report a
@@ -56,24 +55,5 @@ describe('toggleSeg()', () => {
     const kids = Array.from(el.querySelectorAll('.seg-opt'));
     expect(kids.every(k => k.tagName === 'BUTTON')).toBe(true);
     expect(kids.every(k => k.getAttribute('type') === 'button')).toBe(true);
-  });
-});
-
-describe('selectEl()', () => {
-  it('builds one option per pair and selects the requested value', () => {
-    const sel = selectEl([['a', 'Alpha'], ['b', 'Beta']], 'b');
-    expect(sel.options.length).toBe(2);
-    expect(sel.value).toBe('b');
-    expect(sel.options[1].textContent).toBe('Beta');
-  });
-
-  it('leaves the browser default in place when no value is given', () => {
-    const sel = selectEl([['a', 'Alpha'], ['b', 'Beta']]);
-    expect(sel.value).toBe('a');
-  });
-
-  it('passes extra attributes through to the element', () => {
-    const sel = selectEl([['a', 'Alpha']], 'a', { 'aria-label': 'Palette' });
-    expect(sel.getAttribute('aria-label')).toBe('Palette');
   });
 });

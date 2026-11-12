@@ -30,9 +30,21 @@
   --r-sm:4px;--r-md:8px;--r-lg:12px;--r-full:999px;
   --term-pad:5px;
   --term-pad-in:10px;
+  /* Light floating surfaces are solid; dark mode opts into translucency. */
+  --floating-solid:var(--surface);--floating-opacity:100%;
+  --floating-edge:color-mix(in srgb,var(--ink) 9%,transparent);
+  --floating-control:var(--surface);
+  --floating-shadow:0 12px 36px rgba(32,29,25,.12);
 }
 /* default dark — neutral charcoal canvas, one step lighter chrome */
 :root.dark{--bg:#17181B;--surface:#222428;--ink:#E8EAED;--ink-2:#A6ABB3;--ink-3:#71767E;--line:#2C2F34;--line-2:#3B3F45;--tint:rgba(255,255,255,.07);--accent:#4C8EF9;--accent-ink:#7CACFF;--accent-tint:rgba(76,142,249,.16);--selection-bg:var(--accent-tint);--danger:#E5534B;--content-bg:#17181B;--state-idle:#4ADE80;--state-busy:#60A5FA;--state-blocked:#FBBF24}
+
+:root.dark{
+  --chrome-text-primary:#E3E6EB;--chrome-text-secondary:#C1C7D0;--chrome-text-muted:#9EA7B5;
+  --floating-solid:var(--bg);--floating-opacity:32%;
+  --floating-control:rgba(255,255,255,.025);
+  --floating-shadow:0 12px 36px rgba(8,8,10,.24);
+}
 
 /* ---------------- palettes (light + dark) ----------------
    Each palette overrides only the semantic color tokens used by the

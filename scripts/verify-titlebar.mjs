@@ -2,7 +2,7 @@
    agent status dot. Loads the built renderer (out/renderer) in Chromium with a
    stubbed Tauri IPC bridge, then asserts the things a grep cannot see:
      1. every rendered tab carries an icon tile and its own workspace colour;
-     2. the strip is one rounded trough and the active tab is a raised pill;
+     2. the strip stays bare and tabs use compact, softly rounded corners;
      3. no corner in the app escapes the --r-* scale;
      4. the live agent states run the ping animation and idle does not;
      5. the static titlebar buttons actually got their glyph from icons.ts.
@@ -167,10 +167,10 @@ async function main() {
     };
   });
   check('tile inset from pill edge is 6px', Math.abs(geometry.inset - 6) < 0.6, JSON.stringify(geometry));
-  check('tile is 17px', Math.abs(geometry.tileSize - 17) < 0.6, JSON.stringify(geometry));
+  check('tile is 14px', Math.abs(geometry.tileSize - 14) < 0.6, JSON.stringify(geometry));
   check('glyph ink is centred in the tile',
     Math.abs(geometry.inkOffsetX) < 1 && Math.abs(geometry.inkOffsetY) < 1, JSON.stringify(geometry));
-  check('tab radius is --r-full (999px)', tabs.every(t => t.tabRadius === '999px'), JSON.stringify(tabs.map(t => t.tabRadius)));
+  check('tab radius is --r-md (8px)', tabs.every(t => t.tabRadius === '8px'), JSON.stringify(tabs.map(t => t.tabRadius)));
   check('exactly one active tab', tabs.filter(t => t.active).length === 1, JSON.stringify(tabs.map(t => t.active)));
   check('workspaces get distinct tile colours',
     new Set(tabs.map(t => t.tileBg)).size >= 2, JSON.stringify(tabs.map(t => t.tileBg)));

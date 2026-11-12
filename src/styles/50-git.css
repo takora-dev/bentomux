@@ -5,9 +5,17 @@
    overflow:hidden on the aside clips contents while the column animates. */
 .right-sidebar{
   grid-column:3;grid-row:2;
-  border-left:1px solid var(--line);
-  background:var(--surface);
+  border:0;border-radius:var(--r-lg);
+  background:var(--surface);box-shadow:none;
   display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+}
+body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
+/* Reuse the frame's frosted backdrop without stacking another blur layer. */
+@supports ((backdrop-filter:blur(40px)) or (-webkit-backdrop-filter:blur(40px))){
+  :root.dark .right-sidebar{background:transparent}
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more),(forced-colors:active){
+  :root.dark .right-sidebar{background:var(--surface)}
 }
 .right-sidebar-h{
   padding:12px 14px 8px;
@@ -65,7 +73,7 @@
 .git-diff{
   padding:10px 12px;
   border-top:1px solid var(--line);
-  background:var(--bg);
+  background:var(--floating-control);
   min-height:140px;max-height:42vh;overflow:auto;
 }
 .git-diff pre{
@@ -79,7 +87,7 @@
 .git-commit textarea{
   width:100%;min-height:64px;max-height:160px;resize:vertical;
   padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);
-  background:var(--bg);color:var(--ink);font:12.5px/1.5 var(--mono);
+  background:var(--floating-control);color:var(--ink);font:12.5px/1.5 var(--mono);
   outline:none;
 }
 .git-empty{padding:18px 14px;color:var(--ink-3);font-size:12px;text-align:center}
@@ -462,15 +470,17 @@
   display:inline-flex;align-items:center;gap:7px;
   height:24px;padding:0 9px;
   margin:0 4px 0 0;
-  border:1px solid var(--line);border-radius:var(--r-full);
-  background:var(--surface);color:var(--ink-2);
-  font:11.5px/1 var(--mono);
+  border:0;border-radius:var(--r-md);
+  background:transparent;color:var(--ink-2);
+  box-shadow:none;text-shadow:none;
+  font:11.5px/1 var(--mono);font-variant-numeric:tabular-nums;
   cursor:pointer;outline:none;
-  transition:background .12s,border-color .12s,color .12s;
+  transition:background .12s,color .12s;
 }
-.git-pill:hover{background:var(--tint);color:var(--ink);border-color:var(--line-2)}
+.git-pill:hover,body.git-panel-open .git-pill{background:var(--tint);color:var(--ink)}
+.git-pill:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .git-pill[hidden]{display:none!important}
-.git-pill .git-pill-label{font-weight:550;color:var(--ink-2)}
+.git-pill .git-pill-label{font-family:var(--sans);font-weight:550;color:inherit}
 .git-pill .git-pill-add{color:#1a7f37}
 .git-pill .git-pill-del{color:var(--danger)}
 :root.dark .git-pill .git-pill-add{color:#7ee787}
