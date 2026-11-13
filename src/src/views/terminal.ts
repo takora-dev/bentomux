@@ -17,7 +17,7 @@ import { renderSidebar } from '../render';
 import { leafIds, type PaneNode } from '../../shared/split-tree';
 import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
-import { xtermTheme } from '../terminal-theme';
+import { terminalBackgroundIsTransparent, xtermTheme } from '../terminal-theme';
 import { splitTerminalPane, closeTerminalPane, setNodeDir, syncWorkspaceForPane } from './tabs';
 import { SCROLL_SENSITIVITY, wheelTargetRow } from './wheel';
 import api from '../../preload/bentomux';
@@ -120,8 +120,16 @@ function writePaths(tabId: string, paths: string[]): void {
    repaint the stylesheet without a full render() */
 export function applyTerminalTheme(): void {
   if (!lives.size) return;
-  const theme = xtermTheme() as never;
-  for (const live of lives.values()) live.term.options.theme = theme;
+  for (const live of lives.values()) updateTerminalTheme(live.term);
+}
+
+export function updateTerminalTheme(term: Terminal): void {
+  const transparent = terminalBackgroundIsTransparent();
+  /* Enable transparency before applying a transparent theme; disable it only
+     after replacing that theme with an opaque background. */
+  if (transparent) term.options.allowTransparency = true;
+  term.options.theme = xtermTheme() as never;
+  if (!transparent) term.options.allowTransparency = false;
 }
 
 function monoFont(): string {
@@ -494,10 +502,9 @@ function createXterm(tabId: string): {
     letterSpacing: 0,
     cursorBlink: false,
     allowProposedApi: true,
-    /* the workspace wallpaper (html.bg-content) shows through the pane, so
-       the renderer must accept a transparent theme background; with no
-       wallpaper the theme keeps an opaque color and nothing changes */
-    allowTransparency: true,
+    /* Transparent WebGL glyphs render noticeably thinner. Only enable this
+       when a wallpaper needs to show through the terminal background. */
+    allowTransparency: terminalBackgroundIsTransparent(),
     scrollback: 1000,
     /* xterm's default is 1, and a macOS trackpad reports deltas of a few
        pixels per event: at 1 most events land below one cell and are eaten by
@@ -993,7 +1000,7 @@ export function terminalPage(start: PaneNode | string): HTMLElement {
 
     /* refresh palette in case the theme toggled since creation */
     for (const live of pageLives) {
-      live.term.options.theme = xtermTheme() as never;
+      updateTerminalTheme(live.term);
       live.term.options.fontFamily = monoFont();
     }
 

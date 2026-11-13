@@ -68,6 +68,11 @@ const FALLBACK_ANSI: Record<'light' | 'dark', Record<string, string>> = {
   },
 }
 
+export function terminalBackgroundIsTransparent(): boolean {
+  const root = document.documentElement.classList;
+  return root.contains('bg-content') || root.contains('bg-terminal');
+}
+
 export function xtermTheme(): Record<string, string> {
   const fb = FALLBACK_ANSI[document.documentElement.classList.contains('dark') ? 'dark' : 'light'];
   const ink = toXtermColor(cssVar('--ink'), '#292827');
@@ -77,9 +82,7 @@ export function xtermTheme(): Record<string, string> {
      user's opacity/dim setting. cursorAccent stays opaque: it fills the
      block cursor, where a transparent color would hide the character under
      it. */
-  const root = document.documentElement.classList;
-  const transparentBg = root.contains('bg-content') || root.contains('bg-terminal');
-  const bg = transparentBg ? 'rgba(0,0,0,0)' : toXtermColor(cssVar('--content-bg'), '#FAFAFA');
+  const bg = terminalBackgroundIsTransparent() ? 'rgba(0,0,0,0)' : toXtermColor(cssVar('--content-bg'), '#FAFAFA');
   const theme: Record<string, string> = {
     background: bg,
     foreground: ink,
