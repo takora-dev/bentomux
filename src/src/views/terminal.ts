@@ -7,6 +7,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import '@xterm/xterm/css/xterm.css';
 import { h, $ } from '../dom';
@@ -411,6 +412,71 @@ export function initTerminalEvents(): void {
   });
   api.onFileDrop(handleFileDrop);
 }
+/* xterm's default renderer is the DOM renderer: every frame it rebuilds the
+   affected rows as real DOM nodes, and the WebView then re-lays-out and
+   re-paints that text through WebCore. On a busy pane that dominates the
+   renderer's CPU (the hot path is RenderBlock::layout / paint and the glyph
+   width pass, not JavaScript). The WebGL addon draws the same cells into a
+   canvas and hands the glyph work to the GPU, which is what the renderer is
+   for.
+
+   The addon is optional: a machine without WebGL2, or a driver that refuses
+   the context, must still get a working terminal. So a failure is not
+   fatal — xterm keeps the DOM renderer it already installed and the pane
+   behaves exactly as before. */
+export function loadGpuRenderer(term: Terminal): void {
+  try {
+    const addon = new WebglAddon();
+    /* Upstream xtermjs/xterm.js#6068: dispose() does not release the WebGL2
+       context, so every terminal that is opened and then closed leaves a
+       zombie context behind. The browser caps the number of live contexts per
+       document (around 16, driver dependent) and evicts the OLDEST one when
+       the cap is crossed — which belongs to a pane that is still on screen,
+       so that pane renders garbled. The count that matters is the cumulative
+       number of created-and-disposed contexts, not the number of open panes,
+       so the churn of opening and closing tabs is enough to get there.
+
+       Releasing the context is what upstream does in 7.0.0; until then it is
+       done here, the same way the issue's own workaround does it. The wrapper
+       goes onto the addon before loadAddon(), because the addon manager
+       snapshots dispose() at load time and calls that snapshot later. The
+       context itself only exists once activate() has run, so it is looked
+       up when dispose runs rather than now. */
+    const releaseContext = (): void => {
+      const gl = (addon as unknown as { _renderer?: { _gl?: WebGL2RenderingContext } })._renderer?._gl;
+      gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    };
+    const disposeAddon = addon.dispose.bind(addon);
+    addon.dispose = () => {
+      try {
+        disposeAddon();
+      } finally {
+        /* even when the addon's own teardown throws, the context still has to
+           go: that is the whole point of the wrapper */
+        try {
+          releaseContext();
+        } catch {
+          /* nothing to release, or the context was already gone */
+        }
+      }
+    };
+    term.loadAddon(addon);
+    /* The GPU process can drop the context (a driver reset, the machine
+       sleeping). xterm's DOM renderer is still there, so fall back to it
+       instead of leaving a blank pane. */
+    addon.onContextLoss(() => {
+      console.warn('[terminal] WebGL context lost, falling back to the DOM renderer');
+      try {
+        addon.dispose();
+      } catch {
+        /* the addon is already gone; nothing to clean up */
+      }
+    });
+  } catch (error) {
+    console.warn('[terminal] WebGL renderer unavailable, using the DOM renderer:', error);
+  }
+}
+
 function createXterm(tabId: string): {
   term: Terminal;
   fit: FitAddon;
@@ -474,6 +540,8 @@ function createXterm(tabId: string): {
 
   // MUST call term.open() before term.element is available
   term.open(host);
+
+  loadGpuRenderer(term);
 
   const events = new AbortController();
   wireXtermEvents(term, tabId, events.signal);
