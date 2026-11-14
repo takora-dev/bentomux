@@ -312,6 +312,14 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
     backdrop-filter:blur(var(--glass-blur));
   }
 }
+/* Linux desktop blur is supplied by the compositor, not WebKit's CSS blur.
+   Keep the backdrop visible through the tint; :where lets accessibility win. */
+:root.dark.appearance-glass:where(.linux) .win{
+  background-color:var(--chrome-glass);
+  background-image:
+    linear-gradient(135deg,rgba(255,255,255,.07),transparent 45%),
+    radial-gradient(ellipse at top left,color-mix(in srgb,var(--accent) 12%,transparent),transparent 70%);
+}
 /* Readability never relies on blur support or a user's transparency setting. */
 @media (prefers-reduced-transparency:reduce),(forced-colors:active){
   :root.dark.appearance-glass .app{background:var(--chrome-solid)}

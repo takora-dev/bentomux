@@ -16,7 +16,7 @@ import {
   Download, Ellipsis, Folder, FolderPlus, GitBranch, Image, Info, KeyRound,
   LayoutGrid, List, MessageSquare, Minus, Moon, PanelLeft, Plus, RefreshCw,
   Search, Settings, SlidersHorizontal, Smartphone, Square, SquareStack, Sun,
-  Terminal, Trash2, X,
+  Terminal, Trash2, TriangleAlert, X,
   type IconNode,
 } from 'lucide';
 
@@ -72,6 +72,7 @@ const NODES = {
   image: Image,
   trash: Trash2,
   info: Info,
+  warning: TriangleAlert,
   refresh: RefreshCw,
   download: Download,
   copy: Copy,

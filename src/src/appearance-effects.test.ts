@@ -59,6 +59,54 @@ describe('appearance effects', () => {
     expect(getComputedStyle(root).getPropertyValue('--floating-opacity')).toBe('100%');
   });
 
+  it.each([
+    ['linux dark', true],
+    ['linux dark palette-pastel-pixel', true],
+    ['linux', false],
+    ['windows dark', false],
+    ['macos dark', false],
+  ] as const)('adds glass highlights only on Linux in dark Glass mode (%s)', (classes, simulated) => {
+    mountStyles();
+    document.documentElement.className = classes;
+    applyAppearanceEffects({ enabled: true });
+    const win = document.createElement('div');
+    win.className = 'win';
+    const app = document.createElement('div');
+    app.className = 'app';
+    app.append(win);
+    document.body.append(app);
+    const terminal = xtermTheme();
+    const background = getComputedStyle(win).backgroundImage;
+    expect(background.includes('linear-gradient')).toBe(simulated);
+    expect(background.includes('radial-gradient')).toBe(simulated);
+    expect(getComputedStyle(win).opacity).not.toBe('0.94');
+    applyAppearanceEffects({ enabled: false });
+    win.classList.add('style-cache-refresh');
+    expect(getComputedStyle(win).backgroundImage).not.toContain('gradient');
+    expect(xtermTheme()).toEqual(terminal);
+  });
+
+  it('exposes the desktop to compositor blur using the shared glass tint on Linux', () => {
+    const css = readFileSync('src/styles/10-frame.css', 'utf8');
+    const linuxRule = css.split(':root.dark.appearance-glass:where(.linux) .win{')[1].split('}')[0];
+    expect(linuxRule).toContain('background-color:var(--chrome-glass)');
+    expect(linuxRule).not.toContain('94%');
+    const config = JSON.parse(readFileSync('src-tauri/tauri.linux.conf.json', 'utf8'));
+    expect(config.app.windows[0]).toMatchObject({ transparent: true, backgroundColor: '#00000000' });
+  });
+
+  it('lets accessibility solid backgrounds override the Linux glass layers', () => {
+    const css = readFileSync('src/styles/10-frame.css', 'utf8');
+    const linuxRule = css.indexOf(':root.dark.appearance-glass:where(.linux) .win');
+    expect(linuxRule).toBeGreaterThan(-1);
+    for (const preference of ['prefers-reduced-transparency:reduce', 'forced-colors:active', 'prefers-contrast:more']) {
+      expect(css.indexOf(preference)).toBeGreaterThan(linuxRule);
+    }
+    // The later background shorthands clear gradient layers, not just their color.
+    expect(css.slice(css.indexOf('@media (prefers-reduced-transparency')))
+      .toContain('background:var(--chrome-solid)');
+  });
+
   it('scopes all Glass CSS overrides to dark mode', () => {
     for (const path of ['src/theme.css', 'src/styles/10-frame.css', 'src/styles/20-components.css']) {
       expect(readFileSync(path, 'utf8')).not.toContain(':root.appearance-glass');
@@ -119,6 +167,62 @@ describe('appearance effects', () => {
     expect(document.querySelector('input')).toBeNull();
     expect(document.body.textContent).toContain('Dark mode only');
     expect(change).not.toHaveBeenCalled();
+  });
+
+  it.each(['linux', 'windows', 'macos'])('shows Linux setup help only on Linux (%s)', platform => {
+    document.documentElement.className = platform + ' dark';
+    const change = vi.fn();
+    const controls = appearanceEffectsControls(undefined, change);
+    document.body.append(controls);
+    const help = controls.querySelector<HTMLElement>('.linux-blur-help');
+    const warning = controls.querySelector<HTMLButtonElement>('.linux-blur-warning');
+    expect(Boolean(warning)).toBe(platform === 'linux');
+    expect(Boolean(help)).toBe(platform === 'linux');
+    expect(buttonFor('Solid').classList.contains('on')).toBe(true);
+    if (platform === 'linux') {
+      expect(controls.textContent).toContain('Without compositor support, Glass only adds transparency.');
+      expect(help?.hidden).toBe(true);
+      expect(warning?.getAttribute('aria-expanded')).toBe('false');
+      expect(warning?.querySelector('svg')).not.toBeNull();
+      expect(warning?.textContent).toBe('');
+      warning?.click();
+      expect(help?.hidden).toBe(false);
+      expect(warning?.getAttribute('aria-expanded')).toBe('true');
+      const prompt = help?.querySelector('textarea');
+      expect(prompt?.readOnly).toBe(true);
+      expect(prompt?.value).toContain('Blur my Shell');
+      expect(prompt?.value).toContain('whole-window opacity at 100%');
+      expect(prompt?.value).toContain('ask permission');
+      expect(prompt?.value).toContain('rollback');
+      warning?.click();
+      expect(help?.hidden).toBe(true);
+    } else {
+      expect(controls.textContent).not.toContain('Linux');
+    }
+    expect(controls.textContent).toContain('Accessibility preferences');
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('copies the agent prompt or provides a manual fallback (clipboard: %s)', async succeeds => {
+    document.documentElement.className = 'linux dark';
+    document.body.append(appearanceEffectsControls(undefined, vi.fn()));
+    const write = vi.spyOn(navigator.clipboard, 'writeText');
+    if (succeeds) write.mockResolvedValue();
+    else write.mockRejectedValue(new Error('Clipboard unavailable'));
+    try {
+      document.querySelector<HTMLButtonElement>('.linux-blur-warning')!.click();
+      buttonFor('Copy agent prompt').click();
+      await vi.waitFor(() => expect(document.querySelector('[role="status"]')?.textContent)
+        .toContain(succeeds ? 'Prompt copied' : 'Copy the selected prompt manually'));
+      const prompt = document.querySelector('textarea')!;
+      expect(write).toHaveBeenCalledWith(prompt.value);
+      if (!succeeds) {
+        expect(document.activeElement).toBe(prompt);
+        expect(prompt.selectionEnd).toBe(prompt.value.length);
+      }
+    } finally {
+      write.mockRestore();
+    }
   });
 
   it('previews Solid and Glass immediately and restores the selection when reopened', () => {
