@@ -575,9 +575,10 @@ export interface BentomuxApi {
   branchFor(path: string): Promise<string | null>;
   onBranch(cb: (workspaceId: string, branch: string | null) => void): () => void;
   gitStatus(workspaceId: string): Promise<GitStatusResult>;
-  gitDiff(workspaceId: string, path: string | null): Promise<GitDiffResult>;
+  gitDiff(workspaceId: string, path: string | null, staged?: boolean): Promise<GitDiffResult>;
   gitDiffStat(workspaceId: string): Promise<GitDiffStatResult>;
   gitPush(workspaceId: string, setUpstream: boolean): Promise<GitCommandResult>;
+  gitManage(workspaceId: string, action: 'stage' | 'unstage' | 'discard-tracked' | 'discard-untracked' | 'commit' | 'pull', value: string): Promise<void>;
   gitRemoteInfo(workspaceId: string): Promise<GitRemoteInfo>;
   gitHistory(workspaceId: string): Promise<GitHistoryResult>;
   gitShow(workspaceId: string, oid: string): Promise<GitCommitDetail>;

@@ -210,11 +210,12 @@ const api = {
     /* backend emits `branch` as a 2-tuple (workspaceId, branch) → JSON array */
     subscribe<[string, string | null]>('branch', p => cb(p[0], p[1])),
   gitStatus: (workspaceId: string) => invoke<GitStatusResult>('git_status', { workspaceId }),
-  gitDiff: (workspaceId: string, path: string | null) =>
-    invoke<GitDiffResult>('git_diff', { workspaceId, path }),
+  gitDiff: (workspaceId: string, path: string | null, staged = false) =>
+    invoke<GitDiffResult>('git_diff', { workspaceId, path, staged }),
   gitDiffStat: (workspaceId: string) => invoke<GitDiffStatResult>('git_diff_stat', { workspaceId }),
   gitPush: (workspaceId: string, setUpstream: boolean) =>
     invoke<GitCommandResult>('git_push', { workspaceId, setUpstream }),
+  gitManage: (workspaceId: string, action: 'stage' | 'unstage' | 'discard-tracked' | 'discard-untracked' | 'commit' | 'pull', value: string) => invoke<void>('git_manage', { workspaceId, action, value }),
   gitRemoteInfo: (workspaceId: string) => invoke<GitRemoteInfo>('git_remote_info', { workspaceId }),
   gitHistory: (workspaceId: string) => invoke<GitHistoryResult>('git_history', { workspaceId }),
   gitShow: (workspaceId: string, oid: string) => invoke<GitCommitDetail>('git_show', { workspaceId, oid }),

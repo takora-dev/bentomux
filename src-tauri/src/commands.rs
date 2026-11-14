@@ -854,10 +854,11 @@ pub async fn git_status(
 pub async fn git_diff(
     workspace_id: String,
     path: Option<String>,
+    staged: Option<bool>,
     state: State<'_, AppStateManager>,
 ) -> Result<crate::git::GitDiffResult, String> {
     let ws_path = workspace_path(&workspace_id, &state)?;
-    git_off_main(move || crate::git::diff(&ws_path, path.as_deref())).await
+    git_off_main(move || crate::git::diff(&ws_path, path.as_deref(), staged.unwrap_or(false))).await
 }
 
 #[tauri::command]
@@ -877,6 +878,17 @@ pub async fn git_push(
 ) -> Result<crate::git::GitCommandResult, String> {
     let path = workspace_path(&workspace_id, &state)?;
     git_off_main(move || crate::git::push(&path, set_upstream)).await
+}
+
+#[tauri::command]
+pub async fn git_manage(
+    workspace_id: String,
+    action: String,
+    value: String,
+    state: State<'_, AppStateManager>,
+) -> Result<(), String> {
+    let path = workspace_path(&workspace_id, &state)?;
+    git_off_main(move || crate::git::manage(&path, &action, &value)).await?
 }
 
 #[tauri::command]

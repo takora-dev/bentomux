@@ -7,7 +7,7 @@ export type Route =
   | { view: 'welcome' }
   | { view: 'agents' }
   | { view: 'agentDetail'; agentId: string; tab: 'model' | 'memory' | 'skills' | 'mcp' }
-  | { view: 'diff'; workspaceId: string; path: string }
+  | { view: 'diff'; workspaceId: string; path: string; staged?: boolean }
   /* one commit's detail page, opened by clicking a row in the commit graph */
   | { view: 'commit'; workspaceId: string; oid: string; short: string }
   /* a tab contributed by a plugin. `tabId` is the contribution id the

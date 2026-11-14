@@ -293,6 +293,7 @@ pub fn run() {
             commands::git_diff,
             commands::git_diff_stat,
             commands::git_push,
+            commands::git_manage,
             commands::git_remote_info,
             commands::git_history,
             commands::git_show,

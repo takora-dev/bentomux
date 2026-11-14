@@ -274,9 +274,9 @@ function renderContentInner(route: Route): void {
     body.innerHTML = '';
     body.append(h('div', { class: 'page' }, h('p', {}, 'Loading diff…')));
     void import('./views/diff').then(m => {
-      if (ui.route.view !== 'diff') return;
+      if (ui.route.view !== 'diff' || ui.route.workspaceId !== route.workspaceId || ui.route.path !== route.path || !!ui.route.staged !== !!route.staged) return;
       body.innerHTML = '';
-      body.append(m.diffPage(route.workspaceId, route.path));
+      body.append(m.diffPage(route.workspaceId, route.path, route.staged));
     });
   } else if (route.view === 'commit') {
     c.classList.add('fullbleed');

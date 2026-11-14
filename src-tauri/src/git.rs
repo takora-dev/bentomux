@@ -14,7 +14,10 @@ use std::collections::HashMap;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::time::Duration;
 use tauri::Emitter;
 
@@ -72,7 +75,7 @@ HEAD changes, 60ms debounce) plus a per-workspace poll as the safety net. */
 type BranchCb = Box<dyn Fn(&str, Option<&str>) + Send + Sync>;
 
 struct WatchState {
-    watchers: HashMap<String, Option<String>>, /* workspaceId → last branch */
+    watchers: HashMap<String, (Option<String>, Arc<AtomicBool>)>, /* workspaceId → branch and cancellation */
     notify: Option<BranchCb>,
     handle: Option<tauri::AppHandle>,
 }
@@ -116,17 +119,9 @@ fn emit_branch(workspace_id: &str, branch: Option<&str>) {
     }
 }
 
-/* true while a workspace is still registered (not yet unwatched) */
-fn registered(workspace_id: &str) -> bool {
-    watch_state()
-        .lock_recover()
-        .as_ref()
-        .is_some_and(|s| s.watchers.contains_key(workspace_id))
-}
-
 /* read the branch, compare to the stored last value, and emit the event when
 it changed. true when the workspace is still registered (not unwatched). */
-fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
+fn check_and_emit(workspace_id: &str, ws_path: &str, cancelled: &Arc<AtomicBool>) -> bool {
     let cur = read_branch(ws_path);
     let should_emit = {
         let mut guard = watch_state().lock_recover();
@@ -134,7 +129,7 @@ fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
             .as_mut()
             .and_then(|s| s.watchers.get_mut(workspace_id))
         {
-            Some(prev) => {
+            Some((prev, current)) if Arc::ptr_eq(current, cancelled) => {
                 if *prev != cur {
                     *prev = cur.clone();
                     true
@@ -142,7 +137,7 @@ fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
                     false
                 }
             }
-            None => return false, /* workspace unregistered: stop the loop */
+            _ => return false, /* workspace unregistered or replaced */
         }
     };
     if should_emit {
@@ -153,6 +148,7 @@ fn check_and_emit(workspace_id: &str, ws_path: &str) -> bool {
 
 pub fn watch_workspace(workspace_id: &str, ws_path: &str) {
     unwatch_workspace(workspace_id);
+    let cancelled = Arc::new(AtomicBool::new(false));
     {
         let mut guard = watch_state().lock_recover();
         let st = guard.get_or_insert_with(|| WatchState {
@@ -160,71 +156,66 @@ pub fn watch_workspace(workspace_id: &str, ws_path: &str) {
             notify: None,
             handle: None,
         });
-        st.watchers
-            .insert(workspace_id.to_string(), read_branch(ws_path));
+        st.watchers.insert(
+            workspace_id.to_string(),
+            (read_branch(ws_path), cancelled.clone()),
+        );
     }
     let ws_path = ws_path.to_string();
     let wid = workspace_id.to_string();
 
-    /* instant trigger: fs-watch the git dir, ignore transient files, then
-    quietly re-check the branch (git.ts's `setTimeout(check,60)`). */
-    if let Some(dir) = git_dir_for(&ws_path) {
-        let dir = dir.clone();
-        let wid2 = wid.clone();
-        let ws2 = ws_path.clone();
-        std::thread::spawn(move || {
-            use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-            let (tx, rx) = std::sync::mpsc::channel();
-            let on_event = move |res: notify::Result<notify::Event>| {
-                let _ = tx.send(res);
-            };
-            if let Ok(mut watcher) = RecommendedWatcher::new(on_event, notify::Config::default()) {
-                if watcher
-                    .watch(Path::new(&dir), RecursiveMode::NonRecursive)
-                    .is_ok()
-                {
-                    for ev in rx.into_iter().flatten() {
-                        match ev.kind {
-                            EventKind::Access(_)
-                            | EventKind::Create(_)
-                            | EventKind::Modify(_)
-                            | EventKind::Remove(_) => {}
-                            _ => continue,
-                        }
-                        let is_head = ev
-                            .paths
-                            .iter()
-                            .any(|p| p.file_name().and_then(|n| n.to_str()) == Some("HEAD"));
-                        if is_head {
-                            std::thread::sleep(Duration::from_millis(60));
-                            check_and_emit(&wid2, &ws2);
-                            if !registered(&wid2) {
-                                break; /* workspace unwatched */
-                            }
-                        }
-                    }
-                }
+    /* One worker owns both the watcher and its polling fallback. The timeout
+    also releases the watcher after unwatch, even when no events arrive. */
+    std::thread::spawn(move || {
+        use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = RecommendedWatcher::new(
+            move |event| {
+                let _ = tx.send(event);
+            },
+            notify::Config::default(),
+        )
+        .ok();
+        if let (Some(watcher), Some(dir)) = (watcher.as_mut(), git_dir_for(&ws_path)) {
+            let _ = watcher.watch(Path::new(&dir), RecursiveMode::NonRecursive);
+        }
+        let mut next_poll = std::time::Instant::now() + Duration::from_secs(4);
+        while !cancelled.load(Ordering::Relaxed) {
+            let timeout = next_poll.saturating_duration_since(std::time::Instant::now());
+            let event = rx.recv_timeout(timeout);
+            let head_changed = matches!(event, Ok(Ok(ev)) if
+                matches!(ev.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)) &&
+                ev.paths.iter().any(|p| p.file_name().and_then(|n| n.to_str()) == Some("HEAD")));
+            if head_changed {
+                std::thread::sleep(Duration::from_millis(60));
             }
-        });
-    }
-
-    /* safety-net poll, mirroring the Electron interval; stops on unwatch */
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(4));
-        if !check_and_emit(&wid, &ws_path) {
-            break;
+            if head_changed || std::time::Instant::now() >= next_poll {
+                if !check_and_emit(&wid, &ws_path, &cancelled) {
+                    break;
+                }
+                next_poll = std::time::Instant::now() + Duration::from_secs(4);
+            }
+            /* A failed watcher disconnects the channel; keep the fallback from spinning. */
+            if watcher.is_none() {
+                std::thread::sleep(next_poll.saturating_duration_since(std::time::Instant::now()));
+            }
         }
     });
 }
 
 pub fn unwatch_workspace(workspace_id: &str) {
     if let Some(st) = watch_state().lock_recover().as_mut() {
-        st.watchers.remove(workspace_id);
+        if let Some((_, cancelled)) = st.watchers.remove(workspace_id) {
+            cancelled.store(true, Ordering::Relaxed);
+        }
     }
 }
 
 pub fn unwatch_all() {
     if let Some(st) = watch_state().lock_recover().as_mut() {
+        for (_, cancelled) in st.watchers.values() {
+            cancelled.store(true, Ordering::Relaxed);
+        }
         st.watchers.clear();
     }
 }
@@ -542,15 +533,30 @@ pub fn status(ws_path: &str) -> GitStatusResult {
 
 /* ---------------- diff ---------------- */
 
-pub fn diff(ws_path: &str, path: Option<&str>) -> GitDiffResult {
+pub fn diff(ws_path: &str, path: Option<&str>, staged: bool) -> GitDiffResult {
     if git_dir_for(ws_path).is_none() {
         return GitDiffResult::default();
     }
     /* for an untracked file, mark intent-to-add so git's diff machinery includes it */
-    if let Some(path) = path {
-        let _ = run_process(ws_path, &["add", "-N", "--", path], None);
+    if !staged {
+        if let Some(path) = path {
+            let _ = run_process(
+                ws_path,
+                &["--literal-pathspecs", "add", "-N", "--", path],
+                None,
+            );
+        }
     }
-    let mut args: Vec<&str> = vec!["diff", "--no-color", "--no-ext-diff", "--unified=3"];
+    let mut args: Vec<&str> = vec![
+        "--literal-pathspecs",
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "--unified=3",
+    ];
+    if staged {
+        args.push("--cached");
+    }
     if let Some(path) = path {
         args.push("--");
         args.push(path);
@@ -714,13 +720,93 @@ pub fn push(ws_path: &str, set_upstream: bool) -> GitCommandResult {
         }
     }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let r = run_process(ws_path, &arg_refs, Some(120_000)).unwrap_or_default();
+    let r = match run_process(ws_path, &arg_refs, Some(120_000)) {
+        Ok(r) => r,
+        Err(stderr) => {
+            return GitCommandResult {
+                ok: false,
+                stderr,
+                code: -1,
+                ..Default::default()
+            }
+        }
+    };
     GitCommandResult {
         ok: r.code == 0,
         stdout: r.stdout,
         stderr: r.stderr,
         code: r.code,
     }
+}
+
+/* Mutations use literal pathspecs and only accept paths currently reported by
+Git. Renames need both old and new paths, so they are deliberately rejected. */
+pub fn manage(ws_path: &str, action: &str, value: &str) -> Result<(), String> {
+    if git_dir_for(ws_path).is_none() {
+        return Err("Not a git repository".into());
+    }
+    let mut args = vec!["--literal-pathspecs"];
+    match action {
+        "stage" | "unstage" | "discard-tracked" | "discard-untracked" => {
+            let path = Path::new(value);
+            if value.is_empty()
+                || path.is_absolute()
+                || path
+                    .components()
+                    .any(|c| !matches!(c, std::path::Component::Normal(_)))
+            {
+                return Err("Invalid repository path".into());
+            }
+            let entry = status(ws_path)
+                .entries
+                .into_iter()
+                .find(|e| e.path == value)
+                .ok_or("File is no longer in Git status")?;
+            if entry.status.contains('R')
+                || entry.status.contains('C')
+                || entry.status.contains('U')
+                || matches!(entry.status.as_str(), "AA" | "DD")
+            {
+                return Err("Renames, copies and conflicts must be managed in a terminal".into());
+            }
+            match action {
+                "stage" => args.extend(["add", "-A", "--", value]),
+                "unstage" => {
+                    let head = run_process(ws_path, &["rev-parse", "--verify", "HEAD"], None)?;
+                    if head.code == 0 {
+                        args.extend(["reset", "-q", "HEAD", "--", value]);
+                    } else {
+                        args.extend(["rm", "--cached", "-f", "--", value]);
+                    }
+                }
+                "discard-untracked" if entry.status == "??" => {
+                    args.extend(["clean", "-f", "--", value]);
+                }
+                "discard-tracked" if entry.status != "??" && entry.work_tree_status != " " => {
+                    args.extend(["restore", "--worktree", "--", value]);
+                }
+                _ => return Err("File status changed; refresh and try again".into()),
+            }
+        }
+        "commit" => {
+            if value.trim().is_empty() {
+                return Err("Commit message cannot be empty".into());
+            }
+            args.extend(["commit", "-m", value]);
+        }
+        "pull" => args.extend(["pull", "--ff-only"]),
+        _ => return Err("Unknown Git action".into()),
+    }
+    let result = run_process(
+        ws_path,
+        &args,
+        Some(if action == "pull" {
+            120_000
+        } else {
+            DEFAULT_TIMEOUT_MS
+        }),
+    )?;
+    ensure_ok(&result, "git command")
 }
 
 /* ---------------- remote info ---------------- */
@@ -1147,7 +1233,7 @@ mod tests {
         run_process(&repo, &["commit", "-qm", "init"], None).unwrap();
         write_file(&repo, "a.txt", "one\ntwo\n");
 
-        let files = diff(&repo, None);
+        let files = diff(&repo, None, false);
         assert!(files.is_repo);
         assert_eq!(files.files.len(), 1);
         assert_eq!(files.files[0].status, "M");
@@ -1521,6 +1607,49 @@ index 111..222 100644\n\
         assert!(has_untracked);
         assert!(entries.iter().any(|e| e.path == "new.txt"));
         assert!(entries.iter().any(|e| e.path == "renamed.txt"));
+    }
+
+    #[test]
+    fn manage_staging_commit_and_discard() {
+        let repo = temp_repo("manage");
+        write_file(&repo, "file.txt", "original\n");
+        manage(&repo, "stage", "file.txt").unwrap();
+        manage(&repo, "unstage", "file.txt").unwrap();
+        assert_eq!(status(&repo).entries[0].status, "??");
+        manage(&repo, "stage", "file.txt").unwrap();
+        manage(&repo, "commit", "initial").unwrap();
+        write_file(&repo, "file.txt", "staged\n");
+        manage(&repo, "stage", "file.txt").unwrap();
+        write_file(&repo, "file.txt", "unstaged\n");
+        let staged = diff(&repo, Some("file.txt"), true);
+        assert!(staged.files[0].patch.contains("+staged"));
+        assert!(!staged.files[0].patch.contains("+unstaged"));
+        let unstaged = diff(&repo, Some("file.txt"), false);
+        assert!(unstaged.files[0].patch.contains("+unstaged"));
+        manage(&repo, "discard-tracked", "file.txt").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(Path::new(&repo).join("file.txt")).unwrap(),
+            "staged\n"
+        );
+        manage(&repo, "unstage", "file.txt").unwrap();
+        write_file(&repo, "new.txt", "new");
+        assert!(manage(&repo, "discard-tracked", "new.txt").is_err());
+        manage(&repo, "discard-untracked", "new.txt").unwrap();
+        assert!(!Path::new(&repo).join("new.txt").exists());
+        assert!(manage(&repo, "discard-tracked", "../outside").is_err());
+    }
+
+    #[test]
+    fn replaced_watch_rejects_old_worker() {
+        let repo = temp_repo("watch-replaced");
+        watch_workspace("watch-replaced-ws", &repo);
+        let old = watch_state().lock_recover().as_ref().unwrap().watchers["watch-replaced-ws"]
+            .1
+            .clone();
+        watch_workspace("watch-replaced-ws", &repo);
+        assert!(old.load(Ordering::Relaxed));
+        assert!(!check_and_emit("watch-replaced-ws", &repo, &old));
+        unwatch_workspace("watch-replaced-ws");
     }
 
     /* the fs.watch on .git/HEAD fires an instant branch event, not just the 4s poll */

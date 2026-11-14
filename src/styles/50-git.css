@@ -20,7 +20,6 @@ body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
 .right-sidebar-h{
   padding:12px 14px 8px;
   display:flex;align-items:center;gap:8px;
-  border-bottom:1px solid var(--line);
 }
 .right-sidebar-h .grow{min-width:0;flex:1}
 .right-sidebar-h b{font-size:12.5px;font-weight:600;letter-spacing:.01em}
@@ -35,8 +34,7 @@ body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
   flex:1;min-height:0;min-width:0;
   display:flex;flex-direction:column;overflow:hidden;
 }
-.git-section{padding:10px 14px;border-bottom:1px solid var(--line)}
-.git-section:last-child{border-bottom:0}
+.git-section{padding:10px 14px}
 .git-section-h{
   display:flex;align-items:center;gap:6px;
   font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
@@ -47,26 +45,47 @@ body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
   flex:1;min-height:0;min-width:0;
   display:flex;flex-direction:column;overflow:hidden;
 }
+.git-files:not(.collapsed){min-height:80px}
+.git-files.collapsed{flex:0 0 auto}
+.git-changes-header{display:flex;align-items:center;gap:4px}
+.git-changes-header .git-change-group{flex:1;min-width:0;margin:0;padding:0}
+.git-changes-actions{flex:0 0 auto;width:26px;height:26px;font-size:18px}
+.git-changes-actions:disabled{opacity:.4;cursor:not-allowed}
 .git-files-list{
   flex:1;min-height:0;overflow-y:auto;
-  display:flex;flex-direction:column;gap:1px;padding:4px 8px 8px;
+  display:flex;flex-direction:column;gap:2px;padding:0 0 8px;
 }
+.git-files.collapsed .git-files-list{flex:0 0 auto}
+.git-change-group{
+  display:flex;align-items:center;gap:6px;width:100%;padding:0;
+  border:0;background:transparent;cursor:pointer;text-align:left;
+  color:var(--ink-3);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+}
+.git-change-group .grow{flex:1}
+.git-change-group:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .git-file-row{
   display:flex;align-items:center;gap:8px;
-  width:100%;padding:6px 8px;
+  width:100%;min-width:0;padding:6px 8px;
   border-radius:var(--r-sm);color:var(--ink-2);
   background:transparent;border:0;outline:0;cursor:pointer;
   font:12px/1.3 var(--mono);text-align:left;
   transition:background .1s,color .1s;
 }
 .git-file-row:hover{background:var(--tint);color:var(--ink)}
-.git-file-row.active{background:var(--accent-tint);color:var(--accent-ink)}
-.git-file-row .xy{
-  font:10.5px/1 var(--mono);
-  width:24px;flex:0 0 24px;text-align:center;
-  color:var(--ink-3);
+.git-file-row.active{color:var(--accent-ink)}
+.git-file-row.selected{background:var(--accent-tint);color:var(--ink)}
+.git-status-marks{display:flex;align-items:center;justify-content:center;gap:2px;flex:0 0 28px}
+.git-status-mark{
+  min-width:12px;text-align:center;font:600 10px/1.4 var(--mono);
+  color:var(--ink-3);border-radius:3px;
 }
-.git-file-row.active .xy{color:var(--accent-ink)}
+.git-status-mark.modified{color:#996000}
+.git-status-mark.added{color:#187342}
+.git-status-mark.deleted,.git-status-mark.conflict{color:var(--danger)}
+:root.dark .git-status-mark.modified{color:#f2bd60}
+:root.dark .git-status-mark.added{color:#7bd7a1}
+.git-status-mark.conflict{font-weight:800;text-decoration:underline}
+.git-file-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .git-file-row .name{
   flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
@@ -84,11 +103,21 @@ body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
 }
 .git-diff-empty{color:var(--ink-3);font-size:12px;padding:4px 2px}
 .git-commit{padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px}
-.git-commit textarea{
-  width:100%;min-height:64px;max-height:160px;resize:vertical;
+.git-commit .git-section-h{margin-bottom:0}
+.git-commit .btn:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1)}
+:root .git-commit .btn.primary:disabled:hover{background:var(--surface);border-color:var(--line-2);color:var(--ink-3)}
+:root:not([class*="palette-"]) .git-commit .btn.primary:disabled:hover{background:var(--surface);border-color:var(--line-2);color:var(--ink-3)}
+.git-action-error{font-size:11px;line-height:1.4;color:var(--danger);overflow-wrap:anywhere;white-space:pre-wrap}
+.git-discard-files{max-height:35vh;overflow:auto;overflow-wrap:anywhere;padding-left:20px}
+.git-commit input{
+  width:100%;min-width:0;
   padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);
   background:var(--floating-control);color:var(--ink);font:12.5px/1.5 var(--mono);
   outline:none;
+}
+.git-commit input:focus-visible{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-tint)}
+@media (forced-colors:active){
+  .git-status-mark{forced-color-adjust:auto;color:CanvasText}
 }
 .git-empty{padding:18px 14px;color:var(--ink-3);font-size:12px;text-align:center}
 
@@ -97,9 +126,20 @@ body.git-panel-open .right-sidebar{margin:0 8px 8px 0}
    beside it and both scroll inside .git-graph. Rows stay aligned because both
    halves use the same 22px row height (ROW_H in gitGraph.ts). */
 .git-history{
-  flex:1;min-height:0;min-width:0;
+  position:relative;flex:0 1 auto;min-height:80px;max-height:100%;min-width:0;
   display:flex;flex-direction:column;overflow:hidden;
 }
+.git-history.collapsed{height:auto;min-height:0}
+.git-history-toggle{
+  display:flex;align-items:center;gap:6px;width:100%;padding:0 0 6px;
+  border:0;background:transparent;color:var(--ink-3);cursor:pointer;text-align:left;
+  font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+}
+.git-history-toggle .grow{flex:1}
+.git-history-toggle:focus-visible,.git-history-resize:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.git-history-body{display:flex;flex:1;min-height:0;min-width:0;flex-direction:column;overflow:hidden}
+.git-history-resize{position:absolute;top:0;left:0;right:0;height:7px;cursor:row-resize;touch-action:none}
+.git-history-resize:hover,.git-history-resize:focus-visible{background:var(--accent-tint)}
 .git-graph{
   flex:1;min-height:0;overflow:auto;
   display:flex;align-items:flex-start;

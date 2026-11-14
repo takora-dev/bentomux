@@ -153,7 +153,7 @@ export function diffBody(file: GitFileDiff | null, filePath: string): HTMLElemen
   return root;
 }
 
-export function diffPage(workspaceId: string, filePath: string): HTMLElement {
+export function diffPage(workspaceId: string, filePath: string, staged = false): HTMLElement {
   const wrap = h('div', { class: 'page diff-page' });
   const slot = h('div', {});
   /* the diff lives in its own titlebar tab — going back just closes that
@@ -163,7 +163,7 @@ export function diffPage(workspaceId: string, filePath: string): HTMLElement {
     if (ui.activeTab && ui.route.view === 'diff') void closeTab(ui.activeTab);
     else go({ view: 'welcome' });
   };
-  wrap.append(buildHeader(filePath, onBack), slot);
+  wrap.append(buildHeader(filePath + (staged ? ' (staged)' : ''), onBack), slot);
 
   /* load on mount; render loading state synchronously so the user gets
      immediate feedback even if git takes a few hundred ms. */
@@ -171,7 +171,7 @@ export function diffPage(workspaceId: string, filePath: string): HTMLElement {
 
   void (async () => {
     try {
-      const d = await api.gitDiff(workspaceId, filePath);
+      const d = await api.gitDiff(workspaceId, filePath, staged);
       slot.innerHTML = '';
       if (!d.isRepo) {
         slot.append(errorBody('Not a git repository.'));

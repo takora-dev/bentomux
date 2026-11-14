@@ -25,7 +25,7 @@ export function tabFor(id: string | null): TabEntry | undefined {
 export function tabKey(route: Route): string {
   if (route.view === 'terminal') return 'term:' + route.tabId;
   if (route.view === 'agentDetail') return 'agent:' + route.agentId + ':' + route.tab;
-  if (route.view === 'diff') return 'diff:' + route.workspaceId + ':' + route.path;
+  if (route.view === 'diff') return 'diff:' + route.workspaceId + ':' + (route.staged ? 'staged:' : 'unstaged:') + route.path;
   if (route.view === 'commit') return 'commit:' + route.workspaceId + ':' + route.oid;
   if (route.view === 'plugin') return 'plugin:' + route.pluginId + ':' + route.tabId;
   return route.view;
@@ -57,7 +57,7 @@ export function tabTitle(t: TabEntry): string {
     const name = db.agents?.find(a => a.id === route.agentId)?.name || route.agentId;
     return name + ' · ' + cap;
   }
-  if (route.view === 'diff') return diffTabTitle(route.path);
+  if (route.view === 'diff') return diffTabTitle(route.path) + (route.staged ? ' (staged)' : '');
   if (route.view === 'commit') return route.short;
   if (route.view === 'plugin') return t.title || route.title;
   return 'Agents';
