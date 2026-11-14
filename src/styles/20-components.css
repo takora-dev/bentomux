@@ -550,7 +550,9 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .xterm,.xterm .xterm-viewport,.xterm .xterm-screen{border-radius:0}
 /* Keep xterm's native viewport in charge of scrollback. Hiding overflow
    leaves wheel/trackpad scrolling intact while avoiding a second scrollbar. */
-.xterm .xterm-viewport{overflow-y:scroll!important;scrollbar-width:none}
+/* xterm ships a black viewport behind its renderer; keep uncovered pixels
+   on the terminal canvas color too. Wallpaper rules override this below. */
+.xterm .xterm-viewport{background-color:var(--terminal-bg,var(--content-bg));overflow-y:scroll!important;scrollbar-width:none}
 .xterm .xterm-viewport::-webkit-scrollbar{display:none;width:0;height:0}
 
 /* split view: recursive panes in one tab — 'v' axes side by side, 'h' stacked.
@@ -622,8 +624,8 @@ body.tabstrip-hidden .titlebar #tabstrip{display:none}
 .ctx-item:hover .ctx-chev{color:inherit}
 
 /* ---------------- shared floating glass ----------------
-   Modals, menus and flyouts are solid in light mode and translucent in dark
-   mode; tooltips stay solid. Keep the dismissal overlay unfiltered. */
+   Modals, menus and flyouts opt into glass in dark mode; select options and
+   tooltips stay solid for readability. Keep the dismissal overlay unfiltered. */
 :root :is(.dialog,.ctx-menu,.remote-pop,.ws-flyout,.app-tooltip,.update-banner){
   background:var(--floating-solid);
   border-color:var(--floating-edge);
@@ -636,6 +638,8 @@ body.tabstrip-hidden .titlebar #tabstrip{display:none}
   --ink-2:var(--chrome-text-secondary);
   --ink-3:var(--chrome-text-muted);
 }
+/* Dense modal material keeps Settings and Search readable over busy content. */
+:root.dark.appearance-glass .dialog{--floating-opacity:95%}
 :root .overlay{background:rgba(32,29,25,.08)}
 :root.dark .overlay{background:rgba(8,8,10,.06)}
 /* Avoid opaque fields and cards hiding the dialog's translucent material. */
@@ -654,6 +658,12 @@ body.tabstrip-hidden .titlebar #tabstrip{display:none}
   background:var(--tint);
   color:var(--ink);
 }
+/* Default dark selections are distinct from hover, including floating UI. */
+:root.dark:not([class*="palette-"]) :is(.dialog,.ctx-menu,.remote-pop,.ws-flyout)
+  :is(.nav-item,.search-palette-item,.ctx-item):not(.disabled):not(:disabled).active,
+:root.dark:not([class*="palette-"]) :is(.dialog,.remote-pop) .seg :is(button,.seg-opt).on{
+  background:var(--selection-bg);
+}
 :root .dialog :is(.palette-select,.key-chip,.select-input):hover{background-color:var(--tint)}
 :root .dialog .search-palette-item.active .item-sub{color:var(--ink-3);opacity:1}
 /* Native option popups cannot be backdrop-filtered; keep their text readable. */
@@ -665,16 +675,15 @@ body.tabstrip-hidden .titlebar #tabstrip{display:none}
   font:11.5px/1.45 var(--sans);white-space:pre-line;overflow-wrap:anywhere;overflow:hidden;
 }
 @supports ((backdrop-filter:blur(8px)) or (-webkit-backdrop-filter:blur(8px))){
-  :root.dark :is(.dialog,.ctx-menu,.remote-pop,.ws-flyout,.update-banner){
+  :root.dark.appearance-glass :is(.dialog,.ctx-menu:not(.select-menu),.remote-pop,.ws-flyout,.update-banner){
     background:color-mix(in srgb,var(--floating-solid) var(--floating-opacity),transparent);
-    /* Keep backdrop details visible; heavy blur reads as an opaque fill. */
-    -webkit-backdrop-filter:blur(8px);
-    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(var(--glass-blur));
+    backdrop-filter:blur(var(--glass-blur));
   }
 }
 @media (prefers-reduced-transparency:reduce),(prefers-contrast:more),(forced-colors:active){
-  :root.dark{--floating-control:var(--floating-solid)}
-  :root.dark :is(.dialog,.ctx-menu,.remote-pop,.ws-flyout,.app-tooltip,.update-banner){
+  :root{--floating-control:var(--floating-solid)}
+  :root.dark.appearance-glass :is(.dialog,.ctx-menu,.remote-pop,.ws-flyout,.app-tooltip,.update-banner){
     background:var(--floating-solid);
     -webkit-backdrop-filter:none;
     backdrop-filter:none;

@@ -91,10 +91,11 @@ describe('sidebar shell layout', () => {
     mountShell();
     $('#content').classList.add('full', 'fullbleed');
     const chromeFill = dark ? 'transparent' : getComputedStyle(document.documentElement).getPropertyValue('--surface');
-    expect(getComputedStyle($('.sidebar')).backgroundColor).toBe(chromeFill);
-    expect(getComputedStyle($('#titlebar')).backgroundColor).toBe(chromeFill);
+    expect(getComputedStyle($('.sidebar')).backgroundColor).toBe(dark ? '#25242E' : chromeFill);
+    expect(getComputedStyle($('#titlebar')).backgroundColor).toBe(dark ? '#25242E' : chromeFill);
     const content = getComputedStyle($('#content'));
-    expect(content.backgroundColor).toBe(getComputedStyle(document.documentElement).getPropertyValue('--content-bg'));
+    const root = getComputedStyle(document.documentElement);
+    expect(content.backgroundColor).toBe(root.getPropertyValue('--terminal-bg') || root.getPropertyValue('--content-bg'));
     expect(content.borderTopLeftRadius).toBe('12px');
     expect(content.borderTopRightRadius).toBe('12px');
     expect(content.borderBottomLeftRadius).toBe('12px');
@@ -104,15 +105,32 @@ describe('sidebar shell layout', () => {
     expect(content.margin).toBe('0px 8px 8px 0px');
   });
 
-  it('softens chrome text without changing the content palette or layout', () => {
+  it.each(['', 'dark', 'dark appearance-glass', 'dark palette-pastel-pixel'])('outlines main content without changing its layout (%s)', classes => {
+    document.documentElement.className = classes;
+    mountShell();
+    const content = getComputedStyle($('#content'));
+    expect(content.outlineStyle).toBe('solid');
+    expect(content.outlineWidth).toBe('1px');
+    expect(content.outlineOffset).toBe('-1px');
+    expect(content.outlineColor).toBe(getComputedStyle(document.documentElement).getPropertyValue('--line'));
+    expect(['', 'none']).toContain(content.boxShadow);
+    for (const width of [content.borderTopWidth, content.borderRightWidth, content.borderBottomWidth, content.borderLeftWidth]) {
+      expect(['', '0px']).toContain(width);
+    }
+    expect(content.borderTopLeftRadius).toBe('12px');
+  });
+
+  it('uses the purple charcoal default theme without changing layout', () => {
     document.documentElement.classList.add('dark');
     mountShell();
     const root = getComputedStyle(document.documentElement);
     const sidebar = getComputedStyle($('.sidebar'));
     const titlebar = getComputedStyle($('#titlebar'));
-    expect(root.getPropertyValue('--surface')).toBe('#222428');
-    expect(root.getPropertyValue('--bg')).toBe('#17181B');
-    expect(sidebar.color).toBe('#E3E6EB');
+    expect(root.getPropertyValue('--surface')).toBe('#25242E');
+    expect(root.getPropertyValue('--bg')).toBe('#25242E');
+    expect(root.getPropertyValue('--content-bg')).toBe('#282C34');
+    expect(sidebar.backgroundColor).toBe('#25242E');
+    expect(sidebar.color).toBe('#E6E7ED');
     expect(titlebar.color).toBe(sidebar.color);
     expect(getComputedStyle($('.sidebar-gear')).color).toBe('#C1C7D0');
     expect(getComputedStyle($('#content')).color).toBe(getComputedStyle(document.body).color);
@@ -127,6 +145,71 @@ describe('sidebar shell layout', () => {
     expect(getComputedStyle($('#content')).getPropertyValue('backdrop-filter')).toBe('');
   });
 
+  it.each([false, true])('matches the default topbar and bottom frame to the sidebar (compact: %s)', compact => {
+    document.documentElement.classList.add('dark');
+    mountShell(compact);
+    for (const selector of ['.sidebar', '#titlebar', '#win']) {
+      expect(getComputedStyle($(selector)).backgroundColor, selector).toBe('#25242E');
+    }
+    // Glass is opt-in; the exposed bottom frame uses the opaque solid token.
+    expect(document.documentElement.classList.contains('appearance-glass')).toBe(false);
+    expect(getComputedStyle($('.app')).getPropertyValue('--chrome-solid')).toBe('#25242E');
+    for (const selector of ['.sidebar-actions', '#sidebarBottom']) {
+      expect(['', 'transparent', 'rgba(0, 0, 0, 0)'], selector).toContain(getComputedStyle($(selector)).backgroundColor);
+    }
+  });
+
+  it.each([false, true])('brightens default workspace selections without changing other colors (Glass: %s)', glass => {
+    document.documentElement.className = glass ? 'dark appearance-glass' : 'dark';
+    mountShell();
+    const root = getComputedStyle(document.documentElement);
+    expect(root.getPropertyValue('--tint')).toBe('#30313B');
+    expect(root.getPropertyValue('--selection-bg')).toBe('#343440');
+    expect(root.getPropertyValue('--workspace-active-bg')).toBe('#41404F');
+    expect(root.getPropertyValue('--accent')).toBe('#8B9CF4');
+    expect(root.getPropertyValue('--accent-ink')).toBe('#8B9CF4');
+    expect(root.getPropertyValue('--line')).toBe('#393B47');
+    expect(root.getPropertyValue('--line-2')).toBe('#393B47');
+    for (const className of ['nav-item active', 'nav-item workspace-child active', 'ws-rail-item active']) {
+      const item = h('button', { class: className });
+      $('.sidebar').append(item);
+      expect(getComputedStyle(item).backgroundColor, className).toBe(className === 'nav-item active' ? '#343440' : '#41404F');
+    }
+    const tab = h('button', { class: 'tab active' });
+    $('#titlebar').append(tab);
+    expect(getComputedStyle(tab).backgroundColor).toBe('#343440');
+    expect(getComputedStyle($('#win')).outlineColor).toBe('#393B47');
+  });
+
+  it.each(['palette-pastel-pixel', 'dark palette-pastel-pixel', 'dark palette-pastel-pixel appearance-glass'])('keeps the Pastel Pixel main frame neutral and focused terminal edge orange (%s)', classes => {
+    document.documentElement.className = classes;
+    mountShell();
+    $('#content').classList.add('full', 'fullbleed');
+    const focused = h('div', { class: 'terminal-host' });
+    const inactive = h('div', { class: 'terminal-host' });
+    $('#tabbody').append(h('div', { class: 'mux-body split' },
+      h('div', { class: 'pane focused' }, focused),
+      h('div', { class: 'pane' }, inactive)));
+    const root = getComputedStyle(document.documentElement);
+    const orange = root.getPropertyValue('--accent');
+    expect(orange).toBe(classes.includes('dark') ? '#f5a75e' : '#e5944f');
+    expect(getComputedStyle($('#content')).outlineColor).toBe(root.getPropertyValue('--line'));
+    expect(getComputedStyle($('#content')).outlineWidth).toBe('1px');
+    expect(getComputedStyle(focused).borderColor).toBe(orange);
+    expect(getComputedStyle(focused).borderTopWidth).toBe('1px');
+    expect(getComputedStyle(inactive).borderColor).toBe(root.getPropertyValue('--line'));
+  });
+
+  it('keeps the Pastel Pixel palette independent of the default theme', () => {
+    document.documentElement.className = 'dark palette-pastel-pixel';
+    mountShell();
+    const root = getComputedStyle(document.documentElement);
+    expect(root.getPropertyValue('--bg')).toBe('#332e46');
+    expect(root.getPropertyValue('--accent')).toBe('#f5a75e');
+    expect(root.getPropertyValue('--line')).toBe('#453f5e');
+    expect(getComputedStyle($('.sidebar')).backgroundColor).toBe('transparent');
+  });
+
   it.each([false, true])('shares the floating material outside the app frame (dark: %s)', dark => {
     document.documentElement.classList.toggle('dark', dark);
     mountShell();
@@ -136,7 +219,7 @@ describe('sidebar shell layout', () => {
     dialog.classList.add('cmd-palette');
     const reference = getComputedStyle(dialog);
     expect(reference.borderTopLeftRadius).toBe('12px');
-    expect(getComputedStyle(document.documentElement).getPropertyValue('--floating-opacity')).toBe(dark ? '32%' : '100%');
+    expect(getComputedStyle(document.documentElement).getPropertyValue('--floating-opacity')).toBe('100%');
     for (const className of ['ctx-menu', 'remote-pop', 'ws-flyout', 'app-tooltip', 'update-banner']) {
       const panel = h('div', { class: className }, 'Floating text');
       document.body.append(panel);
@@ -147,7 +230,7 @@ describe('sidebar shell layout', () => {
       expect(style.color).toBe(reference.color);
       expect(style.boxShadow).toBe(reference.boxShadow);
     }
-    expect(reference.color).toBe(dark ? '#E3E6EB' : getComputedStyle(document.body).color);
+    expect(reference.color).toBe(dark ? '#E6E7ED' : getComputedStyle(document.body).color);
     expect(getComputedStyle(dialog.querySelector('input')!).color).toBe(reference.color);
   });
 
@@ -261,17 +344,17 @@ describe('sidebar shell layout', () => {
     // happy-dom cannot render backdrop-filter or color-mix; guard these
     // declarations directly rather than claiming to test their visual output.
     expect(componentCss).toContain('background:color-mix(in srgb,var(--floating-solid) var(--floating-opacity),transparent)');
-    expect(componentCss).toContain('backdrop-filter:blur(8px)');
-    expect(componentCss).toMatch(/@supports[^\{]+\{\s*:root\.dark :is\(/);
-    expect(frameCss).toMatch(/@supports[^\{]+\{\s*:root\.dark \.win\{/);
+    expect(componentCss).toContain('backdrop-filter:blur(var(--glass-blur))');
+    expect(componentCss).toMatch(/@supports[^\{]+\{\s*:root\.dark\.appearance-glass :is\(/);
+    expect(frameCss).toMatch(/@supports[^\{]+\{\s*:root\.dark\.appearance-glass \.win\{/);
     expect(componentCss).toMatch(/:root :is\(\.dialog,\.remote-pop\) :is\([^)]*\.field select[^)]*\.update-status-card[^)]*\)\{\s*background-color:var\(--floating-control\)/);
     expect(componentCss).toMatch(/@media \(prefers-reduced-transparency:reduce\),\(prefers-contrast:more\),\(forced-colors:active\)\{[\s\S]*background:var\(--floating-solid\);\s*-webkit-backdrop-filter:none;\s*backdrop-filter:none;/);
   });
 
-  it.each([false, true])('matches floating item selections to the sidebar (dark: %s)', dark => {
+  it.each([false, true])('keeps floating item selections on the neutral theme fill (dark: %s)', dark => {
     document.documentElement.classList.toggle('dark', dark);
     mountShell();
-    const reference = h('button', { class: 'nav-item workspace-child active' }, 'Sidebar');
+    const reference = h('button', { style: `background:var(${dark ? '--selection-bg' : '--tint'})` }, 'Neutral selection');
     $('.sidebar').append(reference);
     const tint = getComputedStyle(reference).backgroundColor;
     for (const [panelClass, itemClass] of [
@@ -306,18 +389,20 @@ describe('sidebar shell layout', () => {
     const title = h('span', { class: 'workspace-name' }, 'Claude Code');
     const icon = runtimeIcon('claude', true);
     const row = h('button', { class: 'nav-item sub workspace-child active', style: '--runtime-color:#D97757' }, icon, title);
-    const sidebarHover = h('button', { style: 'background:var(--tint)' });
-    $('.sidebar').append(row, sidebarHover);
-    expect(getComputedStyle(row).backgroundColor).toBe(getComputedStyle(sidebarHover).backgroundColor);
+    const selectedFill = dark ? '--selection-bg' : '--tint';
+    const workspaceFill = dark ? '--workspace-active-bg' : '--tint';
+    const sidebarSelection = h('button', { style: `background:var(${workspaceFill})` });
+    $('.sidebar').append(row, sidebarSelection);
+    expect(getComputedStyle(row).backgroundColor).toBe(getComputedStyle(sidebarSelection).backgroundColor);
     expect(getComputedStyle(title).color).toBe(getComputedStyle($('.sidebar')).color);
     expect(icon.querySelector('[fill="#D97757"]')).not.toBeNull();
 
     const tile = markup('span', { class: 'tab-tile' }, IC.term);
     const tab = h('button', { class: 'tab active' }, tile, h('span', { class: 'tabname' }, 'Terminal'));
-    const topbarHover = h('button', { style: 'background:var(--tint)' });
+    const topbarSelection = h('button', { style: `background:var(${selectedFill})` });
     $('#tabstrip').append(tab);
-    $('#titlebar').append(topbarHover);
-    expect(getComputedStyle(tab).backgroundColor).toBe(getComputedStyle(topbarHover).backgroundColor);
+    $('#titlebar').append(topbarSelection);
+    expect(getComputedStyle(tab).backgroundColor).toBe(getComputedStyle(topbarSelection).backgroundColor);
     expect(getComputedStyle(tab).color).toBe(getComputedStyle($('#titlebar')).color);
     expect(getComputedStyle(tab).borderTopLeftRadius).toBe('8px');
     expect(getComputedStyle(tab).height).toBe('28px');

@@ -98,8 +98,18 @@ export interface Backgrounds {
   terminal?: BackgroundSpec;
 }
 
+/* Optional chrome + popup glass; content and terminal canvases stay opaque.
+   Opacity is a percentage (0–100), blur is CSS pixels (0–40). */
+export interface AppearanceEffects {
+  enabled: boolean;
+  opacity: number;
+  blur: number;
+}
+
 export interface Prefs {
   theme?: 'light' | 'dark' | 'system';
+  /* absent = solid; effect values are retained while the effect is off */
+  appearanceEffects?: AppearanceEffects;
   palette?: PaletteName;
   /* source colors for the 'custom' palette; absent = built-in default */
   customPalette?: CustomPalette;

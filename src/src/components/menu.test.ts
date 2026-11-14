@@ -26,6 +26,22 @@ describe('context menu lifecycle', () => {
     expect(contextMenuAnchoredTo(document.body)).toBe(false);
   });
 
+  it('uses the solid select surface for a palette listbox and preserves swatches', () => {
+    const choose = vi.fn();
+    const anchor = document.createElement('button');
+    openContextMenu(10, 10, [
+      { label: 'Default', swatch: ['#25242e', '#8b9cf4'], action: choose },
+      { label: 'Nord', swatch: ['#2e3440', '#88c0d0'] },
+    ], anchor, { role: 'listbox', id: 'palette-options', selectedIndex: 0 });
+    const menu = document.querySelector('[role="listbox"]');
+    expect(menu?.classList.contains('select-menu')).toBe(true);
+    expect(menu?.querySelectorAll('.ctx-swatch > span')).toHaveLength(4);
+    const option = menu?.querySelector<HTMLButtonElement>('[role="option"]');
+    expect(option?.getAttribute('aria-selected')).toBe('true');
+    option?.click();
+    expect(choose).toHaveBeenCalledOnce();
+  });
+
   it('replaces the previous menu instead of stacking a second one', () => {
     openContextMenu(10, 10, entries());
     openContextMenu(40, 40, entries());

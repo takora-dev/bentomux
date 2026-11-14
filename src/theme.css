@@ -30,20 +30,46 @@
   --r-sm:4px;--r-md:8px;--r-lg:12px;--r-full:999px;
   --term-pad:5px;
   --term-pad-in:10px;
-  /* Light floating surfaces are solid; dark mode opts into translucency. */
+  /* Surfaces are solid by default; Appearance can opt into glass in dark mode only. */
+  --glass-opacity:80%;--glass-blur:16px;
   --floating-solid:var(--surface);--floating-opacity:100%;
   --floating-edge:color-mix(in srgb,var(--ink) 9%,transparent);
   --floating-control:var(--surface);
   --floating-shadow:0 12px 36px rgba(32,29,25,.12);
 }
-/* default dark — neutral charcoal canvas, one step lighter chrome */
-:root.dark{--bg:#17181B;--surface:#222428;--ink:#E8EAED;--ink-2:#A6ABB3;--ink-3:#71767E;--line:#2C2F34;--line-2:#3B3F45;--tint:rgba(255,255,255,.07);--accent:#4C8EF9;--accent-ink:#7CACFF;--accent-tint:rgba(76,142,249,.16);--selection-bg:var(--accent-tint);--danger:#E5534B;--content-bg:#17181B;--state-idle:#4ADE80;--state-busy:#60A5FA;--state-blocked:#FBBF24}
+/* default dark — purple charcoal chrome, Slate canvas, soft periwinkle */
+:root.dark{
+  --bg:#25242E;--surface:#25242E;--content-bg:#282C34;
+  --ink:#E6E7ED;--ink-2:#A6ABB3;--ink-3:#71767E;
+  --line:#393B47;--line-2:#393B47;--tint:#30313B;
+  --accent:#8B9CF4;--accent-ink:#8B9CF4;--accent-tint:rgba(139,156,244,.16);
+  --selection-bg:#343440;--workspace-active-bg:#41404F;--danger:#E5534B;
+  --state-idle:#4ADE80;--state-busy:#60A5FA;--state-blocked:#FBBF24;
+}
 
 :root.dark{
   --chrome-text-primary:#E3E6EB;--chrome-text-secondary:#C1C7D0;--chrome-text-muted:#9EA7B5;
-  --floating-solid:var(--bg);--floating-opacity:32%;
+  --floating-solid:var(--bg);--floating-opacity:100%;
   --floating-control:rgba(255,255,255,.025);
   --floating-shadow:0 12px 36px rgba(8,8,10,.24);
+}
+
+/* Glass is opt-in in Appearance; only surfaces, never content opacity. */
+:root.dark.appearance-glass{--floating-opacity:var(--glass-opacity)}
+
+/* Soft Slate is the dark terminal canvas regardless of the app palette.
+   Keep palette-specific chrome, content and ANSI tokens independent. */
+:root.dark{
+  --terminal-bg:#282C34;--terminal-ink:#E2E6ED;
+  --terminal-cursor:#A8C7FA;--terminal-selection:#46546B;
+}
+
+/* The default theme shares its primary text and accent with the terminal;
+   named palettes retain their existing chrome and terminal foreground. */
+:root.dark:not([class*="palette-"]){
+  --chrome-text-primary:#E6E7ED;
+  --terminal-ink:var(--ink);--terminal-cursor:var(--accent);
+  --terminal-selection:var(--selection-bg);
 }
 
 /* ---------------- palettes (light + dark) ----------------

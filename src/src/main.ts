@@ -63,6 +63,7 @@ const MIN_SIDEBAR_WIDTH = 248;
 const MAX_SIDEBAR_RATIO = 0.5;
 
 import { CUSTOM_KEYS, DEFAULT_CUSTOM_PALETTE, PALETTES } from '../shared/types';
+import { applyAppearanceEffects } from './appearance-effects';
 
 /* ---------------- render root ---------------- */
 
@@ -206,6 +207,7 @@ function applyShellPrefs(): void {
      otherwise leave the boot glyph showing the wrong theme */
   paintThemeGlyph();
   applyPaletteClass(db.prefs.palette);
+  applyAppearanceEffects(db.prefs.appearanceEffects);
   applyFontPrefs();
   void applyBackgrounds();
   $('#sidebar').classList.toggle('open', ui.sidebarOpen);

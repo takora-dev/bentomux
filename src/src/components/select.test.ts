@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { selectEl } from './select';
 import { closeContextMenu } from './menu';
 import { currentModal, field, openModal } from './modal';
@@ -18,6 +19,9 @@ afterEach(() => {
   closeContextMenu();
   currentModal?.close();
   document.body.replaceChildren();
+  document.documentElement.className = '';
+  document.documentElement.removeAttribute('style');
+  document.querySelectorAll('[data-select-styles]').forEach(el => el.remove());
 });
 
 describe('palette-style select', () => {
@@ -67,6 +71,35 @@ describe('palette-style select', () => {
     expect(row(1).querySelector('.ctx-hint')?.getAttribute('aria-hidden')).toBe('true');
     expect(row(1).hasAttribute('title')).toBe(false);
     expect(select.getAttribute('aria-activedescendant')).toBe(row(1).id);
+  });
+
+  it.each(['', 'dark', 'dark palette-pastel-pixel'].flatMap(theme =>
+    [false, true].map(glass => ({ theme, glass })),
+  ))('keeps option backgrounds solid (theme: $theme, glass: $glass)', ({ theme, glass }) => {
+    const style = document.createElement('style');
+    style.dataset.selectStyles = '';
+    style.textContent = ['src/theme.css', 'src/styles/20-components.css']
+      .map(path => readFileSync(path, 'utf8')).join('\n');
+    document.head.append(style);
+    document.documentElement.className = `${theme} ${glass ? 'appearance-glass' : ''}`;
+    document.documentElement.style.setProperty('--glass-opacity', '0%');
+    const select = selectEl(options, 'b');
+    const reference = document.createElement('div');
+    reference.style.background = 'var(--floating-solid)';
+    document.body.append(select, reference);
+    select.click();
+    const menu = document.querySelector<HTMLElement>('[role="listbox"]');
+    if (!menu) throw new Error('Missing options popup');
+    const solidBackground = getComputedStyle(reference).backgroundColor;
+    expect(solidBackground).not.toBe('');
+    expect(solidBackground).not.toBe('transparent');
+    expect(getComputedStyle(menu).backgroundColor).toBe(solidBackground);
+    // happy-dom skips @supports and color-mix; also check the real glass selectors.
+    const css = style.textContent.replace(/\/\*[\s\S]*?\*\//g, '');
+    const translucentRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , declarations]) => /background:\s*color-mix\([^;]+transparent/.test(declarations));
+    expect(translucentRules.length).toBeGreaterThan(0);
+    expect(translucentRules.filter(([, selector]) => menu.matches(selector.trim()))).toHaveLength(0);
   });
 
   it('updates the label and fires input/change exactly once when picked', () => {

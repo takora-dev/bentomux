@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
-const command = process.platform === 'win32' ? 'tauri.cmd' : 'tauri';
+// Run the JS entry point directly: Windows cannot spawn npm's .cmd shim without a shell.
+const require = createRequire(import.meta.url);
+const cli = require.resolve('@tauri-apps/cli/tauri.js');
 /* --lean drops debug info and incremental artifacts: target/ stays roughly
 halved, at the cost of a coarser backtrace and slower rebuilds */
 const lean = process.argv.includes('--lean')
   ? { CARGO_PROFILE_DEV_DEBUG: '0', CARGO_PROFILE_DEV_INCREMENTAL: 'false' }
   : {};
-const child = spawn(command, ['dev', '--config', 'src-tauri/tauri.dev.conf.json'], {
+const child = spawn(process.execPath, [cli, 'dev', '--config', 'src-tauri/tauri.dev.conf.json'], {
   env: { ...process.env, ...lean, BENTOMUX_USER_DATA_SUFFIX: '-dev' },
   stdio: 'inherit',
 });

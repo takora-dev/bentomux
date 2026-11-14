@@ -7,6 +7,8 @@ import { currentModal, field, openModal } from '../components/modal';
 import { selectEl } from '../components/select';
 import { openContextMenu, closeContextMenu, contextMenuAnchoredTo } from '../components/menu';
 import { toggleSeg } from '../components/toggle';
+import { appearanceEffectsControls } from '../components/appearance-effects';
+import { applyAppearanceEffects } from '../appearance-effects';
 import { ic, IC } from '../icons';
 import { db } from '../store';
 import { setThemeMode, setPalette, applyPalette, setTerminalFont, setTerminalFontSize, applyBackgrounds, applyTabStripPref, backgroundImageUrl } from '../main';
@@ -122,7 +124,10 @@ function swatchDots(colors: string[]): HTMLElement {
 
 function buildPaletteSelect(paint: () => void): HTMLElement {
   const current: PaletteName = (db.prefs.palette as PaletteName) || 'default';
-  const btn = h('button', { class: 'palette-select', type: 'button' },
+  const btn = h('button', {
+    class: 'palette-select', type: 'button', role: 'combobox',
+    'aria-label': 'Palette', 'aria-haspopup': 'listbox', 'aria-expanded': 'false',
+  },
     swatchDots(paletteSwatch(current)),
     h('span', { class: 'palette-name' }, PALETTE_LABELS[current]),
     markup('span', { class: 'ic palette-caret' }, IC.chev));
@@ -134,7 +139,16 @@ function buildPaletteSelect(paint: () => void): HTMLElement {
       swatch: paletteSwatch(p),
       hint: p === current ? '✓' : undefined,
       action: () => { setPalette(p); paint(); },
-    })), btn);
+    })), btn, {
+      role: 'listbox', id: 'palette-options', selectedIndex: PALETTES.indexOf(current), minWidth: r.width,
+      onClose: () => {
+        btn.setAttribute('aria-expanded', 'false');
+        btn.removeAttribute('aria-controls');
+        btn.removeAttribute('aria-activedescendant');
+      },
+    });
+    btn.setAttribute('aria-expanded', 'true');
+    btn.setAttribute('aria-controls', 'palette-options');
   });
   return h('div', { class: 'palette-picker' }, btn,
     current === 'custom' ? buildCustomColors(paint) : null);
@@ -394,6 +408,8 @@ function buildAppearanceSection(paint: () => void): HTMLElement {
   return h('div', { class: 'settings-section' },
     field('Theme', buildModeSeg(paint)),
     field('Palette', buildPaletteSelect(paint)),
+    appearanceEffectsControls(db.prefs.appearanceEffects,
+      next => setPref('appearanceEffects', next, () => applyAppearanceEffects(next))),
     field('Terminal font', buildFontSelect()),
     field('Font size', buildFontSizeSelect()),
     field('Workspace labels', toggleSeg(db.prefs.showTabGroupNames !== false,

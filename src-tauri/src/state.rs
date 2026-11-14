@@ -152,10 +152,31 @@ pub struct Backgrounds {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
+pub struct AppearanceEffects {
+    pub enabled: bool,
+    /* percentage of solid color; only background paints use it */
+    pub opacity: f64,
+    pub blur: f64,
+}
+
+impl Default for AppearanceEffects {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            opacity: 80.0,
+            blur: 16.0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Prefs {
     pub theme: Option<String>,
     pub palette: Option<String>,
     pub custom_palette: Option<CustomPalette>,
+    /* absent = solid chrome and popups; terminal remains opaque */
+    pub appearance_effects: Option<AppearanceEffects>,
     /* per-zone background images; absent = plain palette colors */
     pub backgrounds: Option<Backgrounds>,
     /* terminal font family (CSS font stack) + size in px; absent = built-in default */
@@ -213,6 +234,7 @@ impl Default for Prefs {
             theme: Some("system".to_string()),
             palette: Some("default".to_string()),
             custom_palette: None,
+            appearance_effects: None,
             backgrounds: None,
             font: None,
             font_size: None,
@@ -731,6 +753,30 @@ mod tests {
         assert_eq!(st.active_workspace_id.as_deref(), Some("ws-1"));
         assert_eq!(st.prefs.theme.as_deref(), Some("dark"));
         assert_eq!(st.prefs.font_size, Some(14.0));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn appearance_effects_persist_with_camel_case_and_old_stores_stay_solid() {
+        let old: Prefs = serde_json::from_value(serde_json::json!({"theme": "dark"})).unwrap();
+        assert!(old.appearance_effects.is_none());
+        let path = temp_path("appearance-effects");
+        let effects = AppearanceEffects {
+            enabled: true,
+            opacity: 65.0,
+            blur: 12.0,
+        };
+        {
+            let mgr = AppStateManager::new(path.clone());
+            mgr.patch_prefs(|p| p.appearance_effects = Some(effects.clone()));
+            mgr.flush();
+        }
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(json["prefs"]["appearanceEffects"]["opacity"], 65.0);
+        assert!(json["prefs"].get("appearance_effects").is_none());
+        let mgr = AppStateManager::new(path.clone());
+        assert_eq!(mgr.get_state().prefs.appearance_effects, Some(effects));
         cleanup(&path);
     }
 

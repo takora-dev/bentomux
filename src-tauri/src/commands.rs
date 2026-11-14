@@ -15,8 +15,8 @@ use crate::split_tree::{
     tree_has_key, tree_has_leaf, Dir, PaneNode,
 };
 use crate::state::{
-    AppState, AppStateManager, Backgrounds, CustomPalette, OverlaySize, Prefs, RemotePrefs, TabRec,
-    WorkspaceRec,
+    AppState, AppStateManager, AppearanceEffects, Backgrounds, CustomPalette, OverlaySize, Prefs,
+    RemotePrefs, TabRec, WorkspaceRec,
 };
 use std::collections::HashMap;
 
@@ -270,6 +270,24 @@ fn merge_prefs(cur: &mut Prefs, p: &serde_json::Value) {
     }
     if let Some(v) = obj.get("palette").and_then(|v| v.as_str()) {
         cur.palette = Some(v.to_string());
+    }
+    if let Some(v) = obj.get("appearanceEffects") {
+        if v.is_null() {
+            cur.appearance_effects = None;
+        } else {
+            match serde_json::from_value::<AppearanceEffects>(v.clone()) {
+                Ok(effects)
+                    if effects.opacity.is_finite()
+                        && (0.0..=100.0).contains(&effects.opacity)
+                        && effects.blur.is_finite()
+                        && (0.0..=40.0).contains(&effects.blur) =>
+                {
+                    cur.appearance_effects = Some(effects);
+                }
+                Ok(_) => eprintln!("[bentomux] rejected appearanceEffects patch: out of range"),
+                Err(e) => eprintln!("[bentomux] rejected appearanceEffects patch: {}", e),
+            }
+        }
     }
     if let Some(v) = obj.get("fontSize").and_then(|v| v.as_f64()) {
         cur.font_size = Some(v);
@@ -1566,10 +1584,47 @@ pub fn background_delete(app: tauri::AppHandle, name: String) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::{
-        base64_decode, fs_list_dir, fs_read_file, is_background_name, pane_cwd, remember_recent,
-        safe_temp_name, validate_backgrounds, FS_MAX_TEXT_BYTES, MAX_RECENT_FOLDERS,
+        base64_decode, fs_list_dir, fs_read_file, is_background_name, merge_prefs, pane_cwd,
+        remember_recent, safe_temp_name, validate_backgrounds, FS_MAX_TEXT_BYTES,
+        MAX_RECENT_FOLDERS,
     };
     use crate::state::{BackgroundPosition, BackgroundSpec, Backgrounds, Prefs};
+
+    #[test]
+    fn appearance_effects_patches_preserve_omitted_fields_and_validate_ranges() {
+        let mut prefs = Prefs::default();
+        assert!(prefs.appearance_effects.is_none());
+        merge_prefs(
+            &mut prefs,
+            &serde_json::json!({"appearanceEffects": {"enabled": true, "opacity": 65, "blur": 12}}),
+        );
+        let saved = prefs.appearance_effects.clone().unwrap();
+        assert!(saved.enabled);
+        assert_eq!(saved.opacity, 65.0);
+        assert_eq!(saved.blur, 12.0);
+        merge_prefs(&mut prefs, &serde_json::json!({"fontSize": 14}));
+        assert_eq!(prefs.appearance_effects.as_ref(), Some(&saved));
+        for invalid in [
+            serde_json::json!({"enabled": true, "opacity": -1, "blur": 12}),
+            serde_json::json!({"enabled": true, "opacity": 101, "blur": 12}),
+            serde_json::json!({"enabled": true, "opacity": 65, "blur": -1}),
+            serde_json::json!({"enabled": true, "opacity": 65, "blur": 41}),
+            serde_json::json!({"enabled": "yes", "opacity": 65, "blur": 12}),
+        ] {
+            merge_prefs(
+                &mut prefs,
+                &serde_json::json!({"appearanceEffects": invalid}),
+            );
+            assert_eq!(prefs.appearance_effects.as_ref(), Some(&saved));
+        }
+        merge_prefs(
+            &mut prefs,
+            &serde_json::json!({"appearanceEffects": {"enabled": false, "opacity": 0, "blur": 0}}),
+        );
+        assert!(!prefs.appearance_effects.as_ref().unwrap().enabled);
+        merge_prefs(&mut prefs, &serde_json::json!({"appearanceEffects": null}));
+        assert!(prefs.appearance_effects.is_none());
+    }
 
     #[test]
     fn background_names_cannot_leave_the_backgrounds_dir() {

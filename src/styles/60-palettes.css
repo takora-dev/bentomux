@@ -32,6 +32,9 @@
    could clip glyphs until the next fit. The --px-* tokens live in the
    palette block above. */
 
+/* Keep the focused terminal edge orange without changing the main content frame. */
+:root.palette-pastel-pixel .mux-body.split .pane.focused .terminal-host{border-color:var(--accent)}
+
 :root.palette-pastel-pixel .btn,
 :root.dark.palette-pastel-pixel .btn{
   border-width:2px;border-radius:var(--r-md);

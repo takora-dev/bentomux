@@ -14,7 +14,8 @@
 .settings-content{padding:16px 18px 18px;max-height:70vh;overflow-y:auto}
 /* a section that fetches its own module paints this for one frame */
 .settings-loading{margin:0;color:var(--ink-3);font-size:13px}
-.settings-section{display:flex;flex-direction:column;gap:12px}
+.settings-section,.appearance-effects{display:flex;flex-direction:column;gap:12px}
+:root:not(.dark) .appearance-effects{display:none}
 .settings-section-h{
   font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
   color:var(--ink-3);margin:0 0 2px;

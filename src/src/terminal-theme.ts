@@ -70,7 +70,8 @@ const FALLBACK_ANSI: Record<'light' | 'dark', Record<string, string>> = {
 
 export function xtermTheme(): Record<string, string> {
   const fb = FALLBACK_ANSI[document.documentElement.classList.contains('dark') ? 'dark' : 'light'];
-  const ink = toXtermColor(cssVar('--ink'), '#292827');
+  const ink = toXtermColor(cssVar('--terminal-ink') || cssVar('--ink'), '#292827');
+  const canvas = toXtermColor(cssVar('--terminal-bg') || cssVar('--content-bg'), '#FAFAFA');
   /* with a workspace or terminal wallpaper active (html.bg-content /
      html.bg-terminal, set by applyBackgrounds) an image is painted behind
      the panes — the terminal canvas goes transparent and readability is the
@@ -79,13 +80,13 @@ export function xtermTheme(): Record<string, string> {
      it. */
   const root = document.documentElement.classList;
   const transparentBg = root.contains('bg-content') || root.contains('bg-terminal');
-  const bg = transparentBg ? 'rgba(0,0,0,0)' : toXtermColor(cssVar('--content-bg'), '#FAFAFA');
+  const bg = transparentBg ? 'rgba(0,0,0,0)' : canvas;
   const theme: Record<string, string> = {
     background: bg,
     foreground: ink,
-    cursor: toXtermColor(cssVar('--ink-2'), '#686766'),
-    cursorAccent: toXtermColor(cssVar('--content-bg'), '#FAFAFA'),
-    selectionBackground: selectionColor('rgba(35,42,52,.25)'),
+    cursor: toXtermColor(cssVar('--terminal-cursor') || cssVar('--ink-2'), '#686766'),
+    cursorAccent: canvas,
+    selectionBackground: toXtermColor(cssVar('--terminal-selection'), selectionColor('rgba(35,42,52,.25)')),
     selectionForeground: ink,
   };
   for (const [key, cssName] of ANSI_VARS) {

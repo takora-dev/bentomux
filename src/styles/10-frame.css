@@ -50,8 +50,9 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .identity .who{display:flex;flex-direction:column;line-height:1.3}
 .identity .sub{color:var(--ink-3);font-size:11px}
 /* The sidebar, titlebar and exposed frame share one surface. The inset content
-   is clipped to its inner corners, including full-bleed terminal pages. */
-.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;margin:0 8px 8px 0;border-radius:var(--r-lg);padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
+   is clipped to its inner corners, including full-bleed terminal pages.
+   Its inset outline restores the edge without changing xterm's measured size. */
+.content{grid-column:2;grid-row:2;overflow:hidden;min-height:0;min-width:0;position:relative;display:flex;flex-direction:column;margin:0 8px 8px 0;border-radius:var(--r-lg);outline:1px solid var(--line);outline-offset:-1px;padding:10px;background:var(--content-bg)}.tabstrip{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--content-bg);overflow:hidden}.tabstrip[hidden]{display:none}
 
 /* ---------------- a titlebar tab ----------------
    Tile + label + close. The active tab gets a quiet hover-like fill;
@@ -77,13 +78,16 @@ body.resizing-sidebar,.resizing-sidebar *{cursor:col-resize!important;user-selec
 .tabadd{width:24px;height:24px;align-self:center;flex:0 0 24px;margin-left:2px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-full);color:var(--ink-2);transition:background .14s ease,color .14s ease}.tabadd:hover{background:var(--tint);color:var(--ink)}.tabadd:disabled{opacity:.4;cursor:default}.tabadd:disabled:hover{background:transparent;color:var(--ink-2)}
 .tab .tabname-edit{flex:1;min-width:0;width:100%;height:20px;padding:0 5px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;outline:none}
 .newtab-options{display:flex;flex-direction:column;gap:8px}.newtab-option{display:flex;flex-direction:column;gap:2px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}.newtab-option:hover{border-color:var(--accent);background:var(--accent-tint)}.newtab-option b{font-size:13px}.newtab-option span{font-size:12px;color:var(--ink-2)}
-.terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--content-bg);color:var(--ink);font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--content-bg)}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}
+.terminal-page{display:flex;flex-direction:column;min-height:100%;background:var(--terminal-bg,var(--content-bg));color:var(--terminal-ink,var(--ink));font-family:var(--term-font,var(--mono))}.terminal-page .sess-top{background:var(--surface);border-color:var(--line)}.terminal-label{font-size:11px;color:var(--ink-3)}.terminal-external{font-size:11px;color:var(--accent-ink);text-decoration:none}.terminal-external:hover{text-decoration:underline}.mux-body{flex:1;min-height:200px;overflow:auto;margin:16px 20px;background:var(--terminal-bg,var(--content-bg))}.term-lines{font:var(--term-font-size,12.5px)/1.75 var(--term-font,var(--mono));white-space:pre-wrap}.term-lines div{min-height:1.75em}.termbar{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface)}.termbar .prompt{color:var(--accent);font:16px var(--mono)}.term-input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font:var(--term-font-size,13px) var(--term-font,var(--mono));height:30px}.term-input::placeholder{color:var(--ink-3)}.tabbody{overflow:auto;min-height:0;flex:1}.content.full .tabbody{display:flex}.content.full .tabbody>.session,.content.full .tabbody>.terminal-page{flex:1}
 /* A terminal route fills #tabbody exactly; the only scroller inside it is the
    xterm viewport. Leaving .tabbody scrollable put an ancestor scroller behind
    every pane, so one unclaimed wheel event dragged the whole window instead of
    the terminal (see wireWheelGuard in views/terminal.ts). */
+/* Match the outer canvas and tab strip to the terminal, not the app's
+   darker content token; transparent split gutters then share one surface. */
+.content.full,.content.full .tabstrip{background:var(--terminal-bg,var(--content-bg))}
 .content.full .tabbody{overflow:hidden}.maximized .win{border-radius:0}
-:root.dark .terminal-page{background:var(--bg);color:var(--ink)}
+:root.dark .terminal-page{background:var(--terminal-bg,var(--bg));color:var(--terminal-ink,var(--ink))}
 
 /* ---------------- sidebar nav ---------------- */
 
@@ -238,15 +242,14 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 .ws-flyout-new{height:28px;color:var(--ink-2)}
 .ws-flyout-new .ic{display:flex;flex:0 0 auto;opacity:.75}
 
-/* ---------------- dark frosted chrome ----------------
-   Native Acrylic (Windows) / vibrancy (macOS) blurs the desktop; CSS backdrop
-   filtering alone cannot sample outside the WebView. Keep every canvas layer
-   above that native backdrop clear, then tint the shared chrome once on .win.
-   Terminal content stays opaque; geometry and per-row rendering are unchanged. */
+/* ---------------- configurable chrome glass ----------------
+   Native Acrylic (Windows) / vibrancy (macOS) supplies the desktop backdrop.
+   The opaque .win hides it by default; Appearance opts into translucent
+   background paints without fading text, terminal content or layout. */
 :root.dark,:root.dark body{background:transparent}
 :root .app{
   --chrome-solid:var(--bg);
-  --chrome-glass:color-mix(in srgb,var(--bg) 68%,transparent);
+  --chrome-glass:color-mix(in srgb,var(--bg) var(--glass-opacity),transparent);
   --chrome-edge:color-mix(in srgb,var(--ink) 10%,transparent);
   --chrome-hover:var(--tint);
   --chrome-selection:var(--selection-bg);
@@ -255,8 +258,9 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   background:transparent;
 }
 :root.dark .app{--chrome-shadow:rgba(8,8,10,.22)}
+:root.dark .win{background:var(--chrome-solid)}
 :root .win{
-  /* Light chrome stays solid; only dark mode opts into the glass below. */
+  /* Light mode stays solid; dark mode can opt into glass in Appearance. */
   background:var(--surface);
   border-radius:var(--r-lg);
   outline:1px solid var(--chrome-edge);
@@ -270,12 +274,6 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   --ink-3:var(--chrome-text-muted);
   background-color:transparent;
   color:var(--ink);
-}
-:root.dark .content{
-  /* An inset edge, not a layout border: xterm's measured size is unchanged. */
-  outline:1px solid var(--chrome-edge);
-  outline-offset:-1px;
-  box-shadow:0 4px 20px rgba(8,8,10,.16);
 }
 :root.dark .sidebar :is(.nav-item,.folder){border-radius:var(--r-lg)}
 :root.dark .sidebar :is(.nav-item,.folder,.iconbtn),
@@ -295,19 +293,29 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
   box-shadow:inset 0 0 0 1px var(--chrome-edge);
   color:var(--ink);
 }
+/* The default dark palette uses exact surface colors rather than glass
+   blending, and distinguishes a selected item from its hover state. */
+:root.dark:not([class*="palette-"]) .app{--chrome-edge:var(--line)}
+:root.dark:not(.appearance-glass):not([class*="palette-"]) .sidebar,
+:root.dark:not(.appearance-glass):not([class*="palette-"]) .titlebar{background-color:var(--bg)}
+:root.dark.appearance-glass,:root.dark.appearance-glass body{background:transparent}
+:root.dark.appearance-glass .sidebar,:root.dark.appearance-glass .titlebar{background-color:transparent}
+:root.dark:not([class*="palette-"]) .sidebar .ws-rail-item:hover{background:var(--tint)}
+:root.dark:not([class*="palette-"]) .sidebar :is(.workspace-child.active,.ws-rail-item.active){background:var(--workspace-active-bg)}
+:root.dark:not([class*="palette-"]) .titlebar .tab.active{background:var(--selection-bg)}
 /* Native maximize/fullscreen must still fill the window without corner gaps. */
 :root body.maximized .win,:root.fullscreen .win{border-radius:0;outline:0;box-shadow:none}
 @supports ((backdrop-filter:blur(40px)) or (-webkit-backdrop-filter:blur(40px))){
-  :root.dark .win{
+  :root.dark.appearance-glass .win{
     background:var(--chrome-glass);
-    -webkit-backdrop-filter:blur(40px);
-    backdrop-filter:blur(40px);
+    -webkit-backdrop-filter:blur(var(--glass-blur));
+    backdrop-filter:blur(var(--glass-blur));
   }
 }
 /* Readability never relies on blur support or a user's transparency setting. */
 @media (prefers-reduced-transparency:reduce),(forced-colors:active){
-  :root.dark .app{background:var(--chrome-solid)}
-  :root.dark .win{
+  :root.dark.appearance-glass .app{background:var(--chrome-solid)}
+  :root.dark.appearance-glass .win{
     background:var(--chrome-solid);
     -webkit-backdrop-filter:none;
     backdrop-filter:none;
@@ -315,7 +323,7 @@ body.pane-hidden .sidebar .ws-rail:empty{border-top:0}
 }
 @media (prefers-contrast:more){
   :root .app{--chrome-edge:color-mix(in srgb,var(--ink) 26%,transparent)}
-  :root.dark .win{background:var(--chrome-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  :root.dark.appearance-glass .win{background:var(--chrome-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 @media (prefers-reduced-motion:reduce){
   :root.dark .sidebar :is(.nav-item,.folder,.iconbtn),
