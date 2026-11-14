@@ -11,19 +11,16 @@
      underneath never flashes half-built. main.ts removes it after the first
      route is rendered.
 
-     Colors read the app's own tokens with hard-coded fallbacks: before
-     styles.css loads the fallback paints (OS-theme aware, via the media
-     query below); once it loads the variables win and the splash follows the
-     user's palette and theme with no extra code. */
+     The background follows the app theme; the logo, text and spinner stay
+     monochrome, independent of the user's accent palette. */
   #bootSplash{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
-    background:var(--bg,#F1F2F4);color:var(--ink,#1F2328);
+    background:var(--bg,#F1F2F4);color:#000;
     font:13px/1.45 var(--sans,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif);
     transition:opacity .28s ease}
   #bootSplash .boot-card{display:flex;flex-direction:column;align-items:center;gap:14px}
-  #bootSplash .boot-mark{color:var(--accent,#2563EB)}
   #bootSplash .boot-name{font-size:15px;font-weight:600;letter-spacing:.02em}
   #bootSplash .boot-spinner{width:20px;height:20px;border-radius:50%;
-    border:2px solid var(--tint,rgba(31,35,40,.14));border-top-color:var(--accent,#2563EB);
+    border:2px solid rgba(0,0,0,.14);border-top-color:currentColor;
     animation:boot-spin .8s linear infinite}
   #bootSplash.boot-splash--done{opacity:0;pointer-events:none}
   #bootSplash .boot-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -34,16 +31,14 @@
      persisted theme cannot be known yet either way — it arrives with the
      state that boot is still fetching. */
   @media (prefers-color-scheme: dark){
-    #bootSplash{background:#17181B;color:#E8EAED}
-    #bootSplash .boot-mark{color:#4C8EF9}
-    #bootSplash .boot-spinner{border-color:rgba(232,234,237,.16);border-top-color:#4C8EF9}
+    #bootSplash{background:#17181B;color:#fff}
+    #bootSplash .boot-spinner{border-color:rgba(255,255,255,.16);border-top-color:currentColor}
   }
   /* the persisted theme wins the moment boot applies it, even when it
      disagrees with the OS guess above; variables are trustworthy here, so
      the splash follows the user's palette */
-  html.dark #bootSplash{background:var(--bg,#17181B);color:var(--ink,#E8EAED)}
-  html.dark #bootSplash .boot-mark{color:var(--accent,#4C8EF9)}
-  html.dark #bootSplash .boot-spinner{border-color:var(--tint,rgba(232,234,237,.16));border-top-color:var(--accent,#4C8EF9)}
+  html.dark #bootSplash{background:var(--bg,#17181B);color:#fff}
+  html.dark #bootSplash .boot-spinner{border-color:rgba(255,255,255,.16);border-top-color:currentColor}
   @media (prefers-reduced-motion: reduce){#bootSplash .boot-spinner{animation:none}}
 </style>
 </head>
