@@ -46,6 +46,24 @@ afterEach(() => {
   document.querySelectorAll('[data-shell-test]').forEach(el => el.remove());
 });
 
+describe('terminal grip visibility', () => {
+  it('hides inactive grips and reveals the active pane grip', () => {
+    mountShell();
+    const handle = h('button', { class: 'pane-move-handle' });
+    const pane = h('div', { class: 'pane' }, handle);
+    document.body.append(pane);
+    expect(getComputedStyle(handle).opacity).toBe('0');
+    expect(getComputedStyle(handle).pointerEvents).toBe('none');
+    pane.classList.add('focused');
+    expect(getComputedStyle(handle).opacity).toBe('1');
+    expect(getComputedStyle(handle).pointerEvents).toBe('auto');
+    pane.classList.remove('focused');
+    expect(getComputedStyle(handle).opacity).toBe('0');
+    // happy-dom does not simulate hover or keyboard focus-visible states.
+    expect(componentCss).toContain('.pane:hover > .pane-move-handle,.pane-move-handle:focus-visible{opacity:1;pointer-events:auto}');
+  });
+});
+
 describe('sidebar shell layout', () => {
   it.each([false, true])('allows the native desktop backdrop only in dark mode (dark: %s)', dark => {
     for (const [path, effect] of [

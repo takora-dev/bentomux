@@ -565,6 +565,8 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .split-axis.stacked{flex-direction:column}
 .split-axis .pane{position:relative;flex:1 1 0;min-width:0;min-height:0;overflow:hidden;contain:layout paint}
 .pane-move-handle{position:absolute;z-index:4;top:calc(var(--term-pad) + 4px);right:calc(var(--term-pad) + 4px);display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--r-md);background:var(--terminal-bg,var(--content-bg));color:var(--ink-2);font:inherit;font-size:18px;cursor:grab;touch-action:none;user-select:none}
+.pane-move-handle{opacity:0;pointer-events:none}
+.pane.focused > .pane-move-handle,.pane:hover > .pane-move-handle,.pane-move-handle:focus-visible{opacity:1;pointer-events:auto}
 .pane-move-handle:hover,.pane-move-handle:focus-visible{color:var(--ink);background:var(--line);border-radius:var(--r-md)}
 body.terminal-pane-dragging,body.terminal-pane-dragging *{cursor:grabbing!important;user-select:none!important}
 .pane[data-drop-side]::after{content:'';position:absolute;z-index:5;inset:var(--term-pad);pointer-events:none;background:color-mix(in srgb,var(--accent) 22%,transparent);border:2px solid var(--accent);border-radius:var(--r-md)}
