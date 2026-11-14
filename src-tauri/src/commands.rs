@@ -11,8 +11,8 @@ use tauri::State;
 
 use crate::pty::PtyManager;
 use crate::split_tree::{
-    first_leaf_id, leaf_ids, leaf_node, new_node_key, remove_leaf, set_split_dir, split_leaf_at,
-    tree_has_key, tree_has_leaf, Dir, PaneNode,
+    first_leaf_id, leaf_ids, leaf_node, move_leaf, new_node_key, remove_leaf, set_split_dir,
+    split_leaf_at, tree_has_key, tree_has_leaf, Dir, PaneNode,
 };
 use crate::state::{
     AppState, AppStateManager, AppearanceEffects, Backgrounds, CustomPalette, OverlaySize, Prefs,
@@ -657,6 +657,46 @@ pub fn tab_split(
         split_tree: None,
         title: rec.title,
     })
+}
+
+#[tauri::command]
+pub fn tab_move_pane(
+    pane_id: String,
+    target_id: String,
+    dir: String,
+    before: bool,
+    state: State<'_, AppStateManager>,
+) -> Result<TabRec, String> {
+    let direction = match dir.as_str() {
+        "h" => Dir::H,
+        "v" => Dir::V,
+        _ => return Err("Invalid split direction".to_string()),
+    };
+    let mut result = Err("Unknown pane".to_string());
+    state.patch_state(|s| {
+        let Some(rec) = s
+            .open_tabs
+            .iter_mut()
+            .find(|r| tree_has_leaf(&tree_of(r), &pane_id))
+        else {
+            return;
+        };
+        match move_leaf(
+            tree_of(rec),
+            &pane_id,
+            &target_id,
+            direction,
+            &new_node_key(),
+            before,
+        ) {
+            Ok(tree) => {
+                *rec = rec_with_tree(rec, Some(tree));
+                result = Ok(rec.clone());
+            }
+            Err(error) => result = Err(error),
+        }
+    });
+    result
 }
 
 #[tauri::command]

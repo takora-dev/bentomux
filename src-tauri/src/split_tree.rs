@@ -189,6 +189,22 @@ pub fn remove_leaf(t: PaneNode, pane_id: &str) -> Option<PaneNode> {
     }
 }
 
+/* Move an existing shell without changing its pty identity. */
+pub fn move_leaf(
+    tree: PaneNode,
+    source: &str,
+    target: &str,
+    dir: Dir,
+    key: &str,
+    before: bool,
+) -> Result<PaneNode, String> {
+    if source == target || !tree_has_leaf(&tree, source) || !tree_has_leaf(&tree, target) {
+        return Err("Invalid pane move".to_string());
+    }
+    let remaining = remove_leaf(tree, source).ok_or_else(|| "No target pane".to_string())?;
+    Ok(split_leaf_at(remaining, target, dir, source, key, before))
+}
+
 pub fn set_split_dir(t: PaneNode, key: &str, dir: Dir) -> PaneNode {
     match t {
         leaf @ PaneNode::Leaf { .. } => leaf,
@@ -331,6 +347,47 @@ mod tests {
         let ra = remove_leaf(r2, "a").unwrap();
         let rc = remove_leaf(ra, "c");
         assert!(rc.is_none());
+    }
+
+    #[test]
+    fn test_move_leaf_all_directions_preserves_sessions() {
+        for (dir, before, expected) in [
+            (Dir::V, true, "(a v b)"),
+            (Dir::V, false, "(b v a)"),
+            (Dir::H, true, "(a h b)"),
+            (Dir::H, false, "(b h a)"),
+        ] {
+            let tree = split_leaf(leaf_node("a"), "a", Dir::V, "b", "old");
+            let moved = move_leaf(tree, "a", "b", dir, "new", before).unwrap();
+            assert_eq!(shape(&moved), expected);
+            assert!(tree_has_key(&moved, "new"));
+            assert!(!tree_has_key(&moved, "old"));
+            let mut ids = leaf_ids(&moved);
+            ids.sort();
+            assert_eq!(ids, vec!["a", "b"]);
+            let json = serde_json::to_string(&moved).unwrap();
+            assert_eq!(serde_json::from_str::<PaneNode>(&json).unwrap(), moved);
+        }
+    }
+
+    #[test]
+    fn test_move_nested_pane_collapses_old_axis() {
+        let tree = split_leaf(leaf_node("a"), "a", Dir::V, "b", "k1");
+        let tree = split_leaf(tree, "b", Dir::H, "c", "k2");
+        let moved = move_leaf(tree, "a", "c", Dir::H, "k3", false).unwrap();
+        assert_eq!(shape(&moved), "(b h (c h a))");
+        assert_eq!(first_leaf_id(&moved), "b");
+        assert!(tree_has_key(&moved, "k2"));
+        assert!(!tree_has_key(&moved, "k1"));
+    }
+
+    #[test]
+    fn test_move_rejects_self_or_missing_panes() {
+        let tree = split_leaf(leaf_node("a"), "a", Dir::V, "b", "k1");
+        for (source, target) in [("a", "a"), ("a", "missing"), ("missing", "b")] {
+            assert!(move_leaf(tree.clone(), source, target, Dir::V, "new", false).is_err());
+        }
+        assert!(move_leaf(leaf_node("a"), "a", "b", Dir::V, "new", false).is_err());
     }
 
     #[test]

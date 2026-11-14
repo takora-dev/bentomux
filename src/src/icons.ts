@@ -13,7 +13,7 @@
 import { h, markup } from './dom';
 import {
   Bell, Bot, ChevronLeft, ChevronRight, Clock, Columns2, Copy, Diamond,
-  Download, Ellipsis, Folder, FolderPlus, GitBranch, Image, Info, KeyRound,
+  Download, Ellipsis, Folder, FolderPlus, GitBranch, Grip, Image, Info, KeyRound,
   LayoutGrid, List, MessageSquare, Minus, Moon, PanelLeft, Plus, RefreshCw,
   Search, Settings, SlidersHorizontal, Smartphone, Square, SquareStack, Sun,
   Terminal, Trash2, TriangleAlert, X,
@@ -53,6 +53,7 @@ const NODES = {
   chev: ChevronRight,
   back: ChevronLeft,
   dots: Ellipsis,
+  grip: Grip,
   /* git & workspaces */
   git: GitBranch,
   folder: Folder,

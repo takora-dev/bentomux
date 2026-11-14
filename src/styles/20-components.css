@@ -564,6 +564,14 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .split-axis .split-axis{flex:1 1 0}
 .split-axis.stacked{flex-direction:column}
 .split-axis .pane{position:relative;flex:1 1 0;min-width:0;min-height:0;overflow:hidden;contain:layout paint}
+.pane-move-handle{position:absolute;z-index:4;top:calc(var(--term-pad) + 4px);right:calc(var(--term-pad) + 4px);display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--r-md);background:var(--terminal-bg,var(--content-bg));color:var(--ink-2);font:inherit;font-size:18px;cursor:grab;touch-action:none;user-select:none}
+.pane-move-handle:hover,.pane-move-handle:focus-visible{color:var(--ink);background:var(--line);border-radius:var(--r-md)}
+body.terminal-pane-dragging,body.terminal-pane-dragging *{cursor:grabbing!important;user-select:none!important}
+.pane[data-drop-side]::after{content:'';position:absolute;z-index:5;inset:var(--term-pad);pointer-events:none;background:color-mix(in srgb,var(--accent) 22%,transparent);border:2px solid var(--accent);border-radius:var(--r-md)}
+.pane[data-drop-side="left"]::after{right:50%}
+.pane[data-drop-side="right"]::after{left:50%}
+.pane[data-drop-side="top"]::after{bottom:50%}
+.pane[data-drop-side="bottom"]::after{top:50%}
 .pane-divider{flex:0 0 3px;cursor:col-resize;transition:background .12s}
 .split-axis.stacked > .pane-divider{cursor:row-resize}
 .pane-divider:hover,body.resizing-panes .pane-divider,body.resizing-stacked .pane-divider{background:var(--accent)}

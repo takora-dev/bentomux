@@ -11,6 +11,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import '@xterm/xterm/css/xterm.css';
 import { h, $ } from '../dom';
+import { ic } from '../icons';
 import { openContextMenu, type MenuEntry } from '../components/menu';
 import { emitPaneFocused } from '../main';
 import { renderSidebar } from '../render';
@@ -18,7 +19,8 @@ import { leafIds, type PaneNode } from '../../shared/split-tree';
 import type { FileDropEvent } from '../../shared/types';
 import { db } from '../store';
 import { terminalBackgroundIsTransparent, xtermTheme } from '../terminal-theme';
-import { splitTerminalPane, closeTerminalPane, setNodeDir, syncWorkspaceForPane } from './tabs';
+import { splitTerminalPane, closeTerminalPane, moveTerminalPane, setNodeDir, syncWorkspaceForPane } from './tabs';
+import { wirePaneDrag, type PaneSide } from './pane-drag';
 import { SCROLL_SENSITIVITY, wheelTargetRow } from './wheel';
 import api from '../../preload/bentomux';
 
@@ -956,7 +958,29 @@ function mountAxis(parent: HTMLElement, node: PaneNode): HTMLElement {
     const live = ensureLive(node.id);
     const pane = h('div', { class: 'pane', 'data-pane': node.id });
     parent.append(pane);
-    pane.append(live.host); /* moves out of the parking lot */
+    const move = (targetId: string, side: PaneSide): void => {
+      void moveTerminalPane(node.id, targetId, side === 'left' || side === 'right' ? 'v' : 'h', side === 'left' || side === 'top');
+    };
+    const handle = h('button', {
+      class: 'pane-move-handle',
+      type: 'button',
+      title: 'Drag onto another terminal to move left, right, above or below · arrow keys also move',
+      'aria-label': 'Move terminal: drag onto another pane or use arrow keys',
+    }, ic('grip'));
+    wirePaneDrag(handle, pane, move);
+    handle.addEventListener('keydown', e => {
+      const sides: Record<string, PaneSide> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'top', ArrowDown: 'bottom' };
+      const side = sides[e.key];
+      if (!side) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const peers = Array.from(pane.closest('.mux-body')?.querySelectorAll<HTMLElement>('.pane') ?? []);
+      const index = peers.indexOf(pane);
+      const before = side === 'left' || side === 'top';
+      const target = peers[index + (before ? -1 : 1)] ?? peers[index + (before ? 1 : -1)];
+      if (target?.dataset.pane) move(target.dataset.pane, side);
+    });
+    pane.append(handle, live.host); /* moves out of the parking lot */
     observe(pane, live);
     return pane;
   }

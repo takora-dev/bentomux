@@ -554,6 +554,7 @@ export interface BentomuxApi {
   restoreTabs(): Promise<TabRec[]>;
   createTab(workspaceId: string): Promise<TabRec>;
   splitTab(paneId: string, dir?: 'v' | 'h', key?: string, before?: boolean): Promise<TabRec>;
+  movePane(paneId: string, targetId: string, dir: 'v' | 'h', before: boolean): Promise<TabRec>;
   setSplitDir(nodeKey: string, dir: 'v' | 'h'): void;
   renameTab(id: string, title: string): void;
   closePane(paneId: string): Promise<AppState>;

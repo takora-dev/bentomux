@@ -279,6 +279,7 @@ pub fn run() {
             commands::tab_split,
             commands::tab_rename,
             commands::tab_set_dir,
+            commands::tab_move_pane,
             commands::tab_close_pane,
             commands::tab_close,
             commands::pty_write,

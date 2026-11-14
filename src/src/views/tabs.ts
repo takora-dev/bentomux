@@ -394,6 +394,27 @@ export async function splitTerminalPane(paneId: string, dir: 'v' | 'h' = 'v', be
   }
 }
 
+/* Only rearrange after persistence succeeds; the existing xterm hosts stay alive. */
+export async function moveTerminalPane(paneId: string, targetId: string, dir: 'v' | 'h', before: boolean): Promise<void> {
+  const entry = entryForPane(paneId);
+  if (!entry || entry !== entryForPane(targetId) || paneId === targetId) return;
+  try {
+    const rec = await api.movePane(paneId, targetId, dir, before);
+    if (!ui.tabs.includes(entry)) return;
+    reanchorEntryOnPaneClose(entry, rec.splitTree ?? leafNode(rec.id));
+    activity[paneId] = Date.now();
+    api.setActiveTab(entry.route.view === 'terminal' ? entry.route.tabId : null);
+    render();
+  } catch (error) {
+    console.error('move pane failed', error);
+    const modal = openModal({
+      title: 'Cannot move terminal',
+      body: h('p', {}, String(error)),
+      footer: h('div', {}, h('button', { class: 'btn primary', onclick: () => modal.close() }, 'OK')),
+    });
+  }
+}
+
 /* flip one axis between side-by-side and stacked (addressed by node key);
    the divider returns to an even 50/50 split */
 export function setNodeDir(nodeKey: string, dir: 'v' | 'h'): void {
