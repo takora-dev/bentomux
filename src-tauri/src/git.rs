@@ -1187,6 +1187,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.to_string_lossy().into_owned();
         run_process(&p, &["init", "-q"], None).expect("git init");
+        // Keep fixture bytes stable even when Windows enables automatic CRLF checkout.
+        run_process(&p, &["config", "core.autocrlf", "false"], None)
+            .expect("disable line-ending conversion in test repo");
         run_process(&p, &["config", "user.email", "test@bentomux"], None).ok();
         run_process(&p, &["config", "user.name", "test"], None).ok();
         /* hermetic vs the machine's global config: commit.gpgsign=true makes
