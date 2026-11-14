@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { loadGpuRenderer } from './terminal';
+import { loadGpuRenderer, updateTerminalTheme } from './terminal';
 
 /* xterm 6.0.0 ships only the DOM renderer: every frame it rebuilds the
    painted rows as real DOM nodes, and the WebView re-lays-out and re-paints
@@ -54,6 +54,25 @@ function fakeGl(): FakeGl {
   }));
   return { loseContext, getExtension };
 }
+
+describe('updateTerminalTheme()', () => {
+  beforeEach(() => {
+    document.documentElement.classList.remove('bg-content', 'bg-terminal');
+  });
+
+  it.each(['bg-content', 'bg-terminal'])('enables transparency for %s and disables it when removed', (backgroundClass) => {
+    const term = { options: { allowTransparency: false, theme: {} } };
+    document.documentElement.classList.add(backgroundClass);
+    updateTerminalTheme(term as never);
+    expect(term.options.allowTransparency).toBe(true);
+    expect(term.options.theme).toHaveProperty('background', 'rgba(0,0,0,0)');
+
+    document.documentElement.classList.remove(backgroundClass);
+    updateTerminalTheme(term as never);
+    expect(term.options.allowTransparency).toBe(false);
+    expect(term.options.theme).not.toHaveProperty('background', 'rgba(0,0,0,0)');
+  });
+});
 
 describe('loadGpuRenderer()', () => {
   beforeEach(() => {
