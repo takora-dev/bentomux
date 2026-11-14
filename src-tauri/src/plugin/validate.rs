@@ -847,10 +847,7 @@ fn valid_network_origin(origin: &str) -> bool {
             return false;
         }
     }
-    if rest.split(':').count() > 2 {
-        return false;
-    }
-    true
+    rest.split(':').count() <= 2
 }
 
 fn check_network(m: &PluginManifest, report: &mut ValidationReport) {
