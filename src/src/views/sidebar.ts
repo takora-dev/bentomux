@@ -351,20 +351,32 @@ function findAddedWorkspace(pickedPath: string) {
 }
 
 async function performRemoveWorkspace(wsId: string): Promise<void> {
-  setDb(await api.removeWorkspace(wsId));
-  /* drop local tab entries; main already killed the ptys */
-  ui.tabs = ui.tabs.filter(t => !(t.route.view === 'terminal' && t.workspaceId === wsId));
-  ui.history = ui.history.filter(id => ui.tabs.some(t => t.id === id));
-  ui.future = [];
+  const nextDb = await api.removeWorkspace(wsId);
+  setDb(nextDb);
+  const stillExists = nextDb.workspaces.some(w => w.id === wsId);
+  if (!stillExists) {
+    /* drop local tab entries; main already killed the ptys */
+    ui.tabs = ui.tabs.filter(t => !(t.route.view === 'terminal' && t.workspaceId === wsId));
+    ui.history = ui.history.filter(id => ui.tabs.some(t => t.id === id));
+    ui.future = [];
+  }
   ensureSomeActiveTab();
   renderSidebar();
   render();
 }
 
 function ensureSomeActiveTab(): void {
-  if (ui.tabs.some(t => t.id === ui.activeTab)) return;
-  const next = ui.tabs[0];
-  if (next) { ui.activeTab = next.id; ui.route = next.route; return; }
+  const prof = activeProfile();
+  const currentTab = ui.tabs.find(t => t.id === ui.activeTab);
+  if (currentTab && currentTab.workspaceId && prof.workspaceIds.includes(currentTab.workspaceId)) {
+    return;
+  }
+  const next = ui.tabs.find(t => t.workspaceId && prof.workspaceIds.includes(t.workspaceId));
+  if (next) {
+    ui.activeTab = next.id;
+    ui.route = next.route;
+    return;
+  }
   ui.activeTab = null;
   ui.route = { view: 'welcome' };
 }
@@ -509,8 +521,11 @@ function workspaceLabelRow(): HTMLElement {
 function applyNewAppState(nextState: typeof db): void {
   setDb(nextState);
   const prof = activeProfile();
+  if (db.activeWorkspaceId && prof.workspaceIds.includes(db.activeWorkspaceId)) {
+    db.prefs.expanded = { ...(db.prefs.expanded || {}), [db.activeWorkspaceId]: true };
+  }
   const activeTabEntry = ui.tabs.find(t => t.id === ui.activeTab);
-  if (activeTabEntry && activeTabEntry.workspaceId && !prof.workspaceIds.includes(activeTabEntry.workspaceId)) {
+  if (!activeTabEntry || !activeTabEntry.workspaceId || !prof.workspaceIds.includes(activeTabEntry.workspaceId)) {
     const nextTab = ui.tabs.find(t => t.workspaceId && prof.workspaceIds.includes(t.workspaceId));
     if (nextTab) {
       activate(nextTab.id);
@@ -794,8 +809,12 @@ function workspaceFolder(ws: { id: string; name: string; path: string }, open: b
 }
 
 async function moveWorkspaceToProfileFlow(wsId: string, targetProfileId: string): Promise<void> {
-  const nextDb = await api.moveWorkspaceToProfile(wsId, targetProfileId);
-  applyNewAppState(nextDb);
+  try {
+    const nextDb = await api.moveWorkspaceToProfile(wsId, targetProfileId);
+    applyNewAppState(nextDb);
+  } catch (err) {
+    console.error('[workspace-profile] failed to move workspace:', err);
+  }
 }
 
 function openMoveToNewProfileModal(wsId: string): void {
@@ -820,13 +839,17 @@ function openMoveToNewProfileModal(wsId: string): void {
           const val = input.value.trim();
           if (!val) return;
           m.close();
-          const newDb = await api.createProfile(val);
-          const targetProf = newDb.profiles?.find(p => p.name === val) || newDb.profiles?.[newDb.profiles.length - 1];
-          if (targetProf) {
-            const movedDb = await api.moveWorkspaceToProfile(wsId, targetProf.id);
-            applyNewAppState(movedDb);
-          } else {
-            applyNewAppState(newDb);
+          try {
+            const newDb = await api.createProfile(val);
+            const targetProf = newDb.profiles?.find(p => p.name === val) || newDb.profiles?.[newDb.profiles.length - 1];
+            if (targetProf) {
+              const movedDb = await api.moveWorkspaceToProfile(wsId, targetProf.id);
+              applyNewAppState(movedDb);
+            } else {
+              applyNewAppState(newDb);
+            }
+          } catch (err) {
+            console.error('[workspace-profile] failed to create and move workspace:', err);
           }
         },
       }, 'Create & Move')),

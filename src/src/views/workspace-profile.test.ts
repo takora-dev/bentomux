@@ -113,4 +113,44 @@ describe('workspace profiles store helpers', () => {
 
     expect(visibleWorkspaces().map(w => w.id)).toEqual(['ws-1', 'ws-2', 'ws-3']);
   });
+
+  it('scoped workspace removal does not affect other profiles sharing the workspace', () => {
+    // Both prof-a and prof-b share ws-1
+    const state: AppState = {
+      ...baseState,
+      profiles: [
+        { id: 'prof-a', name: 'Profile A', workspaceIds: ['ws-1', 'ws-2'] },
+        { id: 'prof-b', name: 'Profile B', workspaceIds: ['ws-1'] },
+      ],
+      activeProfileId: 'prof-b',
+    };
+    setDb(state);
+
+    expect(visibleWorkspaces().map(w => w.id)).toEqual(['ws-1']);
+
+    // Remove ws-1 while active in prof-b
+    const updatedProfiles = state.profiles!.map(p => {
+      if (p.id === 'prof-b') {
+        return { ...p, workspaceIds: p.workspaceIds.filter(id => id !== 'ws-1') };
+      }
+      return p;
+    });
+
+    setDb({
+      ...state,
+      profiles: updatedProfiles,
+      activeProfileId: 'prof-b',
+    });
+
+    // In prof-b, ws-1 is gone
+    expect(visibleWorkspaces()).toEqual([]);
+
+    // In prof-a, ws-1 is STILL PRESENT!
+    setDb({
+      ...state,
+      profiles: updatedProfiles,
+      activeProfileId: 'prof-a',
+    });
+    expect(visibleWorkspaces().map(w => w.id)).toEqual(['ws-1', 'ws-2']);
+  });
 });

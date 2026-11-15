@@ -481,18 +481,44 @@ pub fn workspace_remove(
     state: State<'_, AppStateManager>,
     pty: State<'_, PtyManager>,
 ) -> AppState {
-    pty.kill_terms_for_workspace(&id);
-    crate::git::unwatch_workspace(&id);
-    state.patch_state(|s| {
-        s.workspaces.retain(|w| w.id != id);
-        s.open_tabs.retain(|t| t.workspace_id != id);
-        for prof in &mut s.profiles {
-            prof.workspace_ids.retain(|w_id| w_id != &id);
+    let mut still_referenced = false;
+
+    let res = state.patch_state(|s| {
+        if let Some(prof_id) = s.active_profile_id.clone() {
+            if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == prof_id) {
+                prof.workspace_ids.retain(|w_id| w_id != &id);
+            }
+        } else {
+            for prof in &mut s.profiles {
+                prof.workspace_ids.retain(|w_id| w_id != &id);
+            }
         }
+
+        still_referenced = s
+            .profiles
+            .iter()
+            .any(|p| p.workspace_ids.iter().any(|w_id| w_id == &id));
+
+        if !still_referenced {
+            s.workspaces.retain(|w| w.id != id);
+            s.open_tabs.retain(|t| t.workspace_id != id);
+        }
+
         if s.active_workspace_id.as_deref() == Some(id.as_str()) {
-            s.active_workspace_id = None;
+            let cur_active = s
+                .active_profile_id
+                .as_ref()
+                .and_then(|prof_id| s.profiles.iter().find(|p| &p.id == prof_id));
+            s.active_workspace_id = cur_active.and_then(|p| p.workspace_ids.first().cloned());
         }
-    })
+    });
+
+    if !still_referenced {
+        pty.kill_terms_for_workspace(&id);
+        crate::git::unwatch_workspace(&id);
+    }
+
+    res
 }
 
 /* ---------------- workspace profiles (isolated environments) ---------------- */
@@ -518,6 +544,7 @@ pub fn profile_create(name: String, state: State<'_, AppStateManager>) -> AppSta
             workspace_ids: vec![],
         });
         s.active_profile_id = Some(prof_id);
+        s.active_workspace_id = None;
     })
 }
 
@@ -588,11 +615,9 @@ pub fn profile_move_workspace(
                 target_prof.workspace_ids.push(workspace_id.clone());
             }
         }
-        // If active workspace was this workspace, reset active_workspace_id to first workspace of active profile
-        if s.active_workspace_id.as_deref() == Some(workspace_id.as_str()) {
-            let cur_active = s.active_profile_id.as_ref().and_then(|id| s.profiles.iter().find(|p| &p.id == id));
-            s.active_workspace_id = cur_active.and_then(|p| p.workspace_ids.first().cloned());
-        }
+        // Switch active profile to target profile and make moved workspace active
+        s.active_profile_id = Some(target_profile_id.clone());
+        s.active_workspace_id = Some(workspace_id.clone());
     })
 }
 
@@ -2051,5 +2076,174 @@ mod tests {
         );
         assert_eq!(pane_cwd("cwd-cmd-test".into()), Some("/work/here".into()));
         crate::detect::screen::clear_snapshot("cwd-cmd-test");
+    }
+
+    #[test]
+    fn test_profile_move_workspace_switches_profile_and_active_workspace() {
+        let dir = std::env::temp_dir().join(format!("prof-move-test-{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&dir).ok();
+        let path = dir.join("bentomux.json");
+        let mgr = crate::state::AppStateManager::new(path);
+
+        mgr.patch_state(|s| {
+            s.profiles = vec![
+                crate::state::WorkspaceProfile {
+                    id: "prof-a".into(),
+                    name: "Profile A".into(),
+                    workspace_ids: vec!["ws-1".into(), "ws-2".into()],
+                },
+                crate::state::WorkspaceProfile {
+                    id: "prof-b".into(),
+                    name: "Profile B".into(),
+                    workspace_ids: vec![],
+                },
+            ];
+            s.active_profile_id = Some("prof-a".into());
+            s.active_workspace_id = Some("ws-1".into());
+        });
+
+        // Simulate moving ws-1 from prof-a to prof-b
+        mgr.patch_state(|s| {
+            let workspace_id = "ws-1".to_string();
+            let target_profile_id = "prof-b".to_string();
+            for prof in &mut s.profiles {
+                if prof.id != target_profile_id {
+                    prof.workspace_ids.retain(|w_id| w_id != &workspace_id);
+                }
+            }
+            if let Some(target_prof) = s.profiles.iter_mut().find(|p| p.id == target_profile_id) {
+                if !target_prof.workspace_ids.contains(&workspace_id) {
+                    target_prof.workspace_ids.push(workspace_id.clone());
+                }
+            }
+            s.active_profile_id = Some(target_profile_id);
+            s.active_workspace_id = Some(workspace_id);
+        });
+
+        let st = mgr.get_state();
+        assert_eq!(st.active_profile_id.as_deref(), Some("prof-b"));
+        assert_eq!(st.active_workspace_id.as_deref(), Some("ws-1"));
+        let prof_a = st.profiles.iter().find(|p| p.id == "prof-a").unwrap();
+        let prof_b = st.profiles.iter().find(|p| p.id == "prof-b").unwrap();
+        assert_eq!(prof_a.workspace_ids, vec!["ws-2".to_string()]);
+        assert_eq!(prof_b.workspace_ids, vec!["ws-1".to_string()]);
+
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn test_workspace_remove_multi_profile_isolation() {
+        let dir = std::env::temp_dir().join(format!("prof-remove-test-{}", rand::random::<u32>()));
+        std::fs::create_dir_all(&dir).ok();
+        let path = dir.join("bentomux.json");
+        let mgr = crate::state::AppStateManager::new(path);
+
+        mgr.patch_state(|s| {
+            s.workspaces = vec![
+                crate::state::WorkspaceRec {
+                    id: "ws-1".into(),
+                    path: "/test/ws1".into(),
+                    name: "ws1".into(),
+                },
+                crate::state::WorkspaceRec {
+                    id: "ws-2".into(),
+                    path: "/test/ws2".into(),
+                    name: "ws2".into(),
+                },
+            ];
+            s.profiles = vec![
+                crate::state::WorkspaceProfile {
+                    id: "prof-a".into(),
+                    name: "Profile A".into(),
+                    workspace_ids: vec!["ws-1".into(), "ws-2".into()],
+                },
+                crate::state::WorkspaceProfile {
+                    id: "prof-b".into(),
+                    name: "Profile B".into(),
+                    workspace_ids: vec!["ws-1".into()],
+                },
+            ];
+            s.active_profile_id = Some("prof-b".into());
+            s.active_workspace_id = Some("ws-1".into());
+        });
+
+        // Remove ws-1 from prof-b
+        let mut still_referenced = false;
+        mgr.patch_state(|s| {
+            let id = "ws-1".to_string();
+            if let Some(prof_id) = s.active_profile_id.clone() {
+                if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == prof_id) {
+                    prof.workspace_ids.retain(|w_id| w_id != &id);
+                }
+            }
+
+            still_referenced = s
+                .profiles
+                .iter()
+                .any(|p| p.workspace_ids.iter().any(|w_id| w_id == &id));
+            if !still_referenced {
+                s.workspaces.retain(|w| w.id != id);
+            }
+            if s.active_workspace_id.as_deref() == Some(id.as_str()) {
+                let cur_active = s
+                    .active_profile_id
+                    .as_ref()
+                    .and_then(|prof_id| s.profiles.iter().find(|p| &p.id == prof_id));
+                s.active_workspace_id = cur_active.and_then(|p| p.workspace_ids.first().cloned());
+            }
+        });
+
+        assert!(still_referenced);
+        let st = mgr.get_state();
+        // prof-b no longer has ws-1
+        let prof_b = st.profiles.iter().find(|p| p.id == "prof-b").unwrap();
+        assert!(prof_b.workspace_ids.is_empty());
+        // prof-a STILL has ws-1 and ws-2!
+        let prof_a = st.profiles.iter().find(|p| p.id == "prof-a").unwrap();
+        assert_eq!(
+            prof_a.workspace_ids,
+            vec!["ws-1".to_string(), "ws-2".to_string()]
+        );
+        // workspaces still contains ws-1 because prof-a references it
+        assert!(st.workspaces.iter().any(|w| w.id == "ws-1"));
+        assert_eq!(st.active_workspace_id, None);
+
+        // Now remove ws-1 from prof-a as well
+        mgr.patch_state(|s| {
+            s.active_profile_id = Some("prof-a".into());
+            s.active_workspace_id = Some("ws-1".into());
+        });
+
+        mgr.patch_state(|s| {
+            let id = "ws-1".to_string();
+            if let Some(prof_id) = s.active_profile_id.clone() {
+                if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == prof_id) {
+                    prof.workspace_ids.retain(|w_id| w_id != &id);
+                }
+            }
+
+            still_referenced = s
+                .profiles
+                .iter()
+                .any(|p| p.workspace_ids.iter().any(|w_id| w_id == &id));
+            if !still_referenced {
+                s.workspaces.retain(|w| w.id != id);
+            }
+            if s.active_workspace_id.as_deref() == Some(id.as_str()) {
+                let cur_active = s
+                    .active_profile_id
+                    .as_ref()
+                    .and_then(|prof_id| s.profiles.iter().find(|p| &p.id == prof_id));
+                s.active_workspace_id = cur_active.and_then(|p| p.workspace_ids.first().cloned());
+            }
+        });
+
+        assert!(!still_referenced);
+        let st2 = mgr.get_state();
+        // ws-1 completely gone from workspaces because no profile references it
+        assert!(!st2.workspaces.iter().any(|w| w.id == "ws-1"));
+        assert_eq!(st2.active_workspace_id.as_deref(), Some("ws-2"));
+
+        std::fs::remove_dir_all(dir).ok();
     }
 }
