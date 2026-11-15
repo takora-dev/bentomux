@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { cleanPastedText, formatPastedText } from './terminal';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { cleanPastedText, formatPastedText, sendPastedText, resetPasteGuard } from './terminal';
+import api from '../../preload/bentomux';
 
 describe('cleanPastedText()', () => {
   it('converts Windows CRLF and classic Mac CR to Unix LF', () => {
@@ -34,5 +35,29 @@ describe('formatPastedText()', () => {
   it('returns empty string for empty input', () => {
     expect(formatPastedText('', true)).toBe('');
     expect(formatPastedText('\r\n\n', true)).toBe('');
+  });
+});
+
+describe('sendPastedText() duplicate guard', () => {
+  beforeEach(() => {
+    resetPasteGuard();
+    vi.restoreAllMocks();
+  });
+
+  it('drops duplicate paste calls within 250ms with identical text', () => {
+    const spy = vi.spyOn(api, 'writeTab').mockImplementation(() => {});
+    const mockTerm = { modes: { bracketedPasteMode: false } } as any;
+
+    sendPastedText(mockTerm, 'tab-1', 'hello world');
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('tab-1', 'hello world');
+
+    // Immediate second call with same text (simulating keydown + paste event)
+    sendPastedText(mockTerm, 'tab-1', 'hello world');
+    expect(spy).toHaveBeenCalledTimes(1); // Dropped!
+
+    // Call with different text should pass
+    sendPastedText(mockTerm, 'tab-1', 'different text');
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 });

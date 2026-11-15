@@ -573,13 +573,10 @@ function wireXtermEvents(term: Terminal, tabId: string, signal: AbortSignal): vo
       }
       return false;
     }
-    /* Ctrl+V / Cmd+V → intercept paste completely to prevent xterm from converting \n to \r */
+    /* Ctrl+V / Cmd+V / Ctrl+Shift+V → let the native paste event trigger wireClipboardPaste */
     const isPaste = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v';
     if (isPaste) {
-      if (e.type === 'keydown') {
-        void handleClipboardPaste(term, tabId);
-      }
-      return false;
+      return true;
     }
     /* Cmd/Ctrl+Home → scroll to top instantly */
     if ((e.metaKey || e.ctrlKey) && e.key === 'Home' && e.type === 'keydown') {
@@ -633,7 +630,22 @@ export function formatPastedText(text: string, isBracketed: boolean): string {
   return clean;
 }
 
+let lastPasteTime = 0;
+let lastPasteText = '';
+
+export function resetPasteGuard(): void {
+  lastPasteTime = 0;
+  lastPasteText = '';
+}
+
 export function sendPastedText(term: Terminal, tabId: string, text: string): void {
+  const now = Date.now();
+  if (now - lastPasteTime < 250 && text === lastPasteText) {
+    return;
+  }
+  lastPasteTime = now;
+  lastPasteText = text;
+
   const isBracketed = Boolean((term as unknown as { modes?: { bracketedPasteMode?: boolean } }).modes?.bracketedPasteMode);
   const formatted = formatPastedText(text, isBracketed);
   if (formatted) {
@@ -683,7 +695,6 @@ function wireClipboardPaste(term: Terminal, tabId: string, signal: AbortSignal):
     handlePasteEvent(e, term, tabId);
   };
   term.textarea?.addEventListener('paste', onPaste, { capture: true, signal });
-  term.element?.addEventListener('paste', onPaste, { capture: true, signal });
 }
 
 /* resolves with the temp path, or with the clipboard's own file name when the
