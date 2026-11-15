@@ -42,7 +42,7 @@ pub const HOST_FLAG: &str = "--pty-host";
 daemon that answers with a different number: a daemon outlives app updates,
 so a silent mismatch would surface as confusing misbehaviour in the field
 with nothing to diagnose it. */
-pub const PROTOCOL_VERSION: u64 = 7;
+pub const PROTOCOL_VERSION: u64 = 8;
 
 /* how long to wait for the freshly spawned daemon to accept a connection */
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
@@ -705,6 +705,10 @@ fn spawn_term(
     }
     cmd.cwd(path);
     cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("TERM_PROGRAM", "bentomux");
+    #[cfg(windows)]
+    cmd.env("WT_SESSION", "1");
     for (k, v) in utf8_locale_overrides(|k| std::env::var(k).ok()) {
         cmd.env(k, v);
     }

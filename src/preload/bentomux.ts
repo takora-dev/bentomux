@@ -175,6 +175,14 @@ const api = {
   reorderTabs: (ids: string[]) => invoke<AppState>('tab_reorder', { ids }),
   setActiveWorkspace: (id: string | null) => { void invoke('workspace_active', { id }); },
 
+  /* workspace profiles (multiple isolated environments) */
+  createProfile: (name: string) => invoke<AppState>('profile_create', { name }),
+  switchProfile: (id: string) => invoke<AppState>('profile_switch', { id }),
+  renameProfile: (id: string, name: string) => invoke<AppState>('profile_rename', { id, name }),
+  deleteProfile: (id: string) => invoke<AppState>('profile_delete', { id }),
+  moveWorkspaceToProfile: (workspaceId: string, targetProfileId: string) =>
+    invoke<AppState>('profile_move_workspace', { workspaceId, targetProfileId }),
+
   /* terminal tabs (panes: a tab may hold up to two shells side by side) */
   restoreTabs: () => invoke<TabRec[]>('tab_restore'),
   createTab: (workspaceId: string) => invoke<TabRec>('tab_create', { workspaceId }),

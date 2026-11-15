@@ -430,7 +430,14 @@ pub fn workspace_add(path: String, state: State<'_, AppStateManager>) -> AppStat
         let ws_id = ws.id;
         return state.patch_state(|s| {
             remember_recent(&mut s.prefs, &norm);
-            s.active_workspace_id = Some(ws_id);
+            s.active_workspace_id = Some(ws_id.clone());
+            if let Some(prof_id) = s.active_profile_id.clone() {
+                if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == prof_id) {
+                    if !prof.workspace_ids.contains(&ws_id) {
+                        prof.workspace_ids.push(ws_id);
+                    }
+                }
+            }
         });
     }
     let id = format!(
@@ -448,12 +455,23 @@ pub fn workspace_add(path: String, state: State<'_, AppStateManager>) -> AppStat
     crate::git::watch_workspace(&id, &norm);
     state.patch_state(|s| {
         s.workspaces.push(WorkspaceRec {
-            id,
+            id: id.clone(),
             path: norm.clone(),
             name,
         });
         s.active_workspace_id = Some(ws_id);
         remember_recent(&mut s.prefs, &norm);
+        if let Some(prof_id) = s.active_profile_id.clone() {
+            if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == prof_id) {
+                if !prof.workspace_ids.contains(&id) {
+                    prof.workspace_ids.push(id);
+                }
+            }
+        } else if let Some(prof) = s.profiles.first_mut() {
+            if !prof.workspace_ids.contains(&id) {
+                prof.workspace_ids.push(id);
+            }
+        }
     })
 }
 
@@ -468,8 +486,112 @@ pub fn workspace_remove(
     state.patch_state(|s| {
         s.workspaces.retain(|w| w.id != id);
         s.open_tabs.retain(|t| t.workspace_id != id);
+        for prof in &mut s.profiles {
+            prof.workspace_ids.retain(|w_id| w_id != &id);
+        }
         if s.active_workspace_id.as_deref() == Some(id.as_str()) {
             s.active_workspace_id = None;
+        }
+    })
+}
+
+/* ---------------- workspace profiles (isolated environments) ---------------- */
+
+#[tauri::command]
+pub fn profile_create(name: String, state: State<'_, AppStateManager>) -> AppState {
+    let clean_name = name.trim().to_string();
+    let display_name = if clean_name.is_empty() {
+        "New Workspace".to_string()
+    } else {
+        clean_name
+    };
+    let id = format!(
+        "prof-{}{:0>3}",
+        crate::split_tree::to_base36(chrono::Utc::now().timestamp_millis().max(0) as u64),
+        crate::split_tree::to_base36(rand::random::<u32>() as u64 % 36u64.pow(3))
+    );
+    let prof_id = id.clone();
+    state.patch_state(|s| {
+        s.profiles.push(crate::state::WorkspaceProfile {
+            id,
+            name: display_name,
+            workspace_ids: vec![],
+        });
+        s.active_profile_id = Some(prof_id);
+    })
+}
+
+#[tauri::command]
+pub fn profile_switch(id: String, state: State<'_, AppStateManager>) -> AppState {
+    state.patch_state(|s| {
+        if s.profiles.iter().any(|p| p.id == id) {
+            s.active_profile_id = Some(id.clone());
+            if let Some(prof) = s.profiles.iter().find(|p| p.id == id) {
+                if let Some(first_ws) = prof.workspace_ids.first() {
+                    s.active_workspace_id = Some(first_ws.clone());
+                } else {
+                    s.active_workspace_id = None;
+                }
+            }
+        }
+    })
+}
+
+#[tauri::command]
+pub fn profile_rename(id: String, name: String, state: State<'_, AppStateManager>) -> AppState {
+    let clean_name = name.trim().to_string();
+    if clean_name.is_empty() {
+        return state.get_state();
+    }
+    state.patch_state(|s| {
+        if let Some(prof) = s.profiles.iter_mut().find(|p| p.id == id) {
+            prof.name = clean_name;
+        }
+    })
+}
+
+#[tauri::command]
+pub fn profile_delete(id: String, state: State<'_, AppStateManager>) -> AppState {
+    let cur = state.get_state();
+    if cur.profiles.len() <= 1 {
+        return cur;
+    }
+    state.patch_state(|s| {
+        s.profiles.retain(|p| p.id != id);
+        if s.active_profile_id.as_deref() == Some(&id) {
+            s.active_profile_id = s.profiles.first().map(|p| p.id.clone());
+            if let Some(prof) = s.profiles.first() {
+                s.active_workspace_id = prof.workspace_ids.first().cloned();
+            } else {
+                s.active_workspace_id = None;
+            }
+        }
+    })
+}
+
+#[tauri::command]
+pub fn profile_move_workspace(
+    workspace_id: String,
+    target_profile_id: String,
+    state: State<'_, AppStateManager>,
+) -> AppState {
+    state.patch_state(|s| {
+        // Remove workspace_id from any other profile
+        for prof in &mut s.profiles {
+            if prof.id != target_profile_id {
+                prof.workspace_ids.retain(|w_id| w_id != &workspace_id);
+            }
+        }
+        // Add workspace_id to target profile
+        if let Some(target_prof) = s.profiles.iter_mut().find(|p| p.id == target_profile_id) {
+            if !target_prof.workspace_ids.contains(&workspace_id) {
+                target_prof.workspace_ids.push(workspace_id.clone());
+            }
+        }
+        // If active workspace was this workspace, reset active_workspace_id to first workspace of active profile
+        if s.active_workspace_id.as_deref() == Some(workspace_id.as_str()) {
+            let cur_active = s.active_profile_id.as_ref().and_then(|id| s.profiles.iter().find(|p| &p.id == id));
+            s.active_workspace_id = cur_active.and_then(|p| p.workspace_ids.first().cloned());
         }
     })
 }
