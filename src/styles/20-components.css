@@ -526,6 +526,12 @@ html.drag-on, html.drag-on *{cursor:grabbing !important;user-select:none !import
 .ws-label{display:flex;align-items:center;gap:4px;margin:16px 7px 5px;padding-right:2px}
 .ws-label>span:first-child{flex:1}
 .ws-label .nav-label{margin:0;flex:1}
+.ws-label .ws-selector{display:inline-flex;align-items:center;gap:4px;flex:1;min-width:0;height:24px;padding:0 6px 0 4px;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--ink);cursor:pointer;text-align:left;transition:background .1s,border-color .1s}
+.ws-label .ws-selector:hover{background:var(--tint);border-color:var(--line)}
+.ws-label .ws-selector .ws-profile-name{font-family:inherit;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.ws-label .ws-selector:hover .ws-profile-name{color:var(--ink)}
+.ws-label .ws-selector .ws-chevron{display:inline-flex;flex:0 0 12px;color:var(--ink-3);transform:rotate(90deg);transition:color .12s}
+.ws-label .ws-selector:hover .ws-chevron{color:var(--ink-2)}
 .ws-label .ws-add{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-md);border:1px solid var(--line);color:var(--ink-2);transition:background .1s,border-color .1s,color .1s}
 .ws-label .ws-add .ic{display:flex}
 .ws-label .ws-add:hover{background:var(--tint);border-color:var(--line-2);color:var(--ink)}

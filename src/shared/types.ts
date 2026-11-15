@@ -35,6 +35,12 @@ export type {
 } from '../src/plugin/types';
 export { ALL_PERMISSIONS, CONTRIBUTION_KINDS, BACKEND_ALLOWLIST } from '../src/plugin/types';
 
+export interface WorkspaceProfile {
+  id: string;
+  name: string;
+  workspaceIds: string[];
+}
+
 export interface WorkspaceRec {
   id: string;
   path: string;
@@ -177,6 +183,8 @@ export type ShadowStore = Record<AgentId, Partial<Record<ResourceKind, Record<st
 
 export interface AppState {
   version: number;
+  profiles?: WorkspaceProfile[];
+  activeProfileId?: string | null;
   workspaces: WorkspaceRec[];
   openTabs: TabRec[];
   activeWorkspaceId: string | null;
@@ -549,6 +557,13 @@ export interface BentomuxApi {
   /** persist terminal tab order; `ids` must be a permutation of current tabs */
   reorderTabs(ids: string[]): Promise<AppState>;
   setActiveWorkspace(id: string | null): void;
+
+  /* workspace profiles (multiple isolated environments) */
+  createProfile(name: string): Promise<AppState>;
+  switchProfile(id: string): Promise<AppState>;
+  renameProfile(id: string, name: string): Promise<AppState>;
+  deleteProfile(id: string): Promise<AppState>;
+  moveWorkspaceToProfile(workspaceId: string, targetProfileId: string): Promise<AppState>;
 
   /* terminal tabs (panes: recursive splits, side by side or stacked) */
   restoreTabs(): Promise<TabRec[]>;

@@ -20,6 +20,14 @@ const VERSION: u32 = 6;
 /* ---------------- shared type contract (src/shared/types.ts) ---------------- */
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceProfile {
+    pub id: String,
+    pub name: String,
+    pub workspace_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkspaceRec {
     pub id: String,
     pub path: String,
@@ -300,6 +308,10 @@ pub struct AgentInfo {
 #[serde(rename_all = "camelCase", default)]
 pub struct AppState {
     pub version: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<WorkspaceProfile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_profile_id: Option<String>,
     pub workspaces: Vec<WorkspaceRec>,
     pub open_tabs: Vec<TabRec>,
     pub active_workspace_id: Option<String>,
@@ -326,6 +338,8 @@ impl Default for AppState {
     fn default() -> Self {
         AppState {
             version: VERSION,
+            profiles: vec![],
+            active_profile_id: None,
             workspaces: vec![],
             open_tabs: vec![],
             active_workspace_id: None,
@@ -587,6 +601,18 @@ fn adopt(state: &mut AppState, raw: &serde_json::Value) {
     }
     if raw.get("shadow").map(|v| v.is_null()).unwrap_or(true) {
         patched.shadow = HashMap::new();
+    }
+    if patched.profiles.is_empty() {
+        let default_id = "prof-default".to_string();
+        let ws_ids: Vec<String> = patched.workspaces.iter().map(|w| w.id.clone()).collect();
+        patched.profiles.push(WorkspaceProfile {
+            id: default_id.clone(),
+            name: "Default Workspace".to_string(),
+            workspace_ids: ws_ids,
+        });
+        patched.active_profile_id = Some(default_id);
+    } else if patched.active_profile_id.is_none() {
+        patched.active_profile_id = patched.profiles.first().map(|p| p.id.clone());
     }
     /* Stamp the CURRENT version, not the file's.
     Adopting the old number meant every save wrote the old number back, so a

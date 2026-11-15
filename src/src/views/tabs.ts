@@ -4,7 +4,7 @@ import { $, h, markup } from '../dom';
 import type { TabRec } from '../../shared/types';
 import { leafNode, leafIds, firstLeafId, splitLeaf, removeLeaf, setSplitDir, newNodeKey, treeHasKey, type PaneNode } from '../../shared/split-tree';
 import { ui, type Route, type TabEntry } from '../state';
-import { db, branches, activity } from '../store';
+import { db, branches, activity, activeProfile } from '../store';
 import { render, repaintContent, renderSidebar } from '../render';
 import { disposeTerminal, mostRecentPane, resetPaneRatio } from './terminal';
 import { openContextMenu } from '../components/menu';
@@ -679,11 +679,15 @@ function tabButton(t: TabEntry): HTMLElement {
 }
 
 function addTabButton(): HTMLElement {
+  const prof = activeProfile();
+  const activeWsId = (db.activeWorkspaceId && prof.workspaceIds.includes(db.activeWorkspaceId))
+    ? db.activeWorkspaceId
+    : prof.workspaceIds[0];
   return markup('button', {
     class: 'tabadd',
-    title: db.activeWorkspaceId ? 'New terminal in active workspace' : 'Add a workspace folder first',
-    disabled: !db.activeWorkspaceId,
-    onclick: () => void newTerminalTab(),
+    title: activeWsId ? 'New terminal in active workspace' : 'Add a workspace folder first',
+    disabled: !activeWsId,
+    onclick: () => void newTerminalTab(activeWsId),
   }, IC.plus);
 }
 
@@ -714,10 +718,13 @@ export function renderTabs(): void {
   strip.classList.add('tabstrip');
   $('#titlebar').classList.add('has-tabs');
   strip.innerHTML = '';
-  const visibleTabs = ui.tabs.filter(
-    t => t.route.view === 'terminal' || t.route.view === 'diff'
-      || t.route.view === 'commit' || t.route.view === 'plugin',
-  );
+  const prof = activeProfile();
+  const visibleTabs = ui.tabs.filter(t => {
+    if (t.route.view !== 'terminal' && t.route.view !== 'diff'
+      && t.route.view !== 'commit' && t.route.view !== 'plugin') return false;
+    if (!t.workspaceId || t.workspaceId.startsWith('plugin:')) return true;
+    return prof.workspaceIds.includes(t.workspaceId);
+  });
   const groups = new Map<string, TabEntry[]>();
   for (const tab of visibleTabs) {
     const key = tabWorkspaceKey(tab);
@@ -740,7 +747,7 @@ export function renderTabs(): void {
   }
   /* plugin tabs that are declared but not yet open appear in the add menu
      rather than the strip, so the strip stays a record of what is open */
-  if (ui.tabs.some(t => t.route.view === 'terminal')) strip.append(addTabButton());
+  if (visibleTabs.some(t => t.route.view === 'terminal')) strip.append(addTabButton());
 
   /* overflow strip scrolls horizontally instead of clipping tabs */
   wireWheelOnce(strip);

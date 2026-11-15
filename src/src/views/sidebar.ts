@@ -4,7 +4,7 @@ import { h, $, $$, markup } from '../dom';
 import { ic, IC } from '../icons';
 import { abs, rel } from '../time';
 import { ui, type Route, type TabEntry } from '../state';
-import { db, branches, runtime, activity, setDb } from '../store';
+import { db, branches, runtime, activity, setDb, activeProfile, getProfiles, visibleWorkspaces } from '../store';
 import { go } from '../router';
 import { render } from '../render';
 import { activate, closeTerminalPane, leavesOf, newTerminalTab } from './tabs';
@@ -13,7 +13,7 @@ import {
   primePaneFocus,
   clearTerminalSelections,
 } from './terminal';
-import { openModal } from '../components/modal';
+import { openModal, field } from '../components/modal';
 import { closeContextMenu, contextMenuAnchoredTo, openContextMenu, type MenuEntry } from '../components/menu';
 import { openSearchModal } from './search';
 import { remoteDockButton } from './remote';
@@ -22,6 +22,7 @@ import { dockEntries, sidebarEntries } from '../plugin/registry';
 import { ensureActive, pluginAssetUrl } from '../plugin/loader';
 import { contributionIcon, contributionLabel } from '../plugin/icons';
 import api from '../../preload/bentomux';
+import type { WorkspaceProfile } from '../../shared/types';
 import { activityStatus, runtimeType, runtimeName, runtimeColor, runtimeIcon, runtimeMetadata, type ActivityStatus } from '../components/runtime-status';
 
 const PANE_INDENT = 24;
@@ -350,20 +351,32 @@ function findAddedWorkspace(pickedPath: string) {
 }
 
 async function performRemoveWorkspace(wsId: string): Promise<void> {
-  setDb(await api.removeWorkspace(wsId));
-  /* drop local tab entries; main already killed the ptys */
-  ui.tabs = ui.tabs.filter(t => !(t.route.view === 'terminal' && t.workspaceId === wsId));
-  ui.history = ui.history.filter(id => ui.tabs.some(t => t.id === id));
-  ui.future = [];
+  const nextDb = await api.removeWorkspace(wsId);
+  setDb(nextDb);
+  const stillExists = nextDb.workspaces.some(w => w.id === wsId);
+  if (!stillExists) {
+    /* drop local tab entries; main already killed the ptys */
+    ui.tabs = ui.tabs.filter(t => !(t.route.view === 'terminal' && t.workspaceId === wsId));
+    ui.history = ui.history.filter(id => ui.tabs.some(t => t.id === id));
+    ui.future = [];
+  }
   ensureSomeActiveTab();
   renderSidebar();
   render();
 }
 
 function ensureSomeActiveTab(): void {
-  if (ui.tabs.some(t => t.id === ui.activeTab)) return;
-  const next = ui.tabs[0];
-  if (next) { ui.activeTab = next.id; ui.route = next.route; return; }
+  const prof = activeProfile();
+  const currentTab = ui.tabs.find(t => t.id === ui.activeTab);
+  if (currentTab && currentTab.workspaceId && prof.workspaceIds.includes(currentTab.workspaceId)) {
+    return;
+  }
+  const next = ui.tabs.find(t => t.workspaceId && prof.workspaceIds.includes(t.workspaceId));
+  if (next) {
+    ui.activeTab = next.id;
+    ui.route = next.route;
+    return;
+  }
   ui.activeTab = null;
   ui.route = { view: 'welcome' };
 }
@@ -485,8 +498,17 @@ export function toggleGitPanel(): void {
 }
 
 function workspaceLabelRow(): HTMLElement {
+  const prof = activeProfile();
   return h('div', { class: 'ws-label' },
-    h('span', { class: 'nav-label' }, 'Workspace'),
+    h('button', {
+      class: 'ws-selector',
+      title: 'Switch workspace profile',
+      'aria-label': 'Switch workspace profile',
+      'aria-haspopup': 'menu',
+      onclick: (e: Event) => openProfileMenu(e.currentTarget as HTMLElement),
+    },
+      h('span', { class: 'ws-profile-name', title: prof.name }, prof.name),
+      markup('span', { class: 'ws-chevron', 'aria-hidden': 'true' }, IC.chev)),
     h('button', {
       class: 'ws-add',
       title: 'Add workspace folder',
@@ -494,6 +516,162 @@ function workspaceLabelRow(): HTMLElement {
       'aria-haspopup': 'menu',
       onclick: (e: Event) => openAddWorkspaceMenu(e.currentTarget as HTMLElement),
     }, ic('plus')));
+}
+
+function applyNewAppState(nextState: typeof db): void {
+  setDb(nextState);
+  const prof = activeProfile();
+  if (db.activeWorkspaceId && prof.workspaceIds.includes(db.activeWorkspaceId)) {
+    db.prefs.expanded = { ...(db.prefs.expanded || {}), [db.activeWorkspaceId]: true };
+  }
+  const activeTabEntry = ui.tabs.find(t => t.id === ui.activeTab);
+  if (!activeTabEntry || !activeTabEntry.workspaceId || !prof.workspaceIds.includes(activeTabEntry.workspaceId)) {
+    const nextTab = ui.tabs.find(t => t.workspaceId && prof.workspaceIds.includes(t.workspaceId));
+    if (nextTab) {
+      activate(nextTab.id);
+    } else {
+      ui.activeTab = null;
+      ui.route = { view: 'welcome' };
+      api.setActiveTab(null);
+    }
+  }
+  void refreshChangesPill();
+  renderSidebar();
+  render();
+}
+
+export async function switchProfileFlow(profileId: string): Promise<void> {
+  applyNewAppState(await api.switchProfile(profileId));
+}
+
+export function openProfileMenu(anchor: HTMLElement): void {
+  if (contextMenuAnchoredTo(anchor)) { closeContextMenu(); return; }
+  const r = anchor.getBoundingClientRect();
+  const profiles = getProfiles();
+  const current = activeProfile();
+
+  const profileItems: MenuEntry[] = profiles.map(p => ({
+    label: p.name,
+    hint: p.id === current.id ? '✓' : undefined,
+    action: () => {
+      if (p.id !== current.id) {
+        void switchProfileFlow(p.id);
+      }
+    },
+  }));
+
+  const entries: MenuEntry[] = [
+    ...profileItems,
+    { sep: true },
+    {
+      label: 'New Profile…',
+      icon: IC.plus,
+      action: () => openNewProfileModal(),
+    },
+    {
+      label: 'Rename Profile…',
+      action: () => openRenameProfileModal(current),
+    },
+  ];
+
+  if (profiles.length > 1) {
+    entries.push({
+      label: 'Delete Profile',
+      action: () => confirmDeleteProfile(current),
+    });
+  }
+
+  openContextMenu(r.left, r.bottom + 4, entries, anchor);
+}
+
+function openNewProfileModal(): void {
+  const input = h('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: 'e.g. Freelance, Work, Personal',
+    spellcheck: 'false',
+  }) as HTMLInputElement;
+
+  const m = openModal({
+    title: 'New Workspace Profile',
+    body: [
+      h('p', { style: 'margin:0 0 10px;color:var(--ink-2)' }, 'Create a new isolated workspace profile.'),
+      field('Profile Name', input),
+    ],
+    footer: h('div', {},
+      h('button', { class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', {
+        class: 'btn primary',
+        onclick: async () => {
+          const val = input.value.trim();
+          if (!val) return;
+          m.close();
+          applyNewAppState(await api.createProfile(val));
+        },
+      }, 'Create Profile')),
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const btn = m.foot.querySelector('.btn.primary') as HTMLElement | null;
+      btn?.click();
+    }
+  });
+}
+
+function openRenameProfileModal(current: WorkspaceProfile): void {
+  const input = h('input', {
+    class: 'input',
+    type: 'text',
+    value: current.name,
+    spellcheck: 'false',
+  }) as HTMLInputElement;
+
+  const m = openModal({
+    title: 'Rename Workspace Profile',
+    body: [
+      field('Profile Name', input),
+    ],
+    footer: h('div', {},
+      h('button', { class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', {
+        class: 'btn primary',
+        onclick: async () => {
+          const val = input.value.trim();
+          if (!val || val === current.name) {
+            m.close();
+            return;
+          }
+          m.close();
+          setDb(await api.renameProfile(current.id, val));
+          renderSidebar();
+        },
+      }, 'Save')),
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const btn = m.foot.querySelector('.btn.primary') as HTMLElement | null;
+      btn?.click();
+    }
+  });
+}
+
+function confirmDeleteProfile(current: WorkspaceProfile): void {
+  const m = openModal({
+    title: 'Delete Workspace Profile',
+    body: h('div', {},
+      h('p', { style: 'margin:0 0 6px' }, `Delete workspace profile “${current.name}”?`),
+      h('p', { style: 'margin:0;color:var(--ink-2)' },
+        'Workspaces and files on disk are not deleted.')),
+    footer: h('div', {},
+      h('button', { class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', {
+        class: 'btn danger',
+        onclick: async () => {
+          m.close();
+          applyNewAppState(await api.deleteProfile(current.id));
+        },
+      }, 'Delete')),
+  });
 }
 
 function toggleWorkspaceExpanded(wsId: string, currentlyOpen: boolean): void {
@@ -630,6 +808,60 @@ function workspaceFolder(ws: { id: string; name: string; path: string }, open: b
   return row;
 }
 
+async function moveWorkspaceToProfileFlow(wsId: string, targetProfileId: string): Promise<void> {
+  try {
+    const nextDb = await api.moveWorkspaceToProfile(wsId, targetProfileId);
+    applyNewAppState(nextDb);
+  } catch (err) {
+    console.error('[workspace-profile] failed to move workspace:', err);
+  }
+}
+
+function openMoveToNewProfileModal(wsId: string): void {
+  const input = h('input', {
+    class: 'input',
+    type: 'text',
+    placeholder: 'e.g. Freelance, Work, Personal',
+    spellcheck: 'false',
+  }) as HTMLInputElement;
+
+  const m = openModal({
+    title: 'New Workspace Profile',
+    body: [
+      h('p', { style: 'margin:0 0 10px;color:var(--ink-2)' }, 'Create a new profile and move project to it.'),
+      field('Profile Name', input),
+    ],
+    footer: h('div', {},
+      h('button', { class: 'btn ghost', onclick: () => m.close() }, 'Cancel'),
+      h('button', {
+        class: 'btn primary',
+        onclick: async () => {
+          const val = input.value.trim();
+          if (!val) return;
+          m.close();
+          try {
+            const newDb = await api.createProfile(val);
+            const targetProf = newDb.profiles?.find(p => p.name === val) || newDb.profiles?.[newDb.profiles.length - 1];
+            if (targetProf) {
+              const movedDb = await api.moveWorkspaceToProfile(wsId, targetProf.id);
+              applyNewAppState(movedDb);
+            } else {
+              applyNewAppState(newDb);
+            }
+          } catch (err) {
+            console.error('[workspace-profile] failed to create and move workspace:', err);
+          }
+        },
+      }, 'Create & Move')),
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const btn = m.foot.querySelector('.btn.primary') as HTMLElement | null;
+      btn?.click();
+    }
+  });
+}
+
 /* ⋯ toggle that opens the per-workspace action menu (new terminal / remove) */
 function workspaceMenuSpan(ws: { id: string; name: string; path: string }): HTMLElement {
   const span = h('span', {
@@ -646,8 +878,27 @@ function workspaceMenuSpan(ws: { id: string; name: string; path: string }): HTML
        pressOnMenu and skips starting a drag for this press */
     if (contextMenuAnchoredTo(span)) { closeContextMenu(); return; }
     const r = span.getBoundingClientRect();
+    const profiles = getProfiles();
+    const current = activeProfile();
+    const otherProfiles = profiles.filter(p => p.id !== current.id);
+
+    const moveSubmenu: MenuEntry[] = otherProfiles.map(target => ({
+      label: target.name,
+      action: () => void moveWorkspaceToProfileFlow(ws.id, target.id),
+    }));
+
+    if (moveSubmenu.length > 0) {
+      moveSubmenu.push({ sep: true });
+    }
+    moveSubmenu.push({
+      label: 'New Profile…',
+      icon: IC.plus,
+      action: () => openMoveToNewProfileModal(ws.id),
+    });
+
     const entries: MenuEntry[] = [
       { label: 'New terminal', action: () => void newTerminalTab(ws.id) },
+      { label: 'Move to Profile', icon: IC.folder, submenu: moveSubmenu },
       { sep: true },
       { label: 'Remove workspace', action: () => confirmRemove(ws) },
     ];
@@ -659,7 +910,7 @@ function workspaceMenuSpan(ws: { id: string; name: string; path: string }): HTML
 function renderWorkspaces(): void {
   const newExpanded: Record<string, boolean> = {};
   const nextSeen = new Set<string>();
-  for (const ws of db.workspaces) {
+  for (const ws of visibleWorkspaces()) {
     const open = db.prefs.expanded?.[ws.id] !== false;
     /* reveal only on a true user-driven expand (false → true). A ws we haven't
        seen before is treated as "unknown", not "was-open", so first render and
@@ -709,7 +960,7 @@ function takeLeavingRows(): LeavingRow[] {
   if (!nav) return [];
   /* the pane set the next paint will draw: every pane of every open workspace */
   const staying = new Set<string>();
-  for (const ws of db.workspaces) {
+  for (const ws of visibleWorkspaces()) {
     if (db.prefs.expanded?.[ws.id] === false) continue;
     for (const { paneId } of wsPanes(ws.id)) staying.add(paneId);
   }
@@ -1032,14 +1283,15 @@ function renderWsRail(): void {
     /* a scrolled rail moves the anchor out from under the flyout */
     rail.addEventListener('scroll', closeRailFlyout);
   }
-  const signature = db.workspaces.map(w => w.id).join('\u0000');
+  const list = visibleWorkspaces();
+  const signature = list.map(w => w.id).join('\u0000');
   if (signature !== railSignature) {
     /* a workspace was added, removed, or reordered. Rebuilding the buttons
        swaps the node under the pointer without a pointerleave, so the flyout
        is closed instead of left anchored to a stale button. */
     if (railSignature) closeRailFlyout();
     rail.innerHTML = '';
-    rail.append(...db.workspaces.map(railItem));
+    rail.append(...list.map(railItem));
     railSignature = signature;
   }
   patchRailItems(rail);
@@ -1058,7 +1310,7 @@ export function renderSidebar(): void {
 
   renderWorkspaces();
 
-  if (!db.workspaces.length) nav.append(h('div', { class: 'empty-note' }, 'Add a folder to begin'));
+  if (!visibleWorkspaces().length) nav.append(h('div', { class: 'empty-note' }, 'Add a folder to begin'));
 
   /* plugin rows sit after the workspace list and before the dock: they are
      the user's own additions, so they read as a section of their own */

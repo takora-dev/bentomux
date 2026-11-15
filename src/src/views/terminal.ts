@@ -573,6 +573,11 @@ function wireXtermEvents(term: Terminal, tabId: string, signal: AbortSignal): vo
       }
       return false;
     }
+    /* Ctrl+V / Cmd+V / Ctrl+Shift+V → let the native paste event trigger wireClipboardPaste */
+    const isPaste = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v';
+    if (isPaste) {
+      return true;
+    }
     /* Cmd/Ctrl+Home → scroll to top instantly */
     if ((e.metaKey || e.ctrlKey) && e.key === 'Home' && e.type === 'keydown') {
       e.preventDefault();
@@ -604,29 +609,92 @@ function wireXtermEvents(term: Terminal, tabId: string, signal: AbortSignal): vo
   wireClipboardPaste(term, tabId, signal);
 }
 
-/* Cmd+V of an image or a file → stage the bytes in the temp dir and type the
-   resulting absolute path into the PTY. A WebView exposes no filesystem path
-   for clipboard files, so without this the terminal only ever received the
-   bare name ("image.png"). Plain text falls through to xterm's own paste. */
-function wireClipboardPaste(term: Terminal, tabId: string, signal: AbortSignal): void {
-  const textarea = term.textarea;
-  if (!textarea) return;
-  textarea.addEventListener('paste', e => {
-    const cd = e.clipboardData;
-    if (!cd) return;
-    const files = Array.from(cd.files);
-    if (!files.length) {
-      for (const item of Array.from(cd.items)) {
-        if (item.kind !== 'file') continue;
-        const file = item.getAsFile();
-        if (file) files.push(file);
-      }
+/**
+ * Normalise pasted text so newlines do not execute commands prematurely.
+ * In AI CLIs (agy, Claude Code), '\r' acts as Enter (submit), while '\n' acts as a multiline newline.
+ * xterm.js defaults to replacing '\n' with '\r', which causes premature command execution.
+ * We replace CRLF and CR with LF (\n) and trim trailing newlines so pasted text does not auto-submit.
+ */
+export function cleanPastedText(text: string): string {
+  let clean = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  clean = clean.replace(/\n+$/, '');
+  return clean;
+}
+
+export function formatPastedText(text: string, isBracketed: boolean): string {
+  const clean = cleanPastedText(text);
+  if (!clean) return '';
+  if (isBracketed) {
+    return `\x1b[200~${clean}\x1b[201~`;
+  }
+  return clean;
+}
+
+let lastPasteTime = 0;
+let lastPasteText = '';
+
+export function resetPasteGuard(): void {
+  lastPasteTime = 0;
+  lastPasteText = '';
+}
+
+export function sendPastedText(term: Terminal, tabId: string, text: string): void {
+  const now = Date.now();
+  if (now - lastPasteTime < 250 && text === lastPasteText) {
+    return;
+  }
+  lastPasteTime = now;
+  lastPasteText = text;
+
+  const isBracketed = Boolean((term as unknown as { modes?: { bracketedPasteMode?: boolean } }).modes?.bracketedPasteMode);
+  const formatted = formatPastedText(text, isBracketed);
+  if (formatted) {
+    api.writeTab(tabId, formatted);
+  }
+}
+
+async function handleClipboardPaste(term: Terminal, tabId: string): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      sendPastedText(term, tabId, text);
     }
-    if (!files.length) return;
-    e.preventDefault();
-    e.stopPropagation();
+  } catch (err) {
+    console.error('[terminal] clipboard read error:', err);
+  }
+}
+
+function handlePasteEvent(e: ClipboardEvent, term: Terminal, tabId: string): void {
+  const cd = e.clipboardData;
+  if (!cd) return;
+  const files = Array.from(cd.files);
+  if (!files.length) {
+    for (const item of Array.from(cd.items)) {
+      if (item.kind !== 'file') continue;
+      const file = item.getAsFile();
+      if (file) files.push(file);
+    }
+  }
+  if (files.length) {
     void Promise.all(files.map(stageClipboardFile)).then(paths => writePaths(tabId, paths));
-  }, { signal });
+    return;
+  }
+  const text = cd.getData('text/plain');
+  if (text) {
+    sendPastedText(term, tabId, text);
+  }
+}
+
+/* Intercept paste events in capture phase so xterm's built-in handler never runs.
+   xterm's internal paste replaces \n with \r, triggering premature Enter in CLIs.
+   Image/file drops stage files in temp dir and type absolute paths. */
+function wireClipboardPaste(term: Terminal, tabId: string, signal: AbortSignal): void {
+  const onPaste = (e: ClipboardEvent) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    handlePasteEvent(e, term, tabId);
+  };
+  term.textarea?.addEventListener('paste', onPaste, { capture: true, signal });
 }
 
 /* resolves with the temp path, or with the clipboard's own file name when the
