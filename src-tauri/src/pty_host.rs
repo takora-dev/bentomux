@@ -261,7 +261,7 @@ struct HostTerm {
     /* held open for resize, and to keep the slave from hanging up: dropping
     the master kills the child, which is why it lives in the daemon */
     master: Box<dyn MasterPty + Send>,
-    writer: Mutex<Box<dyn Write + Send>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
 }
 
@@ -428,6 +428,7 @@ fn send_snapshot(host: &Host, id: &str, snapshot: &crate::terminal::TerminalSnap
         "text": snapshot.text,
         "title": snapshot.title,
         "progress": snapshot.progress,
+        "programStatus": snapshot.program_status,
         "lastDataAt": snapshot.last_data_at,
         "cwd": snapshot.cwd,
         /* the grid this snapshot was rendered at, so a watcher never has to
@@ -554,6 +555,7 @@ fn handle_line(host: &Arc<Host>, line: &str) {
                     "html": snapshot.html,
                     "title": snapshot.title,
                     "progress": snapshot.progress,
+                    "programStatus": snapshot.program_status,
                     "lastDataAt": snapshot.last_data_at,
                     "cwd": snapshot.cwd,
                     "rows": snapshot.rows,
@@ -731,6 +733,7 @@ fn spawn_term(
         .try_clone_reader()
         .map_err(|e| format!("reader failed: {}", e))?;
     let killer = child.clone_killer();
+    let writer = Arc::new(Mutex::new(writer));
 
     let shared = Arc::new(TermShared {
         id: id.clone(),
@@ -749,7 +752,7 @@ fn spawn_term(
         HostTerm {
             shared: shared.clone(),
             master: pair.master,
-            writer: Mutex::new(writer),
+            writer: writer.clone(),
             killer: Mutex::new(killer),
         },
     );
@@ -791,6 +794,16 @@ fn spawn_term(
                                 false
                             }
                         };
+                        // Negotiate even while detached; the daemon owns terminal replies.
+                        let response = term_lock(&shared_r).take_status_response();
+                        if let Some(response) = response {
+                            let mut writer = writer.lock_recover();
+                            if let Err(error) =
+                                writer.write_all(response).and_then(|_| writer.flush())
+                            {
+                                eprintln!("[bentomux] terminal status reply failed: {error}");
+                            }
+                        }
                         if attached {
                             let now = now_ms();
                             let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);

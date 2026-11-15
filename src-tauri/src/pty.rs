@@ -436,6 +436,9 @@ impl PtyManager {
                     }
                     "snapshot" => {
                         let snapshot = crate::terminal::TerminalSnapshot {
+                            program_status: msg
+                                .get("programStatus")
+                                .and_then(|value| serde_json::from_value(value.clone()).ok()),
                             text: msg
                                 .get("text")
                                 .and_then(Value::as_str)
@@ -587,6 +590,9 @@ impl PtyManager {
             return None;
         }
         Some(crate::terminal::TerminalSnapshot {
+            program_status: reply
+                .get("programStatus")
+                .and_then(|value| serde_json::from_value(value.clone()).ok()),
             text: reply
                 .get("text")
                 .and_then(Value::as_str)
@@ -1338,6 +1344,41 @@ mod tests {
         }
         assert!(replay.contains("FIRST"), "replay missing; saw {replay:?}");
 
+        second.kill_term(&id);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_program_status_negotiates_and_survives_reconnect() {
+        let (host, first) = test_manager("program-status");
+        let workspace = ws("program-status");
+        let id = first
+            .create_term(&workspace.id, &workspace.path, Some("bash"))
+            .expect("spawn");
+        let reply_len = crate::program_status::CAPABILITIES.len();
+        let command = format!(
+            r#"stty -echo -icanon min 1 time 0; printf '\033]7501;?\033\\'; reply=$(dd bs=1 count={reply_len} 2>/dev/null); stty echo icanon; if [ "$reply" = "$(printf '\033]7501;?:states=idle,working,done,blocked,error\033\\')" ]; then printf '\033]7501;state=working:app=custom-agent\033\\'; fi; sleep 30
+"#
+        );
+        // Only the daemon can answer: no renderer is connected in this test.
+        first.write_term(&id, &command).expect("write query");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let status = loop {
+            if let Some(status) = first.snapshot_html(&id).and_then(|s| s.program_status) {
+                break status;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "no negotiated status report: {:?}",
+                first.snapshot_html(&id).map(|s| s.text)
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        assert_eq!(status.app.as_deref(), Some("custom-agent"));
+        drop(first);
+        let second = connect_test_manager(&host);
+        let restored = second.snapshot_html(&id).expect("restored snapshot");
+        assert_eq!(restored.program_status, Some(status));
         second.kill_term(&id);
     }
 

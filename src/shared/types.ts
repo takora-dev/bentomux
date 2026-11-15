@@ -443,7 +443,7 @@ export interface RuntimeStatus {
   /* which rule/manifest produced the state — for debugging */
   matchedRule?: string | null;
   /* how the state was derived */
-  source?: 'manifest' | 'activity' | 'process' | null;
+  source?: 'manifest' | 'activity' | 'process' | 'integration' | 'program' | null;
 }
 
 /* ---------------- agent approvals (hook bridge) ----------------

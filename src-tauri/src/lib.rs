@@ -17,6 +17,7 @@ pub mod menu;
 pub mod notify;
 pub mod overlay;
 pub mod plugin;
+pub mod program_status;
 pub mod pty;
 pub mod pty_host;
 pub mod remote;

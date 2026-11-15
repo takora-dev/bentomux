@@ -32,6 +32,7 @@ pub fn update_snapshot(id: &str, mut snapshot: TerminalSnapshot) {
             cur.text = snapshot.text;
             cur.title = snapshot.title;
             cur.progress = snapshot.progress;
+            cur.program_status = snapshot.program_status;
             cur.last_data_at = snapshot.last_data_at;
             cur.cwd = snapshot.cwd;
             /* a hot tick carries the grid too; 0 means the sender had none to
@@ -67,6 +68,13 @@ pub fn screen_lines(id: &str) -> Vec<String> {
         .collect()
 }
 
+pub fn program_status(id: &str) -> Option<crate::program_status::ProgramStatus> {
+    screens()
+        .lock_recover()
+        .get(id)
+        .and_then(|s| s.program_status.clone())
+}
+
 pub fn screen_meta(id: &str) -> (String, String, u64) {
     screens()
         .lock_recover()
@@ -97,10 +105,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hot_snapshots_update_and_clear_program_status() {
+        let pane = "program-cache-test";
+        let mut model = crate::terminal::TerminalModel::default();
+        model.process(b"\x1b]7501;state=working:app=custom-agent\x07");
+        update_snapshot(pane, model.snapshot_html());
+        let expected = program_status(pane);
+        let encoded = serde_json::to_vec(&model.snapshot()).unwrap();
+        let restored: TerminalSnapshot = serde_json::from_slice(&encoded).unwrap();
+        update_snapshot(pane, restored);
+        assert_eq!(program_status(pane), expected);
+        assert!(expected.is_some());
+        model.process(b"\x1b]7501;state=clear\x07");
+        update_snapshot(pane, model.snapshot());
+        assert!(program_status(pane).is_none());
+        clear_snapshot(pane);
+    }
+
+    #[test]
     fn cache_exposes_runtime_lines_and_metadata() {
         update_snapshot(
             "cache-test",
             TerminalSnapshot {
+                program_status: None,
                 text: "  ready  \n\n".into(),
                 html: "<span>ready</span>".into(),
                 title: "Pi".into(),
@@ -126,6 +153,7 @@ mod tests {
         update_snapshot(
             "cwd-test",
             TerminalSnapshot {
+                program_status: None,
                 text: "a".into(),
                 html: "<b>a</b>".into(),
                 title: String::new(),
@@ -139,6 +167,7 @@ mod tests {
         update_snapshot(
             "cwd-test",
             TerminalSnapshot {
+                program_status: None,
                 text: "ab".into(),
                 html: String::new(),
                 title: String::new(),

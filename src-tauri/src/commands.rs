@@ -2064,6 +2064,7 @@ mod tests {
         crate::detect::screen::update_snapshot(
             "cwd-cmd-test",
             crate::terminal::TerminalSnapshot {
+                program_status: None,
                 text: String::new(),
                 html: String::new(),
                 title: String::new(),

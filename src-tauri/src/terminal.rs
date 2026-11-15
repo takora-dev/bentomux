@@ -3,6 +3,7 @@ The persistent PTY host owns the only vt100 parser for a pane. The app
 receives immutable snapshots for runtime detection and the remote mirror;
 it must not parse the same byte stream a second time. */
 
+use crate::program_status::{ProgramStatus, StatusProtocol, CAPABILITIES, MAX_OSC_BYTES};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use vt100::Parser;
@@ -39,6 +40,8 @@ const REPLAY_PREFIX: &[u8] = b"\x0f\x1b(B\x1b)B\x1b[r\x1b[?6l\x1b[?7h";
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct TerminalSnapshot {
+    #[serde(default)]
+    pub program_status: Option<ProgramStatus>,
     pub text: String,
     pub html: String,
     pub title: String,
@@ -64,6 +67,7 @@ pub struct TerminalModel {
     cwd: String,
     last_data_at: u64,
     osc_carry: Vec<u8>,
+    status_protocol: StatusProtocol,
 }
 
 impl Default for TerminalModel {
@@ -81,6 +85,7 @@ impl TerminalModel {
             cwd: String::new(),
             last_data_at: 0,
             osc_carry: Vec::new(),
+            status_protocol: StatusProtocol::default(),
         }
     }
 
@@ -95,11 +100,16 @@ impl TerminalModel {
             &mut self.progress,
             &mut self.cwd,
             &mut self.osc_carry,
+            &mut self.status_protocol,
             chunk,
         );
         if has_visible_activity(chunk) {
             self.last_data_at = now_ms();
         }
+    }
+
+    pub fn take_status_response(&mut self) -> Option<&'static [u8]> {
+        std::mem::take(&mut self.status_protocol.query_pending).then_some(CAPABILITIES)
     }
 
     /* A replay is written into a live pane, so it resets first: see
@@ -119,6 +129,7 @@ impl TerminalModel {
     pub fn snapshot(&self) -> TerminalSnapshot {
         let (rows, cols) = self.term.screen().size();
         TerminalSnapshot {
+            program_status: self.status_protocol.status.clone(),
             text: self.text(),
             /* html is the expensive half of a snapshot (per-cell style walk
             over the whole grid). Consumers that need it (remote mirror)
@@ -145,6 +156,7 @@ impl TerminalModel {
     pub fn snapshot_html(&self) -> TerminalSnapshot {
         let (rows, cols) = self.term.screen().size();
         TerminalSnapshot {
+            program_status: self.status_protocol.status.clone(),
             text: self.term.screen().contents(),
             html: screen_dump_html(&self.term),
             title: self.title.clone(),
@@ -203,9 +215,22 @@ fn decode_osc7_uri(payload: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-fn handle_osc(title: &mut String, progress: &mut String, cwd: &mut String, payload: &[u8]) {
+fn handle_osc(
+    title: &mut String,
+    progress: &mut String,
+    cwd: &mut String,
+    status: &mut StatusProtocol,
+    payload: &[u8],
+) {
     let text = String::from_utf8_lossy(payload);
-    if let Some(rest) = text.strip_prefix("0;").or_else(|| text.strip_prefix("2;")) {
+    if text.starts_with("7501;") {
+        if let Ok(text) = std::str::from_utf8(payload) {
+            status.handle(&text[5..]);
+        }
+    } else if text.starts_with("133;A") || text.starts_with("133;D") {
+        // A shell prompt or command completion ends the previous program's report.
+        status.status = None;
+    } else if let Some(rest) = text.strip_prefix("0;").or_else(|| text.strip_prefix("2;")) {
         *title = rest.to_string();
     } else if let Some(rest) = text.strip_prefix("7;") {
         if let Some(path) = decode_osc7_uri(rest) {
@@ -227,6 +252,7 @@ fn feed(
     progress: &mut String,
     cwd: &mut String,
     osc_carry: &mut Vec<u8>,
+    status: &mut StatusProtocol,
     chunk: &[u8],
 ) {
     if osc_carry.is_empty() && !chunk.contains(&0x1b) {
@@ -257,15 +283,30 @@ fn feed(
             }
             match end {
                 Some(e) => {
-                    handle_osc(title, progress, cwd, &stream[i + 2..e]);
+                    if !status.discarding_osc && e - i <= MAX_OSC_BYTES {
+                        handle_osc(title, progress, cwd, status, &stream[i + 2..e]);
+                    }
+                    status.discarding_osc = false;
                     i = if stream[e] == 0x1b { e + 2 } else { e + 1 };
                 }
                 None => {
-                    *osc_carry = stream[i..].to_vec();
+                    if status.discarding_osc || stream.len() - i > MAX_OSC_BYTES {
+                        status.discarding_osc = true;
+                        osc_carry.extend_from_slice(b"\x1b]");
+                        if stream.last() == Some(&0x1b) {
+                            osc_carry.push(0x1b);
+                        }
+                    } else {
+                        *osc_carry = stream[i..].to_vec();
+                    }
                     break;
                 }
             }
         } else {
+            if stream[i] == 0x1b && i + 1 == stream.len() {
+                osc_carry.push(0x1b);
+                break;
+            }
             let start = i;
             i += 1;
             while i < stream.len() && stream[i] != 0x1b {
@@ -429,6 +470,56 @@ fn screen_dump_html(term: &Parser) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn program_status_survives_every_chunk_boundary_and_repaint() {
+        let report = b"\x1b]7501;state=working:app=custom-agent\x1b\\";
+        for split in 0..=report.len() {
+            let mut model = TerminalModel::default();
+            model.process(&report[..split]);
+            model.process(&report[split..]);
+            model.process("\r\n⢾⣉⡷ Custom loading\r\n12.5%/200k".as_bytes());
+            let snapshot = model.snapshot();
+            let status = snapshot.program_status.unwrap();
+            assert_eq!(status.state, crate::program_status::ProgramState::Working);
+            assert_eq!(status.app.as_deref(), Some("custom-agent"));
+            assert!(!snapshot.text.contains("7501"));
+            assert_eq!(model.snapshot_html().program_status, Some(status));
+        }
+    }
+
+    #[test]
+    fn status_query_replies_once_and_clear_restores_fallback() {
+        let mut model = TerminalModel::default();
+        model.process(b"\x1b]7501;?\x07\x1b]7501;?\x1b\\");
+        assert_eq!(model.take_status_response(), Some(CAPABILITIES));
+        assert_eq!(model.take_status_response(), None);
+        for state in ["idle", "working", "done", "blocked", "error"] {
+            model.process(format!("\x1b]7501;state={state}\x07").as_bytes());
+            assert!(model.snapshot().program_status.is_some());
+        }
+        model.process(b"\x1b]7501;state=clear\x07");
+        assert!(model.snapshot().program_status.is_none());
+        model.process(b"\x1b]7501;state=working\x07\x1b]133;A\x07");
+        assert!(model.snapshot().program_status.is_none());
+    }
+
+    #[test]
+    fn oversized_osc_is_bounded_and_recovers_at_terminator() {
+        let mut model = TerminalModel::default();
+        model.process(b"\x1b]7501;state=working:msg=");
+        for _ in 0..20 {
+            model.process(&vec![b'x'; 4096]);
+            assert!(model.osc_carry.len() <= MAX_OSC_BYTES);
+        }
+        model.process(b"\x1b");
+        model.process(b"\\hello\x1b]7501;state=idle\x07");
+        assert!(model.snapshot().text.contains("hello"));
+        assert_eq!(
+            model.snapshot().program_status.unwrap().state,
+            crate::program_status::ProgramState::Idle
+        );
+    }
 
     #[test]
     fn osc_is_stripped_and_split_sequences_are_preserved() {

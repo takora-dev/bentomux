@@ -569,6 +569,43 @@ fn deepest_match(start_pid: u32, by_parent: &HashMap<u32, Vec<&Proc>>) -> Option
     best
 }
 
+fn match_reported_program(
+    start_pid: u32,
+    by_parent: &HashMap<u32, Vec<&Proc>>,
+    report: Option<&crate::program_status::ProgramStatus>,
+) -> Option<Match> {
+    let report = report?;
+    // Known programs still need their process identity: an old report must
+    // not attach itself to an unrelated command after that agent exits.
+    if report
+        .app
+        .as_deref()
+        .and_then(|app| match_agent(app, None))
+        .is_some()
+    {
+        return None;
+    }
+    // An explicit report needs no registry entry, but must still have a live
+    // program beneath the pane's shell. A dead program cannot own the pane.
+    let child = by_parent
+        .get(&start_pid)?
+        .iter()
+        .find(|p| p.pid != start_pid)?;
+    Some(Match {
+        agent: report.app.clone().unwrap_or_else(|| child.name.clone()),
+        depth: 1,
+    })
+}
+
+fn program_run_state(state: &crate::program_status::ProgramState) -> AgentRunState {
+    use crate::program_status::ProgramState;
+    match state {
+        ProgramState::Working => AgentRunState::Working,
+        ProgramState::Blocked | ProgramState::Error => AgentRunState::Blocked,
+        ProgramState::Idle | ProgramState::Done => AgentRunState::Idle,
+    }
+}
+
 fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
     let Some(m) = match_ else {
         clear_reported_agent(tab_id);
@@ -591,6 +628,11 @@ fn status_for(tab_id: &str, match_: Option<Match>) -> RuntimeStatus {
         base.runtime = Some(reported.agent);
         base.state = Some(reported.state);
         base.source = Some("integration".to_string());
+        return base;
+    }
+    if let Some(status) = screen::program_status(tab_id) {
+        base.state = Some(program_run_state(&status.state));
+        base.source = Some("program".to_string());
         return base;
     }
     let (osc_title, osc_progress, last_data_at) = screen::screen_meta(tab_id);
@@ -695,7 +737,14 @@ pub fn init(app: tauri::AppHandle) {
                     .lock_recover()
                     .as_ref()
                     .and_then(|s| s.last_states.get(&t.id).cloned());
-                let st = status_for(&t.id, deepest_match(t.pid, &by_parent));
+                let matched = deepest_match(t.pid, &by_parent).or_else(|| {
+                    match_reported_program(
+                        t.pid,
+                        &by_parent,
+                        screen::program_status(&t.id).as_ref(),
+                    )
+                });
+                let st = status_for(&t.id, matched);
                 if let (Some(prev), Some(next)) = (&prev, &st.state) {
                     notify_state_change(&app, &t.id, &st, prev, next);
                 }
@@ -1109,6 +1158,61 @@ mod tests {
         /* must terminate (depth cap) without hanging */
         assert!(deepest_match(1, &parent_map(&procs)).is_none());
     }
+    #[test]
+    fn unregistered_program_reports_require_a_live_child() {
+        let procs = vec![proc(1, 0, "bash", None), proc(2, 1, "node", None)];
+        let parents = parent_map(&procs);
+        let mut protocol = crate::program_status::StatusProtocol::default();
+        protocol.handle("state=working:app=custom-agent");
+        assert!(deepest_match(1, &parents).is_none());
+        let found = match_reported_program(1, &parents, protocol.status.as_ref()).unwrap();
+        assert_eq!(found.agent, "custom-agent");
+        assert!(match_reported_program(2, &parents, protocol.status.as_ref()).is_none());
+        assert!(match_reported_program(1, &parents, None).is_none());
+        protocol.handle("state=working:app=pi");
+        assert!(match_reported_program(1, &parents, protocol.status.as_ref()).is_none());
+    }
+
+    #[test]
+    fn program_reports_override_screen_rules_for_multiple_agents() {
+        for agent in ["pi", "claude", "codex"] {
+            let pane = format!("osc-test-{agent}");
+            let mut model = crate::terminal::TerminalModel::default();
+            for (state, expected) in [
+                ("working", AgentRunState::Working),
+                ("blocked", AgentRunState::Blocked),
+                ("done", AgentRunState::Idle),
+                ("error", AgentRunState::Blocked),
+            ] {
+                model.process(
+                    format!("\x1b]7501;state={state}:app={agent}\x07\r\n12.5%/200k").as_bytes(),
+                );
+                screen::update_snapshot(&pane, model.snapshot());
+                let status = status_for(
+                    &pane,
+                    Some(Match {
+                        agent: agent.into(),
+                        depth: 1,
+                    }),
+                );
+                assert_eq!(status.state, Some(expected));
+                assert_eq!(status.source.as_deref(), Some("program"));
+            }
+            report_agent_state(&pane, agent, "working", None);
+            let integrated = status_for(
+                &pane,
+                Some(Match {
+                    agent: agent.into(),
+                    depth: 1,
+                }),
+            );
+            assert_eq!(integrated.source.as_deref(), Some("integration"));
+            clear_reported_agent(&pane);
+            assert!(!status_for(&pane, None).running);
+            screen::clear_snapshot(&pane);
+        }
+    }
+
     #[test]
     fn missing_agent_process_clears_reported_state() {
         report_agent_state("pane-quit", "pi", "working", None);
