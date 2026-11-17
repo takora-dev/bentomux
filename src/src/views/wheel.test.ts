@@ -67,19 +67,19 @@ describe('wheel routing', () => {
   });
 
   /* Windows ConPTY drops the mouse reports, so the gesture has to become the
-     page keys the program scrolls with. */
-  it('sends page keys for wheel directions when mouse reports do not arrive', () => {
-    const send = vi.fn();
-    const { screen } = setup({ focus: true, mouseReportsWork: false, pageScroll: () => send });
-    const reached = vi.fn();
-    screen.addEventListener('wheel', reached);
-    const clock = vi.spyOn(performance, 'now');
-    clock.mockReturnValueOnce(0).mockReturnValueOnce(501);
-    screen.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -20 }));
-    screen.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 }));
-    clock.mockRestore();
-    expect(send.mock.calls).toEqual([['\x1b[5~'], ['\x1b[6~']]);
-    expect(reached).not.toHaveBeenCalled();
+     page keys the program scrolls with. Each direction gets its own guard: the
+     60ms throttle is not what this test is about, and one shared clock would
+     make the second gesture's fate depend on how fast the loop runs. */
+  it('sends a page key for each wheel direction when mouse reports do not arrive', () => {
+    for (const [deltaY, key] of [[-20, '\x1b[5~'], [120, '\x1b[6~']] as const) {
+      const send = vi.fn();
+      const { screen } = setup({ focus: true, mouseReportsWork: false, pageScroll: () => send });
+      const reached = vi.fn();
+      screen.addEventListener('wheel', reached);
+      screen.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY }));
+      expect(send.mock.calls).toEqual([[key]]);
+      expect(reached).not.toHaveBeenCalled();
+    }
   });
 
   it('sends page keys for a program that tracks the mouse but never asks for focus', () => {
@@ -89,16 +89,27 @@ describe('wheel routing', () => {
     expect(send.mock.calls).toEqual([['\x1b[5~']]);
   });
 
-  it('throttles a burst of gestures into one page at a time', () => {
+  it('throttles a burst into one page and opens again after the window', () => {
     const send = vi.fn();
     const { screen } = setup({ focus: true, mouseReportsWork: false, pageScroll: () => send });
-    const clock = vi.spyOn(performance, 'now');
-    clock.mockReturnValue(0);
-    for (let i = 0; i < 5; i++) {
-      screen.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -20 }));
+    /* fake timers own `performance.now`, not a spy on it: a spy that does not
+       take effect leaves the assertions below measuring how fast the machine
+       dispatches five events instead of what the throttle does */
+    vi.useFakeTimers({ toFake: ['performance'] });
+    try {
+      const frozen = performance.now();
+      vi.advanceTimersByTime(1000);
+      expect(performance.now() - frozen).toBe(1000);
+      const wheel = () =>
+        screen.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -20 }));
+      for (let i = 0; i < 5; i++) wheel();
+      expect(send).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(60);
+      wheel();
+      expect(send).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
     }
-    clock.mockRestore();
-    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('does not send page keys when mouse reports work, for an untouched pane, or for a modified wheel', () => {
