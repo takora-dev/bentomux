@@ -92,6 +92,7 @@ a completed user task.
 
 The daemon owns the status alongside the terminal model, so reconnecting clients
 receive it in snapshots without requiring the program to emit it again. This
-snapshot change uses PTY-host protocol version 8. Agent releases without OSC 7501
-support continue to use their existing detection rules. Programs already running
+snapshot change uses PTY-host protocol version 9. Upgrading from an older daemon
+replaces it and stops its existing panes; save any work before restarting the app.
+Agent releases without OSC 7501 support continue to use their existing detection rules. Programs already running
 without protocol negotiation may need to be restarted to enable reporting.

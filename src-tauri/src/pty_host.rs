@@ -42,7 +42,7 @@ pub const HOST_FLAG: &str = "--pty-host";
 daemon that answers with a different number: a daemon outlives app updates,
 so a silent mismatch would surface as confusing misbehaviour in the field
 with nothing to diagnose it. */
-pub const PROTOCOL_VERSION: u64 = 8;
+pub const PROTOCOL_VERSION: u64 = 9;
 
 /* how long to wait for the freshly spawned daemon to accept a connection */
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(6);
@@ -191,8 +191,54 @@ pub fn wait_host_gone(timeout: Duration) -> bool {
     }
 }
 
-fn spawn_host_process() -> Result<(), String> {
+/* The daemon outlives the app, and in a dev build it would otherwise keep
+`target/debug/bentomux.exe` mapped: cargo cannot replace a file a running
+process has open, so the next `npm run dev:lite` failed with "Access is
+denied". Running a copy leaves the build output free to be rewritten.
+
+The copy is named after a digest of the executable, so a new build gets a
+new file: the copy of a daemon that is still running stays locked (which
+Windows allows) instead of being replaced under it. */
+fn daemon_executable() -> Result<PathBuf, String> {
+    use sha2::{Digest, Sha256};
     let exe = std::env::current_exe().map_err(|e| format!("current_exe failed: {}", e))?;
+    let bytes = std::fs::read(&exe).map_err(|e| format!("daemon copy read failed: {e}"))?;
+    let digest = Sha256::digest(&bytes);
+    let fingerprint = digest[..8]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    let extension = exe
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let prefix = format!("bentomux-daemon{}-", instance_suffix());
+    let copy = std::env::temp_dir().join(format!("{prefix}{fingerprint}{extension}"));
+    if !copy.exists() {
+        std::fs::copy(&exe, &copy).map_err(|e| format!("daemon copy failed: {e}"))?;
+    }
+    /* copies of earlier builds are dead weight; the running one cannot be
+    removed on Windows and that is fine */
+    if let Ok(dir) = std::env::temp_dir().read_dir() {
+        for entry in dir.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with(&prefix)
+                && name
+                    != copy
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default()
+            {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
+    Ok(copy)
+}
+
+fn spawn_host_process() -> Result<(), String> {
+    let exe = daemon_executable()?;
     let mut cmd = std::process::Command::new(exe);
     cmd.arg(HOST_FLAG);
     cmd.stdin(std::process::Stdio::null());
@@ -278,6 +324,33 @@ what its own model says changed — the stale glyph users report. */
 fn feed_model(shared: &TermShared, chunk: Option<&str>) {
     if let Some(text) = chunk {
         term_lock(shared).process(text.as_bytes());
+    }
+}
+
+fn forward_pty_chunk(
+    host: &Host,
+    shared: &TermShared,
+    writer: &Mutex<Box<dyn Write + Send>>,
+    chunk: Option<&str>,
+) -> bool {
+    let encoded_chunk = chunk.map(|text| encoded_data_line(&shared.id, text.as_bytes()));
+    let _gate = gate_lock(shared);
+    feed_model(shared, chunk);
+    // The DA reply from xterm must not overtake the daemon's status reply.
+    let response = term_lock(shared).take_status_response();
+    if let Some(response) = response {
+        let mut writer = writer.lock_recover();
+        if let Err(error) = writer.write_all(response).and_then(|_| writer.flush()) {
+            eprintln!("[bentomux] terminal status reply failed: {error}");
+        }
+    }
+    if shared.attached.load(Ordering::SeqCst) {
+        if let Some(line) = encoded_chunk {
+            send_line(host, line);
+        }
+        true
+    } else {
+        false
     }
 }
 
@@ -710,7 +783,13 @@ fn spawn_term(
     cmd.env("COLORTERM", "truecolor");
     cmd.env("TERM_PROGRAM", "bentomux");
     #[cfg(windows)]
-    cmd.env("WT_SESSION", "1");
+    {
+        cmd.env("WT_SESSION", "1");
+        // ConPTY drops OSC 7501 capability queries, though it forwards reports.
+        if std::env::var_os("PI_PROGRAM_STATUS").is_none() {
+            cmd.env("PI_PROGRAM_STATUS", "1");
+        }
+    }
     for (k, v) in utf8_locale_overrides(|k| std::env::var(k).ok()) {
         cmd.env(k, v);
     }
@@ -779,31 +858,8 @@ fn spawn_term(
                         /* Base64/JSON work happens before the gate. Inside it we
                         only process the parser and enqueue an already-built
                         line, keeping the hot critical section bounded. */
-                        let encoded_chunk = chunk
-                            .as_deref()
-                            .map(|text| encoded_data_line(&shared_r.id, text.as_bytes()));
-                        let attached = {
-                            let _gate = gate_lock(&shared_r);
-                            feed_model(&shared_r, chunk.as_deref());
-                            if shared_r.attached.load(Ordering::SeqCst) {
-                                if let Some(line) = encoded_chunk {
-                                    send_line(&host_r, line);
-                                }
-                                true
-                            } else {
-                                false
-                            }
-                        };
-                        // Negotiate even while detached; the daemon owns terminal replies.
-                        let response = term_lock(&shared_r).take_status_response();
-                        if let Some(response) = response {
-                            let mut writer = writer.lock_recover();
-                            if let Err(error) =
-                                writer.write_all(response).and_then(|_| writer.flush())
-                            {
-                                eprintln!("[bentomux] terminal status reply failed: {error}");
-                            }
-                        }
+                        let attached =
+                            forward_pty_chunk(&host_r, &shared_r, &writer, chunk.as_deref());
                         if attached {
                             let now = now_ms();
                             let previous = shared_r.last_snapshot_at.load(Ordering::Relaxed);
@@ -1099,6 +1155,63 @@ mod tests {
             stream_gate: Mutex::new(()),
             terminal: Mutex::new(TerminalModel::default()),
         })
+    }
+
+    /* The daemon must not run from the build output: cargo cannot replace a
+    file a running process has open, and a dev build holds its own binary
+    for the whole session. */
+    #[test]
+    fn the_daemon_runs_from_a_copy_outside_the_build_output() {
+        let copy = daemon_executable().expect("daemon copy");
+        let exe = std::env::current_exe().expect("current exe");
+        assert_ne!(copy, exe, "the daemon must not run from the build output");
+        assert!(
+            copy.is_file(),
+            "the daemon copy is missing: {}",
+            copy.display()
+        );
+        assert_eq!(
+            std::fs::read(&copy).unwrap().len(),
+            std::fs::read(&exe).unwrap().len()
+        );
+    }
+
+    #[test]
+    fn status_reply_precedes_forwarded_device_attributes_query() {
+        struct ProbeWriter {
+            forwarded: mpsc::Receiver<String>,
+            reply: Arc<Mutex<Vec<u8>>>,
+        }
+        impl Write for ProbeWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                assert!(
+                    self.forwarded.try_recv().is_err(),
+                    "DA reached xterm before the status reply"
+                );
+                self.reply.lock_recover().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let host = Host::new();
+        let shared = test_shared("query-order");
+        let (tx, rx) = mpsc::channel();
+        host.set_client(tx);
+        let reply = Arc::new(Mutex::new(Vec::new()));
+        let writer: Mutex<Box<dyn Write + Send>> = Mutex::new(Box::new(ProbeWriter {
+            forwarded: rx,
+            reply: reply.clone(),
+        }));
+        // set_client detaches panes it owns; this independent fixture is attached.
+        assert!(forward_pty_chunk(
+            &host,
+            &shared,
+            &writer,
+            Some("\x1b]7501;?\x1b\\\x1b[c")
+        ));
+        assert_eq!(*reply.lock_recover(), crate::program_status::CAPABILITIES);
     }
 
     /* A glyph split across two reads must reach the model whole. The reader
