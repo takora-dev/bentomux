@@ -981,6 +981,19 @@ mod tests {
         }
     }
 
+    /* the executable of an installed agent, if this machine has it */
+    fn which_agent(name: &str) -> Option<std::path::PathBuf> {
+        let path = std::env::var_os("PATH")?;
+        std::env::split_paths(&path)
+            .map(|dir| dir.join(format!("{name}.exe")))
+            .find(|candidate| candidate.is_file())
+            .or_else(|| {
+                std::env::split_paths(&path)
+                    .map(|dir| dir.join(name))
+                    .find(|candidate| candidate.is_file())
+            })
+    }
+
     #[test]
     fn test_decode_pty_bytes_preserves_split_utf8() {
         let mut carry = Vec::new();
@@ -1345,6 +1358,330 @@ mod tests {
         assert!(replay.contains("FIRST"), "replay missing; saw {replay:?}");
 
         second.kill_term(&id);
+    }
+
+    /* A clickable label in a fullscreen program (Pi's "jump to latest
+    message") is a mouse region: the program needs the click as an SGR
+    mouse report. ConPTY eats the mouse mode switches on the output
+    path, so xterm.js never learns that the program wants reports and
+    never sends a click.
+
+    This pins the output side: the raw bytes the daemon forwards. The
+    renderer sees exactly these, so a switch that is not here is a switch
+    xterm.js never acted on. */
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_conpty_strips_the_mouse_mode_switches() {
+        let (_host, manager) = test_manager("windows-mouse-out");
+        let workspace = ws("windows-mouse-out");
+        let fixture = std::path::Path::new(&workspace.path).join("mouse-out-fixture.js");
+        std::fs::write(
+            &fixture,
+            r#"
+process.stdout.write('FIXTURE_STARTED\r\n');
+process.stdout.write('\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1004h\x1b[?1006h\x1b[?1049h');
+process.stdout.write('AFTER_MARKER\r\n');
+setTimeout(() => process.exit(0), 15000);
+"#,
+        )
+        .unwrap();
+        let id = manager
+            .create_term(&workspace.id, &workspace.path, Some("cmd"))
+            .expect("spawn");
+        let mut rx = manager.on_term_data();
+        manager.attach(&id);
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|path| path.join("node.exe"))
+            .find(|path| path.is_file())
+            .expect("node.exe required for the Windows PTY fixture");
+        manager
+            .write_term(
+                &id,
+                &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
+            )
+            .expect("start fixture");
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        let mut raw = String::new();
+        while std::time::Instant::now() < deadline {
+            if raw.contains("AFTER_MARKER") {
+                break;
+            }
+            match rx.try_recv() {
+                Ok((_, chunk)) => raw.push_str(&chunk),
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                    std::thread::sleep(Duration::from_millis(50))
+                }
+                Err(_) => break,
+            }
+        }
+        manager.kill_term(&id);
+        assert!(raw.contains("AFTER_MARKER"), "fixture did not start");
+        /* focus reporting survives, and it is what tells the renderer that a
+        fullscreen program owns the viewport */
+        assert!(
+            raw.contains("\x1b[?1004h"),
+            "focus reporting should survive: {raw:?}"
+        );
+        for seq in ["\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h", "\x1b[?1006h"] {
+            assert!(
+                !raw.contains(seq),
+                "ConPTY now forwards {seq:?}; the renderer can use real mouse reports"
+            );
+        }
+        /* The alternate screen goes too, which is why a fullscreen program
+        stays in the normal buffer: its redraws land in xterm's history rather
+        than in a transcript of its own. Focus reporting is then the only
+        switch left that marks the program owning the viewport. */
+        assert!(
+            !raw.contains("\x1b[?1049h"),
+            "ConPTY now forwards the alternate screen; the renderer can stop \
+             treating focus reporting as the mark of a viewport owner"
+        );
+    }
+
+    /* The input side of the same problem: does a mouse report ever reach
+    the child?
+
+    The measurement matters here, twice over. The daemon's screen
+    snapshot shows only the visible rows, so an echo that scrolled out of
+    view reads as "never arrived". And a mouse report is consumed by the
+    parser rather than displayed, so searching the screen for the report
+    finds nothing even when it arrived. The raw output stream is the only
+    faithful record: the child echoes the bytes it read, and the daemon
+    forwards every byte the child wrote.
+
+    A plain letter is sent first as the control, so "the report never
+    arrived" is a statement about the report and not about the pipe. */
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_conpty_never_delivers_a_mouse_report() {
+        let (_host, manager) = test_manager("windows-mouse-in");
+        let workspace = ws("windows-mouse-in");
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|path| path.join("node.exe"))
+            .find(|path| path.is_file())
+            .expect("node.exe required for the Windows PTY fixture");
+        /* the report as the child would echo it, in hex */
+        let sgr = "\u{1b}[<0;10;5M";
+        let sgr_hex: String = sgr.bytes().map(|b| format!("{:02x}", b)).collect();
+        /* X10: ESC [ M, then button+32, column+32, row+32 */
+        let x10 = "\u{1b}[M\u{20}\u{2a}\u{25}";
+        let x10_hex: String = x10.bytes().map(|b| format!("{:02x}", b)).collect();
+        /* the child enables mouse tracking in the "mode" variant, because a
+        program that wants reports says so */
+        for (tag, modes) in [("nomode", false), ("mode", true)] {
+            let fixture = std::path::Path::new(&workspace.path).join(format!("{tag}-fixture.js"));
+            let mut script = String::new();
+            script.push_str("process.stdin.setRawMode(true);\n");
+            script.push_str("process.stdin.resume();\n");
+            script.push_str("process.stdin.on('data', data => {\n");
+            script.push_str("  process.stdout.write('E:' + data.toString('hex') + '\\r\\n');\n");
+            script.push_str("});\n");
+            script.push_str("process.stdout.write('FIXTURE_STARTED\\r\\n');\n");
+            if modes {
+                script.push_str(
+                    "process.stdout.write('\\x1b[?1000h\\x1b[?1002h\\x1b[?1003h\\x1b[?1004h\\x1b[?1006h');\n",
+                );
+            }
+            script.push_str("setTimeout(() => process.exit(0), 20000);\n");
+            std::fs::write(&fixture, script).unwrap();
+            let id = manager
+                .create_term(&workspace.id, &workspace.path, Some("cmd"))
+                .expect("spawn");
+            let mut rx = manager.on_term_data();
+            manager.attach(&id);
+            manager
+                .write_term(
+                    &id,
+                    &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
+                )
+                .expect("start fixture");
+            let deadline = std::time::Instant::now() + Duration::from_secs(15);
+            let mut raw = String::new();
+            while std::time::Instant::now() < deadline && !raw.contains("FIXTURE_STARTED") {
+                match rx.try_recv() {
+                    Ok((_, chunk)) => raw.push_str(&chunk),
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                        std::thread::sleep(Duration::from_millis(50))
+                    }
+                    Err(_) => break,
+                }
+            }
+            assert!(
+                raw.contains("FIXTURE_STARTED"),
+                "{tag}: fixture did not start"
+            );
+            std::thread::sleep(Duration::from_millis(1000));
+            /* the control, then both report formats */
+            manager.write_term(&id, "Q").expect("write control");
+            for seq in [sgr, x10] {
+                for _ in 0..5 {
+                    manager.write_term(&id, seq).expect("write report");
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+            }
+            std::thread::sleep(Duration::from_secs(2));
+            while let Ok((_, chunk)) = rx.try_recv() {
+                raw.push_str(&chunk);
+            }
+            manager.kill_term(&id);
+            assert!(
+                raw.contains("E:51"),
+                "{tag}: the control letter did not arrive, so the pipe is broken"
+            );
+            assert!(
+                !raw.contains(&sgr_hex) && !raw.contains(&x10_hex),
+                "{tag}: ConPTY delivered a mouse report; the click path can be restored"
+            );
+        }
+    }
+
+    /* Which agent is installed here is not something a test can assume, so
+    this probe runs the ones that are and reports what they send. The
+    renderer keys the wheel fallback off focus reporting, so the question
+    is which agents enable it.
+
+    The capture is the raw output stream: an agent that enables the
+    alternate screen or a mouse mode has its switch taken away by
+    ConPTY, and a switch the renderer never sees is a switch it cannot
+    act on. */
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_agents_report_their_terminal_modes() {
+        let (_host, manager) = test_manager("windows-agent-modes");
+        let workspace = ws("windows-agent-modes");
+        /* the agents that may be on this machine */
+        let candidates = ["codex", "hermes", "pi"];
+        for agent in candidates {
+            let Some(path) = which_agent(agent) else {
+                println!("{agent}: not installed");
+                continue;
+            };
+            let id = manager
+                .create_term(&workspace.id, &workspace.path, Some("powershell"))
+                .expect("spawn");
+            let mut rx = manager.on_term_data();
+            manager.attach(&id);
+            /* start the agent and let it settle into its TUI. The stream has
+            to be drained while it runs: it is a bounded broadcast, so a
+            long sleep would overflow it and lose exactly the frames
+            this probe is looking for. */
+            manager
+                .write_term(&id, &format!("& \"{}\"\r\n", path.display()))
+                .expect("start agent");
+            let deadline = std::time::Instant::now() + Duration::from_secs(20);
+            let mut raw = String::new();
+            while std::time::Instant::now() < deadline {
+                match rx.try_recv() {
+                    Ok((_, chunk)) => raw.push_str(&chunk),
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                        std::thread::sleep(Duration::from_millis(50))
+                    }
+                    Err(_) => break,
+                }
+            }
+            manager.kill_term(&id);
+            println!("{agent}: raw length = {}", raw.len());
+            let tail: String = raw
+                .chars()
+                .rev()
+                .take(400)
+                .collect::<Vec<char>>()
+                .into_iter()
+                .rev()
+                .collect();
+            println!("{agent}: raw tail = {tail:?}");
+            let modes: Vec<&str> = [
+                "\x1b[?1049h",
+                "\x1b[?1000h",
+                "\x1b[?1002h",
+                "\x1b[?1003h",
+                "\x1b[?1004h",
+                "\x1b[?1006h",
+                "\x1b[?1007h",
+            ]
+            .into_iter()
+            .filter(|m| raw.contains(*m))
+            .collect();
+            println!("{agent}: modes seen = {modes:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_conpty_program_status_reports() {
+        let (_host, manager) = test_manager("windows-status");
+        let workspace = ws("windows-status");
+        let fixture = std::path::Path::new(&workspace.path).join("status-fixture.js");
+        std::fs::write(
+            &fixture,
+            r#"
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.on('data', data => {
+  if (data.includes(Buffer.from('\x1b[5~'))) process.stdout.write('PAGE_RECEIVED\r\n');
+});
+process.stdout.write('FIXTURE_STARTED\r\n');
+if (process.env.PI_PROGRAM_STATUS === '1') {
+  process.stdout.write('\x1b]7501;state=working:app=pi\x1b\\');
+}
+setTimeout(() => process.exit(0), 20000);
+"#,
+        )
+        .unwrap();
+        let id = manager
+            .create_term(&workspace.id, &workspace.path, Some("cmd"))
+            .expect("spawn");
+        manager.attach(&id);
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|path| path.join("node.exe"))
+            .find(|path| path.is_file())
+            .expect("node.exe required for the Windows PTY fixture");
+        manager
+            .write_term(
+                &id,
+                &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
+            )
+            .expect("start fixture");
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        let mut found = false;
+        while std::time::Instant::now() < deadline {
+            if let Some(status) = manager.snapshot_html(&id).and_then(|s| s.program_status) {
+                found = status.state == crate::program_status::ProgramState::Working;
+                if found {
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        manager.write_term(&id, "\x1b[5~").expect("send page up");
+        let page_deadline = std::time::Instant::now() + Duration::from_secs(3);
+        let mut page_received = false;
+        while std::time::Instant::now() < page_deadline {
+            if manager
+                .snapshot_html(&id)
+                .is_some_and(|s| s.text.contains("PAGE_RECEIVED"))
+            {
+                page_received = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let screen = manager
+            .snapshot_html(&id)
+            .map(|s| s.text)
+            .unwrap_or_default();
+        let fixture_started = screen.contains("FIXTURE_STARTED");
+        manager.kill_term(&id);
+        assert!(fixture_started, "fixture did not start; screen: {screen:?}");
+        assert!(
+            page_received,
+            "ConPTY did not deliver Page Up input, so the wheel fallback has nothing to send"
+        );
+        assert!(
+            found,
+            "Windows ConPTY did not receive forced OSC 7501 working status"
+        );
     }
 
     #[cfg(unix)]
