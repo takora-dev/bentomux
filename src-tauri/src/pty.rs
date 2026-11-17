@@ -997,6 +997,65 @@ mod tests {
             })
     }
 
+    /* Start a fixture under cmd and hand back the pane, its stream and what it
+    printed up to `marker`.
+
+    The handshake is the flaky half, not the measurement: the pane runs a real
+    shell on a runner that is spawning several of them at once, so a spawn can
+    outlast the wait, and a bounded broadcast drops the oldest chunks when the
+    reader falls behind — a gap that used to read as "the fixture never
+    started". Both look identical to the test, so the pane is retried from
+    scratch and lag is not allowed to end the read. */
+    #[cfg(windows)]
+    fn start_fixture(
+        manager: &PtyManager,
+        workspace: &WorkspaceRec,
+        node: &std::path::Path,
+        fixture: &std::path::Path,
+        marker: &str,
+    ) -> (
+        String,
+        tokio::sync::broadcast::Receiver<(String, String)>,
+        String,
+    ) {
+        use tokio::sync::broadcast::error::TryRecvError;
+        let command = format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display());
+        let mut last = String::new();
+        for attempt in 1..=3 {
+            let id = manager
+                .create_term(&workspace.id, &workspace.path, Some("cmd"))
+                .expect("spawn");
+            let mut rx = manager.on_term_data();
+            manager.attach(&id);
+            manager.write_term(&id, &command).expect("start fixture");
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            let mut raw = String::new();
+            while std::time::Instant::now() < deadline {
+                match rx.try_recv() {
+                    Ok((_, chunk)) => raw.push_str(&chunk),
+                    Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(50)),
+                    Err(TryRecvError::Lagged(_)) => {}
+                    Err(TryRecvError::Closed) => break,
+                }
+                if raw.contains(marker) {
+                    return (id, rx, raw);
+                }
+            }
+            manager.kill_term(&id);
+            println!("attempt {attempt}: {marker} did not arrive");
+            last = raw;
+        }
+        let tail: String = last
+            .chars()
+            .rev()
+            .take(400)
+            .collect::<Vec<char>>()
+            .into_iter()
+            .rev()
+            .collect();
+        panic!("fixture did not start after 3 attempts; tail: {tail:?}");
+    }
+
     #[test]
     fn test_decode_pty_bytes_preserves_split_utf8() {
         let mut carry = Vec::new();
@@ -1388,37 +1447,13 @@ setTimeout(() => process.exit(0), 15000);
 "#,
         )
         .unwrap();
-        let id = manager
-            .create_term(&workspace.id, &workspace.path, Some("cmd"))
-            .expect("spawn");
-        let mut rx = manager.on_term_data();
-        manager.attach(&id);
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
             .map(|path| path.join("node.exe"))
             .find(|path| path.is_file())
             .expect("node.exe required for the Windows PTY fixture");
-        manager
-            .write_term(
-                &id,
-                &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
-            )
-            .expect("start fixture");
-        let deadline = std::time::Instant::now() + Duration::from_secs(15);
-        let mut raw = String::new();
-        while std::time::Instant::now() < deadline {
-            if raw.contains("AFTER_MARKER") {
-                break;
-            }
-            match rx.try_recv() {
-                Ok((_, chunk)) => raw.push_str(&chunk),
-                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
-                    std::thread::sleep(Duration::from_millis(50))
-                }
-                Err(_) => break,
-            }
-        }
+        /* the marker comes last, so everything the fixture printed is captured */
+        let (id, _rx, raw) = start_fixture(&manager, &workspace, &node, &fixture, "AFTER_MARKER");
         manager.kill_term(&id);
-        assert!(raw.contains("AFTER_MARKER"), "fixture did not start");
         /* focus reporting survives, and it is what tells the renderer that a
         fullscreen program owns the viewport */
         assert!(
@@ -1493,32 +1528,8 @@ setTimeout(() => process.exit(0), 15000);
             }
             script.push_str("setTimeout(() => process.exit(0), 20000);\n");
             std::fs::write(&fixture, script).unwrap();
-            let id = manager
-                .create_term(&workspace.id, &workspace.path, Some("cmd"))
-                .expect("spawn");
-            let mut rx = manager.on_term_data();
-            manager.attach(&id);
-            manager
-                .write_term(
-                    &id,
-                    &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
-                )
-                .expect("start fixture");
-            let deadline = std::time::Instant::now() + Duration::from_secs(15);
-            let mut raw = String::new();
-            while std::time::Instant::now() < deadline && !raw.contains("FIXTURE_STARTED") {
-                match rx.try_recv() {
-                    Ok((_, chunk)) => raw.push_str(&chunk),
-                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
-                        std::thread::sleep(Duration::from_millis(50))
-                    }
-                    Err(_) => break,
-                }
-            }
-            assert!(
-                raw.contains("FIXTURE_STARTED"),
-                "{tag}: fixture did not start"
-            );
+            let (id, mut rx, mut raw) =
+                start_fixture(&manager, &workspace, &node, &fixture, "FIXTURE_STARTED");
             std::thread::sleep(Duration::from_millis(1000));
             /* the control, then both report formats */
             manager.write_term(&id, "Q").expect("write control");
@@ -1638,20 +1649,14 @@ setTimeout(() => process.exit(0), 20000);
 "#,
         )
         .unwrap();
-        let id = manager
-            .create_term(&workspace.id, &workspace.path, Some("cmd"))
-            .expect("spawn");
-        manager.attach(&id);
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
             .map(|path| path.join("node.exe"))
             .find(|path| path.is_file())
             .expect("node.exe required for the Windows PTY fixture");
-        manager
-            .write_term(
-                &id,
-                &format!("\"{}\" \"{}\"\r\n", node.display(), fixture.display()),
-            )
-            .expect("start fixture");
+        /* the fixture prints its report right after the marker, so a pane that
+        started is a pane that reported */
+        let (id, _rx, _raw) =
+            start_fixture(&manager, &workspace, &node, &fixture, "FIXTURE_STARTED");
         let deadline = std::time::Instant::now() + Duration::from_secs(15);
         let mut found = false;
         while std::time::Instant::now() < deadline {
@@ -1676,13 +1681,7 @@ setTimeout(() => process.exit(0), 20000);
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        let screen = manager
-            .snapshot_html(&id)
-            .map(|s| s.text)
-            .unwrap_or_default();
-        let fixture_started = screen.contains("FIXTURE_STARTED");
         manager.kill_term(&id);
-        assert!(fixture_started, "fixture did not start; screen: {screen:?}");
         assert!(
             page_received,
             "ConPTY did not deliver Page Up input, so the wheel fallback has nothing to send"
