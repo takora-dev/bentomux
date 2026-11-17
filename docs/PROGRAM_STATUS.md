@@ -48,22 +48,28 @@ On Windows, ConPTY may discard capability queries. New shells default
 is respected. Restart the pane to apply this setting.
 
 On Windows the wheel is rebuilt from the parts of the terminal that survive
-ConPTY. Both halves are measured, not assumed, by
+ConPTY. What survives is measured, not assumed, by
 `pty::tests::test_windows_conpty_strips_the_mouse_mode_switches` and
-`pty::tests::test_windows_conpty_never_delivers_a_mouse_report`:
+`pty::tests::test_windows_conpty_records_whether_a_mouse_report_arrives`:
 
-- **ConPTY drops the alternate screen** (`?1049h`) and the mouse-mode switches
-  (`?1000h`, `?1002h`, `?1003h`, `?1006h`) from the program's output. A
-  fullscreen program therefore stays in the normal buffer, and its redraws land
-  in xterm's history rather than in a transcript of its own. Focus reporting
-  (`?1004h`) survives, which is what marks a program as owning the screen; a
-  program that tracks the mouse but never asks for focus is recognised by its
-  mouse-mode request, which xterm does receive.
-- **A mouse report never reaches the program**, in any shape: the console host
-  parses the input stream and drops it. This is not a matter of which mouse
-  mode is active, of the report format (SGR or X10), or of how the bytes are
-  written. The same test sends a plain letter first, so the finding is about
-  the report and not about a broken pipe.
+- **ConPTY drops the mouse-mode switches** (`?1000h`, `?1002h`, `?1003h`,
+  `?1006h`) from the program's output, so xterm never learns that the program
+  wants mouse reports and never sends one. Every build tested does this. Focus
+  reporting (`?1004h`) survives, which is what marks a program as owning the
+  screen; a program that tracks the mouse without asking for focus is
+  recognised by its mouse-mode request.
+- **The alternate screen** (`?1049h`) is not a reliable signal and nothing is
+  decided from it: conhost on Windows 10/11 strips it, the newer conhost on the
+  CI runner forwards it. A fullscreen program therefore stays in xterm's normal
+  buffer on some builds and gets a real alternate screen on others, and its
+  redraws land in the scrollback either way. The test prints which one it saw
+  instead of failing on it.
+- **Whether the input path would carry a mouse report** is also a property of
+  the build: the conhost this was first measured on drops SGR and X10 both, the
+  newer one delivers them. That does not move the renderer, because a report is
+  only sent by a client that saw the program's switch, and no build forwards
+  that switch. The test prints what the build did and fails only when the pipe
+  itself is broken.
 
 The renderer answers with keys instead, since those ConPTY does deliver:
 
@@ -74,8 +80,10 @@ The renderer answers with keys instead, since those ConPTY does deliver:
   outside fullscreen), and codex carries `page_up` / `page_down` bindings too.
   A program that binds neither ignores the key, which leaves that pane exactly
   as it was before — not scrollable by mouse, and no worse. The gate is a
-  platform test on Windows, not a measurement, so if ConPTY ever forwards
-  mouse input this fallback has to be removed rather than kept.
+  platform test on Windows, not a measurement, so the fallback has to go if
+  ConPTY ever starts forwarding the mouse-mode switches: the assertion in
+  `test_windows_conpty_strips_the_mouse_mode_switches` is the tripwire, and it
+  fails with that instruction when it fires.
 - **A click** on a clickable control becomes the key the program binds for the
   same action. Pi's "Jump to latest message" hint is `ctrl+end`
   (`tui.altScreen.bottom`), so clicking the hint sends `ctrl+end`.

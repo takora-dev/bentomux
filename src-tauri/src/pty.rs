@@ -1431,19 +1431,24 @@ setTimeout(() => process.exit(0), 15000);
                 "ConPTY now forwards {seq:?}; the renderer can use real mouse reports"
             );
         }
-        /* The alternate screen goes too, which is why a fullscreen program
-        stays in the normal buffer: its redraws land in xterm's history rather
-        than in a transcript of its own. Focus reporting is then the only
-        switch left that marks the program owning the viewport. */
-        assert!(
-            !raw.contains("\x1b[?1049h"),
-            "ConPTY now forwards the alternate screen; the renderer can stop \
-             treating focus reporting as the mark of a viewport owner"
+        /* The alternate screen is the one switch whose fate differs between
+        Windows builds: conhost on Windows 10/11 strips it, the newer conhost
+        on the Windows Server runner forwards it. Recorded, not asserted — the
+        renderer decides nothing from it (a fullscreen program scrolls the same
+        either way, and the wheel guard reads the modes below). */
+        println!(
+            "alternate screen forwarded: {}",
+            raw.contains("\x1b[?1049h")
         );
     }
 
-    /* The input side of the same problem: does a mouse report ever reach
-    the child?
+    /* Whether a mouse report reaches the child is a property of the Windows
+    build, not of the app: the conhost this was first measured on drops the
+    report, and the newer conhost on the Windows Server runner delivers it.
+    Neither answer moves the renderer, because xterm only sends a report for a
+    program whose mouse-mode switch reached it, and the test above asserts that
+    switch never does. This probe records which way a build behaves and fails
+    only when the pipe itself is broken.
 
     The measurement matters here, twice over. The daemon's screen
     snapshot shows only the visible rows, so an echo that scrolled out of
@@ -1453,11 +1458,11 @@ setTimeout(() => process.exit(0), 15000);
     faithful record: the child echoes the bytes it read, and the daemon
     forwards every byte the child wrote.
 
-    A plain letter is sent first as the control, so "the report never
-    arrived" is a statement about the report and not about the pipe. */
+    A plain letter is sent first as the control, so a "no" is a statement
+    about the report and not about the pipe. */
     #[cfg(windows)]
     #[test]
-    fn test_windows_conpty_never_delivers_a_mouse_report() {
+    fn test_windows_conpty_records_whether_a_mouse_report_arrives() {
         let (_host, manager) = test_manager("windows-mouse-in");
         let workspace = ws("windows-mouse-in");
         let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
@@ -1532,9 +1537,10 @@ setTimeout(() => process.exit(0), 15000);
                 raw.contains("E:51"),
                 "{tag}: the control letter did not arrive, so the pipe is broken"
             );
-            assert!(
-                !raw.contains(&sgr_hex) && !raw.contains(&x10_hex),
-                "{tag}: ConPTY delivered a mouse report; the click path can be restored"
+            println!(
+                "{tag}: report reached the child: sgr={} x10={}",
+                raw.contains(&sgr_hex),
+                raw.contains(&x10_hex)
             );
         }
     }
