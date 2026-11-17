@@ -36,7 +36,7 @@ Bentomux is a desktop app for managing AI agent runtime workspaces. This repo (`
 ### Stack
 
 - **Frontend:** Vanilla TypeScript + Vite, xterm.js (`@xterm/xterm` + `addon-fit`/`addon-web-links`), Shiki for highlighting. No framework.
-- **Backend:** Rust + Tauri 2.1, `tokio` (full), `portable-pty`, `sysinfo`, `notify`, `axum` (ws), `rfd` (native folder picker), `serde`/`serde_yaml`/`toml`.
+- **Backend:** Rust + Tauri 2.1, `tokio` (full), `portable-pty`, `sysinfo`, `notify`, `axum` (ws), `rfd` (native folder picker), `serde`/`toml`.
 - **Build:** Vite builds two pages to `out/renderer/`; Tauri loads `http://localhost:5173` in dev, `../out/renderer` in prod (`src-tauri/tauri.conf.json`).
 
 ### Project Layout
@@ -87,7 +87,7 @@ Plain TS modules in `src/src/` — no bundled framework. Two windows share the s
 | `agent_hooks.rs` | Hook wiring for agents |
 | `git.rs` | Git file watching via `notify` |
 | `overlay.rs` | Approval overlay window management (`OverlaySize`) |
-| `remote.rs` | Remote monitor (axum ws + `tokio-tungstenite`, QR via `qrcode`, `local-ip-address`) |
+| `remote.rs` | Remote monitor (axum ws + `tokio-tungstenite`, QR via `qrcode`) |
 | `runtime.rs` | Headless screen feed + process poller (`sysinfo`) |
 
 Identifier: `app.bentomux.desktop`. Capabilities: `core:default`, `core:window:default`, `core:event:default` for windows `main` and `approval-overlay` (`src-tauri/capabilities/default.json`). CSP is **on** and strict (`src-tauri/tauri.conf.json` → `app.security.csp`): `default-src 'self'`, no `unsafe-eval`, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`. Plugin origins are added to `script-src`/`style-src`/`connect-src` by `scripts/gen-plugin-csp.mjs`, which CI checks — a new plugin origin means regenerating that list, not editing the config by hand. `style-src` carries `'unsafe-inline'` because xterm and Shiki set inline styles; `npm run check:csp-inline-styles` guards that.

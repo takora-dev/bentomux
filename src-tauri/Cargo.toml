@@ -28,7 +28,6 @@ axum = { version = "0.7", features = ["ws"] }
 tokio-tungstenite = "0.24"
 futures-util = "0.3"
 qrcode = { version = "0.14", features = ["svg"] }
-local-ip-address = "0.6"
 base64 = "0.22"
 rand = "0.8"
 chrono = "0.4"
@@ -40,8 +39,7 @@ rfd = "0.15"
 # Screen buffer parsing (pure-Rust option for agent state detection)
 vt100 = "0.15"
 
-# YAML/TOML parsing for agent configs
-serde_yaml = "0.9"
+# TOML parsing for agent configs
 toml = "0.8"
 # manifest rule matching (screen/line regexes)
 regex = "1"
