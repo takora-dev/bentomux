@@ -981,7 +981,10 @@ mod tests {
         }
     }
 
-    /* the executable of an installed agent, if this machine has it */
+    /* the executable of an installed agent, if this machine has it. Only the
+    Windows fixture uses it: ConPTY drops the mouse switches, so that probe has
+    to read the agent's raw stream instead of trusting what xterm saw. */
+    #[cfg(windows)]
     fn which_agent(name: &str) -> Option<std::path::PathBuf> {
         let path = std::env::var_os("PATH")?;
         std::env::split_paths(&path)
